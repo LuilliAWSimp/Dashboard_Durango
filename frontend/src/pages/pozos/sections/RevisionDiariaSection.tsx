@@ -24,6 +24,7 @@ const axisColor = '#b9e7ff';
 const gridColor = 'rgba(56,189,248,0.14)';
 
 type PriorityLevel = 'critical' | 'warning' | 'normal';
+type PriorityCategory = 'pozos' | 'lineas' | 'flujos' | 'balance' | 'general';
 
 interface PriorityRow {
   target: string;
@@ -33,6 +34,7 @@ interface PriorityRow {
   owner: string;
   priority: string;
   level: PriorityLevel;
+  category: PriorityCategory;
 }
 
 interface DiagnosticRow {
@@ -65,7 +67,7 @@ function flowValue(row: FlexibleRecord): number {
 }
 
 function hasReading(row: FlexibleRecord): boolean {
-  return row.flow_lps !== null || row.flujo_lps !== null || row.flow !== null || row.totalizador_m3 !== null || row.total_m3 !== null;
+  return [row.flow_lps, row.flujo_lps, row.flow, row.totalizador_m3, row.total_m3].some((value) => value !== null && value !== undefined && value !== '');
 }
 
 function formatNumber(value: unknown, decimals = 1): string {
@@ -85,11 +87,11 @@ function buildPriorities(dashboard: DashboardData | null): PriorityRow[] {
     const flow = asNumber(well.flow ?? well.flujo_salida ?? well.flujo_entrada);
     const amps = well.amps === null || well.amps === undefined ? null : asNumber(well.amps);
     if (String(well.communicationType || '').includes('communication') || String(well.estado_comunicacion || '').toLowerCase().includes('sin')) {
-      priorities.push({ target: name, type: 'Pozo sin lectura reciente', description: 'Validar comunicación con BOS/SCADA.', metric: String(well.ultima_lectura || 'Sin lectura'), owner: 'Operación', priority: 'Alta', level: 'warning' });
+      priorities.push({ target: name, type: 'Pozo sin lectura reciente', description: 'Validar comunicación con BOS/SCADA.', metric: String(well.ultima_lectura || 'Sin lectura'), owner: 'Operación', priority: 'Alta', level: 'warning', category: 'pozos' });
     } else if (amps && amps > 0 && flow <= 0) {
-      priorities.push({ target: name, type: 'Pozo encendido sin flujo', description: 'Hay amperaje disponible y flujo instantáneo en 0 L/s.', metric: `${formatNumber(amps, 2)} A · ${formatNumber(flow)} L/s`, owner: 'Operación', priority: 'Crítica', level: 'critical' });
+      priorities.push({ target: name, type: 'Pozo encendido sin flujo', description: 'Hay amperaje disponible y flujo instantáneo en 0 L/s.', metric: `${formatNumber(amps, 2)} A · ${formatNumber(flow)} L/s`, owner: 'Operación', priority: 'Crítica', level: 'critical', category: 'pozos' });
     } else if (flow <= 0) {
-      priorities.push({ target: name, type: 'Pozo sin flujo', description: 'Última lectura disponible sin flujo actual.', metric: `${formatNumber(flow)} L/s`, owner: 'Operación', priority: 'Media', level: 'warning' });
+      priorities.push({ target: name, type: 'Pozo sin flujo', description: 'Última lectura disponible sin flujo actual.', metric: `${formatNumber(flow)} L/s`, owner: 'Operación', priority: 'Media', level: 'warning', category: 'pozos' });
     }
   });
 
@@ -98,9 +100,9 @@ function buildPriorities(dashboard: DashboardData | null): PriorityRow[] {
     const flow = flowValue(line);
     const total = asNumber(line.totalizador_m3 ?? line.total_m3);
     if (!hasReading(line)) {
-      priorities.push({ target: name, type: 'Línea sin lectura', description: 'No hay flujo ni totalizador disponible.', metric: 'Sin lectura BOS', owner: 'Operación', priority: 'Alta', level: 'warning' });
+      priorities.push({ target: name, type: 'Línea sin lectura', description: 'No hay flujo ni totalizador disponible.', metric: 'Sin lectura BOS', owner: 'Operación', priority: 'Alta', level: 'warning', category: 'lineas' });
     } else if (flow <= 0 && total > 0) {
-      priorities.push({ target: name, type: 'Línea sin flujo', description: 'Totalizador disponible con flujo actual en 0 L/s.', metric: `${formatNumber(total, 0)} m³`, owner: 'Operación', priority: 'Media', level: 'warning' });
+      priorities.push({ target: name, type: 'Línea sin flujo', description: 'Totalizador disponible con flujo actual en 0 L/s.', metric: `${formatNumber(total, 0)} m³`, owner: 'Operación', priority: 'Media', level: 'warning', category: 'lineas' });
     }
   });
 
@@ -110,12 +112,12 @@ function buildPriorities(dashboard: DashboardData | null): PriorityRow[] {
     const value = flowValue(flow);
     const total = asNumber(flow.totalizador_m3 ?? flow.total_m3);
     if (!hasReading(flow)) {
-      priorities.push({ target: name, type: 'Sensor sin comunicación', description: 'No hay lectura disponible para este punto.', metric: sensorId ? `Sensor ${sensorId}` : 'Sensor sin ID', owner: 'Operación', priority: 'Alta', level: 'warning' });
+      priorities.push({ target: name, type: 'Sensor sin comunicación', description: 'No hay lectura disponible para este punto.', metric: sensorId ? `Sensor ${sensorId}` : 'Sensor sin ID', owner: 'Operación', priority: 'Alta', level: 'warning', category: 'flujos' });
     } else if (value <= 0 && total > 0) {
-      priorities.push({ target: name, type: 'Flujo 0 con totalizador', description: 'El totalizador existe pero el flujo actual es 0 L/s.', metric: `${formatNumber(total, 0)} m³`, owner: 'Operación', priority: 'Media', level: 'warning' });
+      priorities.push({ target: name, type: 'Flujo 0 con totalizador', description: 'El totalizador existe pero el flujo actual es 0 L/s.', metric: `${formatNumber(total, 0)} m³`, owner: 'Operación', priority: 'Media', level: 'warning', category: 'flujos' });
     }
     if (sensorId === 3006) {
-      priorities.push({ target: name, type: 'Jarabes pendiente', description: 'Punto reportado como Jarabes; falta confirmar clasificación operativa.', metric: 'Sensor 3006', owner: 'Operación', priority: 'Media', level: 'warning' });
+      priorities.push({ target: name, type: 'Jarabes pendiente', description: 'Punto reportado como Jarabes; falta confirmar clasificación operativa.', metric: 'Sensor 3006', owner: 'Operación', priority: 'Media', level: 'warning', category: 'flujos' });
     }
   });
 
@@ -125,15 +127,30 @@ function buildPriorities(dashboard: DashboardData | null): PriorityRow[] {
     if (entrada > 0) {
       const diffPct = Math.abs(entrada - salida) / entrada;
       if (diffPct >= 0.25) {
-        priorities.push({ target: String(row.label || 'Balance de agua'), type: 'Diferencia relevante', description: 'Entrada y salida no coinciden dentro del margen básico de revisión.', metric: `${formatNumber(entrada - salida, 2)} L/s`, owner: 'Operación', priority: 'Media', level: 'warning' });
+        priorities.push({ target: String(row.label || 'Balance de agua'), type: 'Diferencia relevante', description: 'Entrada y salida no coinciden dentro del margen básico de revisión.', metric: `${formatNumber(entrada - salida, 2)} L/s`, owner: 'Operación', priority: 'Media', level: 'warning', category: 'balance' });
       }
     }
   });
 
   if (!priorities.length) {
-    priorities.push({ target: 'Operación del día', type: 'Sin alertas críticas', description: 'No se detectaron incidencias básicas con los datos disponibles.', metric: 'Lecturas BOS disponibles', owner: 'Operación', priority: 'Normal', level: 'normal' });
+    priorities.push({ target: 'Operación del día', type: 'Sin alertas críticas', description: 'No se detectaron incidencias básicas con los datos disponibles.', metric: 'Lecturas BOS disponibles', owner: 'Operación', priority: 'Normal', level: 'normal', category: 'general' });
   }
   return priorities.slice(0, 8);
+}
+
+
+function priorityBreakdown(priorities: PriorityRow[]): string {
+  const counts = priorities.reduce((acc, item) => {
+    acc[item.category] = (acc[item.category] || 0) + 1;
+    return acc;
+  }, {} as Record<PriorityCategory, number>);
+  const parts = [
+    counts.pozos ? `${counts.pozos} pozos` : '',
+    counts.lineas ? `${counts.lineas} líneas` : '',
+    counts.flujos ? `${counts.flujos} lavadoras/Jarabes` : '',
+    counts.balance ? `${counts.balance} balance` : '',
+  ].filter(Boolean);
+  return parts.length ? parts.join(' · ') : 'Sin alertas operativas abiertas';
 }
 
 function buildDiagnostics(dashboard: DashboardData | null): DiagnosticRow[] {
@@ -170,8 +187,9 @@ function RevisionDiariaSection() {
     reason: (row.fullName || row.name) as string,
     action: 'Ranking por flujo real; eficiencia kWh/m³ pendiente de fuente energética confiable.',
   })).filter((row) => row.score || row.reason);
+  const alertBreakdown = priorityBreakdown(priorities);
   const cards = [
-    { label: 'Prioridades abiertas', value: String(priorities.length), unit: '', trend: priorities[0]?.type || 'Sin alertas críticas', accent: 'red' },
+    { label: 'Alertas operativas', value: String(priorities.filter((item) => item.level !== 'normal').length), unit: '', trend: alertBreakdown, accent: 'red' },
     { label: 'Pozos revisados', value: String(toArray(dashboard?.wells).length), unit: 'pozos', trend: 'Datos reales BOS', accent: 'cyan' },
     { label: 'Líneas revisadas', value: String(toArray(dashboard?.production_lines).length), unit: 'líneas', trend: 'Datos reales BOS', accent: 'teal' },
     { label: 'Lavadoras/Jarabes', value: String(flows.length), unit: 'puntos', trend: 'Jarabes pendiente si aparece sensor 3006', accent: 'blue' },
@@ -201,7 +219,7 @@ function RevisionDiariaSection() {
 
       <section className="content-grid daily-review-main-grid">
         <div className="panel fade-up daily-priority-panel">
-          <PanelHeader title="Prioridades del día" subtitle="Reglas simples: sin lectura, flujo cero, pozo sin flujo o Jarabes pendiente" />
+          <PanelHeader title="Prioridades del día" subtitle={`Alertas derivadas por tipo de activo: ${alertBreakdown}`} />
           <div className="daily-priority-list">
             {priorities.map((item, index) => (
               <article className={item.level} key={`${item.type}-${item.target}-${index}`}>

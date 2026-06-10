@@ -1051,7 +1051,7 @@ def _build_wells(
             'bos_sensor_mapping_source': slot.get('source'),
             'sensors': sensors,
             'energy_water_source': 'iot.sp_get_energy_water' if ew else None,
-            'diagnosis': 'Estado/flujo desde dbo.SensorsBOS_Pozo; consumo diario desde iot.sp_get_energy_water.' if ew else ('Lectura y periodo desde dbo.SensorsBOS_Pozo con delta de totalizadores BOS.' if period_source == 'bos_totalizer_delta' else 'Lectura instantanea desde dbo.SensorsBOS_Pozo; periodo m3/kWh no disponible sin SP o totalizadores validos.'),
+            'diagnosis': 'Estado y flujo desde monitoreo operativo; consumo diario desde fuente energetica bajo demanda.' if ew else ('Lectura y periodo desde monitoreo operativo con delta de totalizadores.' if period_source == 'bos_totalizer_delta' else 'Lectura instantanea desde monitoreo operativo; volumen de periodo/energia no disponible sin totalizadores validos o fuente energetica confirmada.'),
         })
     return wells
 
@@ -1192,7 +1192,7 @@ def _flow_item_metadata(index: int, catalog: dict[int, dict[str, Any]], sensor_i
     mapped = FLOW_SENSOR_BY_ID.get(sensor_id)
     # Usar primero el nombre operativo validado para Durango.
     name = str((mapped or {}).get('name') or meta.get('name') or meta.get('external_code') or f'Flujo {index + 1}')
-    location = str(meta.get('location') or f'Sensor {sensor_id} · dbo.SensorsBOS_Tanque')
+    location = str(meta.get('location') or f'Sensor {sensor_id} · punto auxiliar BOS')
     return sensor_id, name, location
 
 
@@ -1246,7 +1246,7 @@ def _build_flows(
             'source_key': f'TANQUE_FLOW_IN[{index}]',
             'category': (FLOW_SENSOR_BY_ID.get(sensor_id) or {}).get('category') or ('lavadora' if sensor_id in {3002, 3004} else 'pendiente'),
             'classification_note': 'Jarabes pendiente de validar clasificacion operativa.' if sensor_id == 3006 else '',
-            'diagnosis': (f'Lectura real desde dbo.SensorsBOS_Tanque TANQUE_FLOW_IN[{index}] / sensor_id {sensor_id}; periodo desde delta BOS.' if period_available else f'Lectura instantanea real desde dbo.SensorsBOS_Tanque TANQUE_FLOW_IN[{index}] / sensor_id {sensor_id}; periodo no disponible sin totalizadores validos.') if has_reading else f'Sin lectura disponible para sensor_id {sensor_id}.',
+            'diagnosis': (f'Lectura real del punto auxiliar sensor {sensor_id}; periodo desde delta de totalizador.' if period_available else f'Lectura instantanea real del punto auxiliar sensor {sensor_id}; periodo no disponible sin totalizadores validos.') if has_reading else f'Sin lectura disponible para sensor {sensor_id}.',
         })
     return flows
 
@@ -1510,11 +1510,11 @@ def _cards(wells: list[dict[str, Any]], lines: list[dict[str, Any]], tank_inputs
     active_lines = sum(1 for item in lines if item.get('active'))
     active_tank = sum(1 for item in tank_inputs if item.get('active'))
     return [
-        {'label': 'Pozos operando', 'value': f'{active_wells}/{len(wells)}', 'unit': 'pozos', 'trend': 'dbo.SensorsBOS_Pozo', 'accent': 'blue'},
-        {'label': 'Flujo salida pozos', 'value': f'{total_flow_out:,.2f}', 'unit': 'L/s', 'trend': 'Suma FLOW_OUT', 'accent': 'cyan'},
-        {'label': 'Flujo entrada tanque', 'value': f'{total_flow_in:,.2f}', 'unit': 'L/s', 'trend': 'Suma FLOW_IN', 'accent': 'teal'},
-        {'label': 'Líneas activas', 'value': f'{active_lines}/{len(lines)}', 'unit': 'líneas', 'trend': 'dbo.SensorsBOS_Linea', 'accent': 'sky'},
-        {'label': 'Llegadas a tanque', 'value': f'{active_tank}/{len(tank_inputs)}', 'unit': 'medidores', 'trend': 'dbo.SensorsBOS_Tanque', 'accent': 'indigo'},
+        {'label': 'Pozos operando', 'value': f'{active_wells}/{len(wells)}', 'unit': 'pozos', 'trend': 'Datos desde monitoreo', 'accent': 'blue'},
+        {'label': 'Flujo salida pozos', 'value': f'{total_flow_out:,.2f}', 'unit': 'L/s', 'trend': 'Lectura actual de salida', 'accent': 'cyan'},
+        {'label': 'Flujo entrada pozos', 'value': f'{total_flow_in:,.2f}', 'unit': 'L/s', 'trend': 'Lectura actual de entrada', 'accent': 'teal'},
+        {'label': 'Líneas activas', 'value': f'{active_lines}/{len(lines)}', 'unit': 'líneas', 'trend': 'Datos desde monitoreo', 'accent': 'sky'},
+        {'label': 'Lavadoras/Jarabes', 'value': f'{active_tank}/{len(tank_inputs)}', 'unit': 'puntos', 'trend': 'Datos auxiliares BOS', 'accent': 'indigo'},
     ]
 
 

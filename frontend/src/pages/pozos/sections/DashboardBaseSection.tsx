@@ -336,7 +336,7 @@ export default function DashboardBaseSection() {
 
       <section className="content-grid resumen-bottom-grid">
         <div className="panel summary-panel fade-up resumen-tanks-panel">
-          <PanelHeader title="Lavadoras y Jarabes" subtitle="Puntos reales de dbo.SensorsBOS_Tanque; Jarabes queda pendiente de clasificación" />
+          <PanelHeader title="Lavadoras y Jarabes" subtitle="Puntos auxiliares reales; Jarabes queda pendiente de clasificación" />
           <div className="tank-summary-grid">
             {flowSummary.length ? flowSummary.map((item) => (
               <article className="tank-summary-card" key={`${item.sensorId}-${item.name}`}>

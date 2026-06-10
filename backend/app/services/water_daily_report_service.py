@@ -42,17 +42,17 @@ def _missing(payload: dict[str, Any], flow_rows: list[dict[str, Any]]) -> list[d
     if not payload.get('wells'):
         missing.append({
             'name': 'Pozos Durango',
-            'detail': 'No se recibieron lecturas de dbo.SensorsBOS_Pozo para el periodo consultado.',
+            'detail': 'No se recibieron lecturas operativas de pozos para el periodo consultado.',
         })
     if not payload.get('production_lines'):
         missing.append({
             'name': 'Lineas Durango',
-            'detail': 'No se recibieron lecturas de dbo.SensorsBOS_Linea para el periodo consultado.',
+            'detail': 'No se recibieron lecturas operativas de lineas para el periodo consultado.',
         })
     if not flow_rows:
         missing.append({
             'name': 'Lavadoras y Jarabes',
-            'detail': 'No se recibieron lecturas de dbo.SensorsBOS_Tanque para lavadoras/Jarabes.',
+            'detail': 'No se recibieron lecturas de puntos auxiliares para lavadoras/Jarabes.',
         })
 
     if any(int(_num(item.get('sensor_id'), 0)) == 3006 for item in flow_rows):
