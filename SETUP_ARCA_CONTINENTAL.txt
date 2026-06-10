@@ -1,0 +1,31 @@
+ARCA CONTINENTAL - Setup rapido
+
+1. Backend (.env)
+   - DB_MODE=sqlserver
+   - SQLSERVER_HOST=SERVER-SCADA\SQLSCADA
+   - SQLSERVER_DATABASE=ARCA
+   - SQLSERVER_USE_WINDOWS_AUTH=true
+   - SQLSERVER_SOURCE_MODE=table
+   - SQLSERVER_SOURCE_TABLE=dbo.v_dashboard_measurements
+
+2. SQL Server
+   - Ejecuta el script database/sqlserver/create_dashboard_views_arca.sql dentro de ARCA.
+   - Verifica que exista la base ARCA en la instancia SERVER-SCADA\SQLSCADA.
+   - Verifica: SELECT TOP 10 * FROM dbo.v_dashboard_measurements;
+
+3. Backend
+   cd backend
+   python -m venv .venv
+   .venv\Scripts\activate
+   pip install -r requirements.txt
+   python -m uvicorn app.main:app --reload
+
+4. Frontend
+   cd frontend
+   npm install
+   npm run dev
+
+5. Si quieres usar usuario/password SQL
+   - SQLSERVER_USE_WINDOWS_AUTH=false
+   - SQLSERVER_USERNAME=<usuario>
+   - SQLSERVER_PASSWORD=<password>

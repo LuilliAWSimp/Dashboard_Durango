@@ -1,0 +1,95 @@
+{
+  "name": "Fuente demo de pozos Zapopan",
+  "description": "Ejemplo controlado para cargar datos hidráulicos sin ejecutar SQL desde el frontend.",
+  "wells": [
+    {
+      "id": "pozo-1",
+      "name": "Pozo 1",
+      "entry_m3": 312,
+      "supply_hours": 24,
+      "active": true,
+      "sensors": [
+        { "id": "P1-FLOW", "name": "Flujo Pozo 1", "type": "flow", "unit": "m³/h", "value": 13 },
+        { "id": "P1-LEVEL", "name": "Nivel Pozo 1", "type": "level", "unit": "m", "value": 8.4 }
+      ]
+    },
+    {
+      "id": "pozo-2",
+      "name": "Pozo 2",
+      "entry_m3": 284,
+      "supply_hours": 24,
+      "active": true,
+      "sensors": [
+        { "id": "P2-FLOW", "name": "Flujo Pozo 2", "type": "flow", "unit": "m³/h", "value": 11.8 }
+      ]
+    },
+    {
+      "id": "pozo-3",
+      "name": "Pozo 3",
+      "entry_m3": 356,
+      "supply_hours": 21,
+      "active": true,
+      "sensors": [
+        { "id": "P3-FLOW", "name": "Flujo Pozo 3", "type": "flow", "unit": "m³/h", "value": 14.8 }
+      ]
+    },
+    {
+      "id": "pozo-4",
+      "name": "Pozo 4",
+      "entry_m3": 332,
+      "supply_hours": 24,
+      "active": true,
+      "sensors": [
+        { "id": "P4-FLOW", "name": "Flujo Pozo 4", "type": "flow", "unit": "m³/h", "value": 13.8 }
+      ]
+    }
+  ],
+  "water_consumption": [
+    { "name": "Tratada", "value": 742, "unit": "m³", "detail": "Consumo diario" },
+    { "name": "Suave", "value": 198, "unit": "m³", "detail": "Consumo diario" },
+    { "name": "Cruda", "value": 226, "unit": "m³", "detail": "Consumo diario" }
+  ],
+  "tank_levels": [
+    { "name": "Tanque tratado", "volume_m3": 420, "height_m": 4.8, "capacity_m3": 500, "fill_pct": 84, "status": "Normal" },
+    { "name": "Tanque suave", "volume_m3": 188, "height_m": 3.2, "capacity_m3": 260, "fill_pct": 72, "status": "Normal" },
+    { "name": "Tanque crudo", "volume_m3": 144, "height_m": 2.1, "capacity_m3": 300, "fill_pct": 48, "status": "Atención" }
+  ],
+  "hourly_flow": [
+    { "hour": "00:00", "entrada": 48, "tratada": 31, "suave": 8, "cruda": 9 },
+    { "hour": "04:00", "entrada": 52, "tratada": 29, "suave": 7, "cruda": 10 },
+    { "hour": "08:00", "entrada": 66, "tratada": 42, "suave": 12, "cruda": 12 },
+    { "hour": "12:00", "entrada": 74, "tratada": 45, "suave": 14, "cruda": 13 },
+    { "hour": "16:00", "entrada": 70, "tratada": 43, "suave": 13, "cruda": 12 },
+    { "hour": "20:00", "entrada": 58, "tratada": 35, "suave": 10, "cruda": 11 }
+  ],
+  "filters_vs_treated": [
+    { "day": "Lun", "filtros": 812, "tratada": 742 },
+    { "day": "Mar", "filtros": 798, "tratada": 733 },
+    { "day": "Mié", "filtros": 830, "tratada": 751 },
+    { "day": "Jue", "filtros": 821, "tratada": 744 },
+    { "day": "Vie", "filtros": 815, "tratada": 739 }
+  ],
+  "cip_weekly": [
+    { "day": "Lun", "hours": 2.1 },
+    { "day": "Mar", "hours": 2.4 },
+    { "day": "Mié", "hours": 1.9 },
+    { "day": "Jue", "hours": 2.6 },
+    { "day": "Vie", "hours": 2.3 }
+  ],
+  "entry_vs_exit": [
+    { "label": "Hoy", "entrada": 1284, "salida": 1166 },
+    { "label": "Ayer", "entrada": 1248, "salida": 1189 }
+  ],
+  "monthly_averages": [
+    { "month": "Ene", "entrada": 1260, "tratada": 718, "cruda": 232, "suave": 186 },
+    { "month": "Feb", "entrada": 1275, "tratada": 731, "cruda": 228, "suave": 194 },
+    { "month": "Mar", "entrada": 1302, "tratada": 745, "cruda": 221, "suave": 201 },
+    { "month": "Abr", "entrada": 1284, "tratada": 742, "cruda": 226, "suave": 198 }
+  ],
+  "report_modules": [
+    "Dashboard base de pozos",
+    "Reporte de entradas vs salidas",
+    "Reporte semanal CIP",
+    "Monitoreo UV (fase siguiente)"
+  ]
+}

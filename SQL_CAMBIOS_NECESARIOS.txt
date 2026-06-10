@@ -1,0 +1,7 @@
+No necesitas cambiar SQL para corregir el bug de capacidad ni el error Decimal vs float.
+
+SQL opcional para acelerar la navegación si dbo.v_dashboard_measurements es una tabla física:
+CREATE INDEX IX_v_dashboard_measurements_section_system_timestamp
+ON dbo.v_dashboard_measurements ([section], [system_name], [timestamp]);
+
+Si dbo.v_dashboard_measurements es una vista, crea índices en sus tablas base sobre section, system_name y timestamp.

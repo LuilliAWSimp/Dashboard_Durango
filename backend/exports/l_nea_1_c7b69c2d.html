@@ -1,0 +1,55 @@
+
+    <html>
+    <head>
+      <meta charset='utf-8'>
+      <title>Línea 1</title>
+      <style>
+        body { font-family: Inter, Arial, sans-serif; background:#07101e; color:#f8fbff; padding:32px; }
+        .shell { max-width: 1180px; margin:0 auto; }
+        .hero { background: linear-gradient(135deg, rgba(233,8,44,.18), rgba(255,255,255,.03) 55%, rgba(138,61,38,.16)); border:1px solid rgba(233,8,44,.18); border-radius:24px; padding:28px; margin-bottom:24px; }
+        .eyebrow { color:#ffd5dd; font-size:12px; text-transform:uppercase; letter-spacing:.18em; }
+        h1 { margin:10px 0 4px; font-size:34px; }
+        p { color:#c6d3e6; }
+        .grid { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin:20px 0 26px; }
+        .kpi { background:#0f1728; border:1px solid rgba(233,8,44,.14); border-radius:18px; padding:18px; }
+        .kpi-label { font-size:12px; text-transform:uppercase; letter-spacing:.14em; color:#c9d5ea; }
+        .kpi-value { font-size:30px; font-weight:800; margin-top:10px; }
+        .kpi-value span { font-size:15px; color:#dfe7f5; margin-left:4px; }
+        .kpi-copy { color:#b9c6dc; margin-top:8px; font-size:14px; }
+        .row { display:grid; grid-template-columns:1.2fr .8fr; gap:16px; margin-bottom:24px; }
+        .panel { background:#0f1728; border:1px solid rgba(255,255,255,.06); border-radius:22px; padding:20px; }
+        .panel h2 { margin:0 0 12px; font-size:20px; }
+        table { width:100%; border-collapse:collapse; overflow:hidden; }
+        th { background:#a0021c; color:#fff; text-transform:uppercase; letter-spacing:.12em; font-size:11px; }
+        th, td { padding:12px 10px; border-bottom:1px solid #24314c; text-align:left; }
+        .text-right { text-align:right; }
+      </style>
+    </head>
+    <body>
+      <div class='shell'>
+        <section class='hero'>
+          <div class='eyebrow'>Sistema de energía industrial</div>
+          <h1>Línea 1</h1>
+          <p>Consumo total y calidad de energía · Actualizado 2026-04-06 19:01:21</p>
+        </section>
+        <section class='grid'><article class='kpi'><div class='kpi-label'>Demanda Total</div><div class='kpi-value'>5251.04<span>kW</span></div><div class='kpi-copy'>Actual</div></article><article class='kpi'><div class='kpi-label'>Energía Hoy</div><div class='kpi-value'>5279.59<span>kWh</span></div><div class='kpi-copy'>Acumulado diario</div></article><article class='kpi'><div class='kpi-label'>Factor de Potencia</div><div class='kpi-value'>0.93<span>FP</span></div><div class='kpi-copy'>Promedio</div></article><article class='kpi'><div class='kpi-label'>Estado</div><div class='kpi-value'>NORMAL<span></span></div><div class='kpi-copy'>Lectura actual</div></article></section>
+        <section class='row'>
+          <div class='panel'>
+            <h2>Mediciones recientes</h2>
+            <table>
+              <thead><tr><th>Fecha</th><th>Sistema</th><th class='text-right'>kW</th><th class='text-right'>kWh</th><th class='text-right'>kVARh</th><th class='text-right'>Corriente</th><th class='text-right'>FP</th><th>Estado</th></tr></thead>
+              <tbody><tr><td>2026-03-31 00:00</td><td>Línea 1</td><td>136.29</td><td>131.86</td><td>19.22</td><td>375.76</td><td>0.904</td><td>NORMAL</td></tr><tr><td>2026-03-31 01:00</td><td>Línea 1</td><td>150.67</td><td>149.26</td><td>28.38</td><td>415.86</td><td>0.963</td><td>NORMAL</td></tr><tr><td>2026-03-31 02:00</td><td>Línea 1</td><td>179.55</td><td>187.83</td><td>40.04</td><td>492.47</td><td>0.894</td><td>NORMAL</td></tr><tr><td>2026-03-31 03:00</td><td>Línea 1</td><td>188.15</td><td>191.93</td><td>61.00</td><td>516.28</td><td>0.966</td><td>NORMAL</td></tr><tr><td>2026-03-31 04:00</td><td>Línea 1</td><td>197.09</td><td>200.30</td><td>57.92</td><td>539.79</td><td>0.919</td><td>NORMAL</td></tr><tr><td>2026-03-31 05:00</td><td>Línea 1</td><td>197.90</td><td>202.35</td><td>61.98</td><td>541.28</td><td>0.936</td><td>NORMAL</td></tr><tr><td>2026-03-31 06:00</td><td>Línea 1</td><td>224.28</td><td>212.00</td><td>58.10</td><td>614.28</td><td>0.953</td><td>NORMAL</td></tr><tr><td>2026-03-31 07:00</td><td>Línea 1</td><td>238.00</td><td>251.22</td><td>41.54</td><td>649.00</td><td>0.957</td><td>NORMAL</td></tr><tr><td>2026-03-31 08:00</td><td>Línea 1</td><td>258.12</td><td>246.18</td><td>63.48</td><td>704.92</td><td>0.930</td><td>ALERT</td></tr><tr><td>2026-03-31 09:00</td><td>Línea 1</td><td>253.89</td><td>241.34</td><td>70.47</td><td>700.83</td><td>0.933</td><td>ALERT</td></tr><tr><td>2026-03-31 10:00</td><td>Línea 1</td><td>259.48</td><td>271.20</td><td>68.14</td><td>711.98</td><td>0.894</td><td>ALERT</td></tr><tr><td>2026-03-31 11:00</td><td>Línea 1</td><td>251.80</td><td>245.56</td><td>36.31</td><td>695.58</td><td>0.884</td><td>NORMAL</td></tr><tr><td>2026-03-31 12:00</td><td>Línea 1</td><td>272.79</td><td>267.70</td><td>79.78</td><td>746.21</td><td>0.938</td><td>NORMAL</td></tr><tr><td>2026-03-31 13:00</td><td>Línea 1</td><td>269.44</td><td>270.07</td><td>45.05</td><td>735.63</td><td>0.893</td><td>NORMAL</td></tr><tr><td>2026-03-31 14:00</td><td>Línea 1</td><td>247.51</td><td>259.78</td><td>44.56</td><td>675.89</td><td>0.896</td><td>NORMAL</td></tr><tr><td>2026-03-31 15:00</td><td>Línea 1</td><td>254.52</td><td>250.72</td><td>65.91</td><td>697.62</td><td>0.929</td><td>NORMAL</td></tr></tbody>
+            </table>
+          </div>
+          <div class='panel'>
+            <h2>Top consumos</h2>
+            <table>
+              <thead><tr><th>Elemento</th><th class='text-right'>kWh</th></tr></thead>
+              <tbody><tr><td>Línea 1</td><td>5279.59</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </body>
+    </html>
+    

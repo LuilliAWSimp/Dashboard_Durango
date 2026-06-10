@@ -1,0 +1,299 @@
+
+    <html>
+    <head>
+      <meta charset='utf-8'>
+      <title>Subestación Eléctrica Principal</title>
+      <style>
+        body { font-family: Arial, sans-serif; background:#0b1020; color:#f1f5f9; padding:24px; }
+        .grid { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:24px; }
+        .card { background:#161f38; border:1px solid #263252; border-radius:16px; padding:16px; }
+        .table { width:100%; border-collapse:collapse; background:#0f172a; }
+        .table th,.table td { border:1px solid #334155; padding:8px; }
+      </style>
+    </head>
+    <body>
+      <h1>Subestación Eléctrica Principal</h1>
+      <p>Resumen operativo</p>
+      <div class='grid'><div class='card'><h3>Demanda Total</h3><p>2137.05 kW</p><small>Actual</small></div><div class='card'><h3>Energía Hoy</h3><p>5203.9 kWh</p><small>Acumulado diario</small></div><div class='card'><h3>Factor de Potencia</h3><p>0.93 FP</p><small>Promedio</small></div><div class='card'><h3>Costo Estimado</h3><p>14831.12 MXN</p><small>Tarifa estimada</small></div></div>
+      <table border="1" class="dataframe table">
+  <thead>
+    <tr style="text-align: right;">
+      <th>timestamp</th>
+      <th>section</th>
+      <th>system_name</th>
+      <th>kw</th>
+      <th>kwh</th>
+      <th>kvarh</th>
+      <th>voltage</th>
+      <th>current</th>
+      <th>power_factor</th>
+      <th>cost_mxn</th>
+      <th>status</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>2026-03-31 04:00:00</td>
+      <td>subestacion</td>
+      <td>Subestación Principal</td>
+      <td>194.57</td>
+      <td>196.34</td>
+      <td>59.58</td>
+      <td>472.00</td>
+      <td>535.89</td>
+      <td>0.965</td>
+      <td>559.57</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 05:00:00</td>
+      <td>subestacion</td>
+      <td>Subestación Principal</td>
+      <td>216.17</td>
+      <td>213.07</td>
+      <td>64.67</td>
+      <td>471.38</td>
+      <td>596.17</td>
+      <td>0.933</td>
+      <td>607.25</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 06:00:00</td>
+      <td>subestacion</td>
+      <td>Subestación Principal</td>
+      <td>212.94</td>
+      <td>222.24</td>
+      <td>42.16</td>
+      <td>475.32</td>
+      <td>582.39</td>
+      <td>0.917</td>
+      <td>633.38</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 07:00:00</td>
+      <td>subestacion</td>
+      <td>Subestación Principal</td>
+      <td>224.77</td>
+      <td>228.23</td>
+      <td>69.07</td>
+      <td>474.17</td>
+      <td>616.24</td>
+      <td>0.908</td>
+      <td>650.46</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 08:00:00</td>
+      <td>subestacion</td>
+      <td>Subestación Principal</td>
+      <td>256.86</td>
+      <td>257.52</td>
+      <td>57.28</td>
+      <td>476.71</td>
+      <td>700.46</td>
+      <td>0.885</td>
+      <td>733.93</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 09:00:00</td>
+      <td>subestacion</td>
+      <td>Subestación Principal</td>
+      <td>256.41</td>
+      <td>246.43</td>
+      <td>51.37</td>
+      <td>474.63</td>
+      <td>702.30</td>
+      <td>0.925</td>
+      <td>702.33</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 10:00:00</td>
+      <td>subestacion</td>
+      <td>Subestación Principal</td>
+      <td>251.29</td>
+      <td>256.42</td>
+      <td>74.16</td>
+      <td>474.91</td>
+      <td>687.87</td>
+      <td>0.942</td>
+      <td>730.80</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 11:00:00</td>
+      <td>subestacion</td>
+      <td>Subestación Principal</td>
+      <td>269.44</td>
+      <td>254.68</td>
+      <td>53.39</td>
+      <td>471.99</td>
+      <td>742.12</td>
+      <td>0.947</td>
+      <td>725.84</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 12:00:00</td>
+      <td>subestacion</td>
+      <td>Subestación Principal</td>
+      <td>266.49</td>
+      <td>266.77</td>
+      <td>43.18</td>
+      <td>470.61</td>
+      <td>736.14</td>
+      <td>0.892</td>
+      <td>760.29</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 13:00:00</td>
+      <td>subestacion</td>
+      <td>Subestación Principal</td>
+      <td>266.29</td>
+      <td>251.95</td>
+      <td>60.75</td>
+      <td>471.90</td>
+      <td>733.58</td>
+      <td>0.906</td>
+      <td>718.06</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 14:00:00</td>
+      <td>subestacion</td>
+      <td>Subestación Principal</td>
+      <td>272.71</td>
+      <td>285.97</td>
+      <td>51.65</td>
+      <td>470.86</td>
+      <td>752.93</td>
+      <td>0.889</td>
+      <td>815.01</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 15:00:00</td>
+      <td>subestacion</td>
+      <td>Subestación Principal</td>
+      <td>251.37</td>
+      <td>258.11</td>
+      <td>54.53</td>
+      <td>475.53</td>
+      <td>687.19</td>
+      <td>0.947</td>
+      <td>735.61</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 16:00:00</td>
+      <td>subestacion</td>
+      <td>Subestación Principal</td>
+      <td>249.30</td>
+      <td>261.70</td>
+      <td>69.41</td>
+      <td>474.63</td>
+      <td>682.83</td>
+      <td>0.916</td>
+      <td>745.85</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 17:00:00</td>
+      <td>subestacion</td>
+      <td>Subestación Principal</td>
+      <td>234.85</td>
+      <td>239.84</td>
+      <td>56.91</td>
+      <td>472.07</td>
+      <td>646.74</td>
+      <td>0.947</td>
+      <td>683.54</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 18:00:00</td>
+      <td>subestacion</td>
+      <td>Subestación Principal</td>
+      <td>224.28</td>
+      <td>225.45</td>
+      <td>63.65</td>
+      <td>471.88</td>
+      <td>617.88</td>
+      <td>0.961</td>
+      <td>642.53</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 19:00:00</td>
+      <td>subestacion</td>
+      <td>Subestación Principal</td>
+      <td>214.91</td>
+      <td>206.33</td>
+      <td>49.88</td>
+      <td>475.37</td>
+      <td>587.72</td>
+      <td>0.900</td>
+      <td>588.04</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 20:00:00</td>
+      <td>subestacion</td>
+      <td>Subestación Principal</td>
+      <td>186.38</td>
+      <td>175.22</td>
+      <td>39.57</td>
+      <td>470.06</td>
+      <td>515.45</td>
+      <td>0.900</td>
+      <td>499.38</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 21:00:00</td>
+      <td>subestacion</td>
+      <td>Subestación Principal</td>
+      <td>172.40</td>
+      <td>167.50</td>
+      <td>52.85</td>
+      <td>474.02</td>
+      <td>472.81</td>
+      <td>0.925</td>
+      <td>477.38</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 22:00:00</td>
+      <td>subestacion</td>
+      <td>Subestación Principal</td>
+      <td>169.47</td>
+      <td>164.59</td>
+      <td>52.39</td>
+      <td>469.25</td>
+      <td>469.50</td>
+      <td>0.916</td>
+      <td>469.08</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 23:00:00</td>
+      <td>subestacion</td>
+      <td>Subestación Principal</td>
+      <td>161.38</td>
+      <td>163.05</td>
+      <td>32.70</td>
+      <td>471.58</td>
+      <td>444.87</td>
+      <td>0.968</td>
+      <td>464.69</td>
+      <td>normal</td>
+    </tr>
+  </tbody>
+</table>
+    </body>
+    </html>
+    

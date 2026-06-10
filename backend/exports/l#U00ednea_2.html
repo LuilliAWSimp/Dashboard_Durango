@@ -1,0 +1,326 @@
+
+    <html>
+    <head>
+      <meta charset='utf-8'>
+      <title>Línea 2</title>
+      <style>
+        body { font-family: Arial, sans-serif; background:#0b1020; color:#f1f5f9; padding:24px; }
+        .grid { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:24px; }
+        .card { background:#161f38; border:1px solid #263252; border-radius:16px; padding:16px; }
+        .table { width:100%; border-collapse:collapse; background:#0f172a; }
+        .table th,.table td { border:1px solid #334155; padding:8px; }
+      </style>
+    </head>
+    <body>
+      <h1>Línea 2</h1>
+      <p>Consumo total y calidad de energía · Planta GDL Demo</p>
+      <div class='grid'><div class='card'><h3>Demanda Total</h3><p>5217.65 kW</p><small>Actual</small></div><div class='card'><h3>Energía Hoy</h3><p>5322.80 kWh</p><small>Acumulado diario</small></div><div class='card'><h3>Factor de Potencia</h3><p>0.92 FP</p><small>Promedio</small></div><div class='card'><h3>Voltaje Promedio</h3><p>473.24 V</p><small>Dentro de rango</small></div></div>
+      <table border="1" class="dataframe table">
+  <thead>
+    <tr style="text-align: right;">
+      <th>timestamp</th>
+      <th>section</th>
+      <th>system_name</th>
+      <th>kw</th>
+      <th>kwh</th>
+      <th>kvarh</th>
+      <th>voltage</th>
+      <th>current</th>
+      <th>power_factor</th>
+      <th>status</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>2026-03-31 00:00:00</td>
+      <td>linea2</td>
+      <td>Línea 2</td>
+      <td>142.59</td>
+      <td>149.66</td>
+      <td>36.23</td>
+      <td>474.74</td>
+      <td>390.46</td>
+      <td>0.899</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 01:00:00</td>
+      <td>linea2</td>
+      <td>Línea 2</td>
+      <td>163.27</td>
+      <td>169.30</td>
+      <td>49.79</td>
+      <td>469.78</td>
+      <td>451.81</td>
+      <td>0.939</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 02:00:00</td>
+      <td>linea2</td>
+      <td>Línea 2</td>
+      <td>166.95</td>
+      <td>174.25</td>
+      <td>55.01</td>
+      <td>475.49</td>
+      <td>456.44</td>
+      <td>0.959</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 03:00:00</td>
+      <td>linea2</td>
+      <td>Línea 2</td>
+      <td>187.52</td>
+      <td>190.05</td>
+      <td>51.21</td>
+      <td>473.04</td>
+      <td>515.34</td>
+      <td>0.955</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 04:00:00</td>
+      <td>linea2</td>
+      <td>Línea 2</td>
+      <td>203.39</td>
+      <td>214.75</td>
+      <td>40.51</td>
+      <td>475.47</td>
+      <td>556.10</td>
+      <td>0.928</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 05:00:00</td>
+      <td>linea2</td>
+      <td>Línea 2</td>
+      <td>221.84</td>
+      <td>229.93</td>
+      <td>40.38</td>
+      <td>469.92</td>
+      <td>613.70</td>
+      <td>0.900</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 06:00:00</td>
+      <td>linea2</td>
+      <td>Línea 2</td>
+      <td>223.02</td>
+      <td>236.09</td>
+      <td>66.73</td>
+      <td>474.22</td>
+      <td>611.37</td>
+      <td>0.894</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 07:00:00</td>
+      <td>linea2</td>
+      <td>Línea 2</td>
+      <td>246.82</td>
+      <td>261.04</td>
+      <td>81.99</td>
+      <td>475.44</td>
+      <td>674.88</td>
+      <td>0.913</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 08:00:00</td>
+      <td>linea2</td>
+      <td>Línea 2</td>
+      <td>238.59</td>
+      <td>236.59</td>
+      <td>70.94</td>
+      <td>472.31</td>
+      <td>656.70</td>
+      <td>0.954</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 09:00:00</td>
+      <td>linea2</td>
+      <td>Línea 2</td>
+      <td>260.19</td>
+      <td>247.03</td>
+      <td>73.29</td>
+      <td>474.97</td>
+      <td>712.14</td>
+      <td>0.900</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 10:00:00</td>
+      <td>linea2</td>
+      <td>Línea 2</td>
+      <td>253.18</td>
+      <td>263.25</td>
+      <td>73.39</td>
+      <td>475.47</td>
+      <td>692.23</td>
+      <td>0.895</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 11:00:00</td>
+      <td>linea2</td>
+      <td>Línea 2</td>
+      <td>262.51</td>
+      <td>262.99</td>
+      <td>83.64</td>
+      <td>473.34</td>
+      <td>720.97</td>
+      <td>0.903</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 12:00:00</td>
+      <td>linea2</td>
+      <td>Línea 2</td>
+      <td>258.93</td>
+      <td>267.25</td>
+      <td>43.62</td>
+      <td>473.02</td>
+      <td>711.62</td>
+      <td>0.958</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 13:00:00</td>
+      <td>linea2</td>
+      <td>Línea 2</td>
+      <td>275.11</td>
+      <td>269.12</td>
+      <td>56.71</td>
+      <td>473.93</td>
+      <td>754.63</td>
+      <td>0.956</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 14:00:00</td>
+      <td>linea2</td>
+      <td>Línea 2</td>
+      <td>247.51</td>
+      <td>262.28</td>
+      <td>55.46</td>
+      <td>472.96</td>
+      <td>680.32</td>
+      <td>0.964</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 15:00:00</td>
+      <td>linea2</td>
+      <td>Línea 2</td>
+      <td>265.23</td>
+      <td>276.70</td>
+      <td>44.65</td>
+      <td>476.94</td>
+      <td>722.94</td>
+      <td>0.915</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 16:00:00</td>
+      <td>linea2</td>
+      <td>Línea 2</td>
+      <td>245.52</td>
+      <td>247.58</td>
+      <td>45.61</td>
+      <td>473.41</td>
+      <td>674.21</td>
+      <td>0.965</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 17:00:00</td>
+      <td>linea2</td>
+      <td>Línea 2</td>
+      <td>229.18</td>
+      <td>235.04</td>
+      <td>36.38</td>
+      <td>470.23</td>
+      <td>633.59</td>
+      <td>0.944</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 18:00:00</td>
+      <td>linea2</td>
+      <td>Línea 2</td>
+      <td>234.99</td>
+      <td>237.49</td>
+      <td>54.64</td>
+      <td>471.76</td>
+      <td>647.55</td>
+      <td>0.882</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 19:00:00</td>
+      <td>linea2</td>
+      <td>Línea 2</td>
+      <td>198.53</td>
+      <td>197.08</td>
+      <td>62.85</td>
+      <td>475.21</td>
+      <td>543.11</td>
+      <td>0.901</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 20:00:00</td>
+      <td>linea2</td>
+      <td>Línea 2</td>
+      <td>188.27</td>
+      <td>197.76</td>
+      <td>49.62</td>
+      <td>472.54</td>
+      <td>517.95</td>
+      <td>0.900</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 21:00:00</td>
+      <td>linea2</td>
+      <td>Línea 2</td>
+      <td>179.33</td>
+      <td>177.53</td>
+      <td>47.87</td>
+      <td>471.17</td>
+      <td>494.79</td>
+      <td>0.887</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 22:00:00</td>
+      <td>linea2</td>
+      <td>Línea 2</td>
+      <td>170.73</td>
+      <td>163.00</td>
+      <td>50.47</td>
+      <td>469.41</td>
+      <td>472.83</td>
+      <td>0.963</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 23:00:00</td>
+      <td>linea2</td>
+      <td>Línea 2</td>
+      <td>154.45</td>
+      <td>157.04</td>
+      <td>24.93</td>
+      <td>472.97</td>
+      <td>424.52</td>
+      <td>0.910</td>
+      <td>normal</td>
+    </tr>
+  </tbody>
+</table>
+    </body>
+    </html>
+    

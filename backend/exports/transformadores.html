@@ -1,0 +1,299 @@
+
+    <html>
+    <head>
+      <meta charset='utf-8'>
+      <title>Transformadores</title>
+      <style>
+        body { font-family: Arial, sans-serif; background:#0b1020; color:#f1f5f9; padding:24px; }
+        .grid { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:24px; }
+        .card { background:#161f38; border:1px solid #263252; border-radius:16px; padding:16px; }
+        .table { width:100%; border-collapse:collapse; background:#0f172a; }
+        .table th,.table td { border:1px solid #334155; padding:8px; }
+      </style>
+    </head>
+    <body>
+      <h1>Transformadores</h1>
+      <p>Cargas, corriente y potencia</p>
+      <div class='grid'><div class='card'><h3>Demanda Total</h3><p>2082.06 kW</p><small>Actual</small></div><div class='card'><h3>Energía Hoy</h3><p>24953.73 kWh</p><small>Acumulado diario</small></div><div class='card'><h3>Factor de Potencia</h3><p>0.92 FP</p><small>Promedio</small></div><div class='card'><h3>Costo Estimado</h3><p>71118.13 MXN</p><small>Tarifa estimada</small></div></div>
+      <table border="1" class="dataframe table">
+  <thead>
+    <tr style="text-align: right;">
+      <th>timestamp</th>
+      <th>section</th>
+      <th>system_name</th>
+      <th>kw</th>
+      <th>kwh</th>
+      <th>kvarh</th>
+      <th>voltage</th>
+      <th>current</th>
+      <th>power_factor</th>
+      <th>cost_mxn</th>
+      <th>status</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>2026-03-31 19:00:00</td>
+      <td>transformadores</td>
+      <td>TR-01</td>
+      <td>196.64</td>
+      <td>191.33</td>
+      <td>45.30</td>
+      <td>470.35</td>
+      <td>543.49</td>
+      <td>0.921</td>
+      <td>545.29</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 19:00:00</td>
+      <td>transformadores</td>
+      <td>TR-02</td>
+      <td>242.20</td>
+      <td>243.65</td>
+      <td>39.08</td>
+      <td>472.91</td>
+      <td>665.79</td>
+      <td>0.950</td>
+      <td>694.40</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 19:00:00</td>
+      <td>transformadores</td>
+      <td>TR-03</td>
+      <td>263.17</td>
+      <td>264.50</td>
+      <td>73.06</td>
+      <td>481.08</td>
+      <td>711.15</td>
+      <td>0.920</td>
+      <td>753.83</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 19:00:00</td>
+      <td>transformadores</td>
+      <td>TR-04</td>
+      <td>281.12</td>
+      <td>297.64</td>
+      <td>47.16</td>
+      <td>484.64</td>
+      <td>754.08</td>
+      <td>0.948</td>
+      <td>848.27</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 20:00:00</td>
+      <td>transformadores</td>
+      <td>TR-01</td>
+      <td>209.69</td>
+      <td>208.31</td>
+      <td>29.47</td>
+      <td>471.75</td>
+      <td>577.84</td>
+      <td>0.891</td>
+      <td>593.68</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 20:00:00</td>
+      <td>transformadores</td>
+      <td>TR-02</td>
+      <td>224.95</td>
+      <td>230.19</td>
+      <td>52.02</td>
+      <td>473.83</td>
+      <td>617.17</td>
+      <td>0.888</td>
+      <td>656.04</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 20:00:00</td>
+      <td>transformadores</td>
+      <td>TR-03</td>
+      <td>233.71</td>
+      <td>222.58</td>
+      <td>45.89</td>
+      <td>477.39</td>
+      <td>636.43</td>
+      <td>0.914</td>
+      <td>634.35</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 20:00:00</td>
+      <td>transformadores</td>
+      <td>TR-04</td>
+      <td>259.12</td>
+      <td>263.52</td>
+      <td>69.01</td>
+      <td>478.55</td>
+      <td>703.91</td>
+      <td>0.931</td>
+      <td>751.03</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 21:00:00</td>
+      <td>transformadores</td>
+      <td>TR-01</td>
+      <td>190.04</td>
+      <td>186.85</td>
+      <td>42.96</td>
+      <td>473.54</td>
+      <td>521.71</td>
+      <td>0.913</td>
+      <td>532.52</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 21:00:00</td>
+      <td>transformadores</td>
+      <td>TR-02</td>
+      <td>202.82</td>
+      <td>209.47</td>
+      <td>63.04</td>
+      <td>477.39</td>
+      <td>552.31</td>
+      <td>0.890</td>
+      <td>596.99</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 21:00:00</td>
+      <td>transformadores</td>
+      <td>TR-03</td>
+      <td>238.31</td>
+      <td>224.08</td>
+      <td>66.01</td>
+      <td>475.10</td>
+      <td>652.08</td>
+      <td>0.884</td>
+      <td>638.63</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 21:00:00</td>
+      <td>transformadores</td>
+      <td>TR-04</td>
+      <td>254.61</td>
+      <td>251.03</td>
+      <td>41.93</td>
+      <td>485.45</td>
+      <td>681.83</td>
+      <td>0.957</td>
+      <td>715.44</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 22:00:00</td>
+      <td>transformadores</td>
+      <td>TR-01</td>
+      <td>175.14</td>
+      <td>176.32</td>
+      <td>42.14</td>
+      <td>469.76</td>
+      <td>484.68</td>
+      <td>0.889</td>
+      <td>502.51</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 22:00:00</td>
+      <td>transformadores</td>
+      <td>TR-02</td>
+      <td>183.18</td>
+      <td>174.86</td>
+      <td>26.42</td>
+      <td>478.25</td>
+      <td>497.93</td>
+      <td>0.900</td>
+      <td>498.35</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 22:00:00</td>
+      <td>transformadores</td>
+      <td>TR-03</td>
+      <td>206.98</td>
+      <td>215.02</td>
+      <td>44.51</td>
+      <td>480.04</td>
+      <td>560.52</td>
+      <td>0.938</td>
+      <td>612.81</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 22:00:00</td>
+      <td>transformadores</td>
+      <td>TR-04</td>
+      <td>249.69</td>
+      <td>252.27</td>
+      <td>76.98</td>
+      <td>478.60</td>
+      <td>678.22</td>
+      <td>0.970</td>
+      <td>718.97</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 23:00:00</td>
+      <td>transformadores</td>
+      <td>TR-01</td>
+      <td>162.64</td>
+      <td>168.34</td>
+      <td>52.68</td>
+      <td>474.19</td>
+      <td>445.88</td>
+      <td>0.896</td>
+      <td>479.77</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 23:00:00</td>
+      <td>transformadores</td>
+      <td>TR-02</td>
+      <td>188.98</td>
+      <td>193.37</td>
+      <td>59.40</td>
+      <td>478.30</td>
+      <td>513.64</td>
+      <td>0.900</td>
+      <td>551.10</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 23:00:00</td>
+      <td>transformadores</td>
+      <td>TR-03</td>
+      <td>211.85</td>
+      <td>219.84</td>
+      <td>45.75</td>
+      <td>480.87</td>
+      <td>572.72</td>
+      <td>0.907</td>
+      <td>626.54</td>
+      <td>normal</td>
+    </tr>
+    <tr>
+      <td>2026-03-31 23:00:00</td>
+      <td>transformadores</td>
+      <td>TR-04</td>
+      <td>210.68</td>
+      <td>216.47</td>
+      <td>67.27</td>
+      <td>485.59</td>
+      <td>564.02</td>
+      <td>0.915</td>
+      <td>616.94</td>
+      <td>normal</td>
+    </tr>
+  </tbody>
+</table>
+    </body>
+    </html>
+    

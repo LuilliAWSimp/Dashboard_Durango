@@ -1,0 +1,21 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+backend/Lib/
+backend/Scripts/
+backend/pyvenv.cfg
+
+# Node modules
+node_modules/
+node_modules
