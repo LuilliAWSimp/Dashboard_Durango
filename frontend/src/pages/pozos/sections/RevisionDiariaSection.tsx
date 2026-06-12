@@ -185,7 +185,7 @@ function RevisionDiariaSection() {
     name: row.name as string,
     score: asNumber(row.flujo),
     reason: (row.fullName || row.name) as string,
-    action: 'Ranking por flujo real; eficiencia kWh/m³ pendiente de fuente energética confiable.',
+    action: 'Ranking por flujo real; la eficiencia energética queda pendiente de fuente confiable.',
   })).filter((row) => row.score || row.reason);
   const alertBreakdown = priorityBreakdown(priorities);
   const cards = [
@@ -242,7 +242,7 @@ function RevisionDiariaSection() {
         </div>
 
         <div className="panel chart-panel fade-up daily-ranking-panel">
-          <PanelHeader title="Ranking de suministro/flujo real" subtitle="Sustituye kWh/m³ porque Durango no tiene fuente energética operativa confirmada" />
+          <PanelHeader title="Ranking de suministro/flujo real" subtitle="Ranking operativo sin fuente energética confirmada" />
           <SqlChartDateControls controller={reviewChart} />
           {reviewRows.length ? (
             <ResponsiveContainer width="100%" height={300}>
@@ -307,7 +307,7 @@ function RevisionDiariaSection() {
           <div className="daily-export-list">
             <article><div className="export-check-icon"><ClipboardCheck size={15} /></div><div><strong>Datos BOS</strong><span>{reportReady ? 'Reporte disponible con fuente SQL Server/BOS.' : 'Pendiente: fuente BOS no disponible.'}</span></div></article>
             <article><div className="export-check-icon"><ClipboardCheck size={15} /></div><div><strong>Concesión</strong><span>Sin fuente confirmada; no se calcula porcentaje usado.</span></div></article>
-            <article><div className="export-check-icon"><ClipboardCheck size={15} /></div><div><strong>Eficiencia energética</strong><span>Pendiente de fuente confiable; no se muestra kWh/m³.</span></div></article>
+            <article><div className="export-check-icon"><ClipboardCheck size={15} /></div><div><strong>Eficiencia energética</strong><span>Pendiente de fuente confiable.</span></div></article>
           </div>
         </div>
 

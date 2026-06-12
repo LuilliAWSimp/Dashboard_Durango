@@ -64,7 +64,6 @@ interface DailyWaterReportSection<T> {
   [key: string]: unknown;
   rows?: T[];
   total_pozos_m3?: NumericValue;
-  ciudad_m3?: NumericValue;
   total_entrada_m3?: NumericValue;
 }
 
@@ -129,6 +128,8 @@ function ReportesSection() {
   const lineRows = dailyReport?.production_lines?.rows || [];
   const flowRows = dailyReport?.operational_flows?.rows || [];
   const pendingRows = dailyReport?.missing_fields || [];
+  const linePeriodTotal = lineRows.reduce((sum, item) => sum + Number(item.volumen_periodo_m3 || 0), 0);
+  const flowPeriodTotal = flowRows.reduce((sum, item) => sum + Number(item.volumen_periodo_m3 || 0), 0);
   const reportStatus = `Reporte: ${formatDateRangeStatus(reportRange, 'Hoy')}`;
 
   return (
@@ -186,9 +187,9 @@ function ReportesSection() {
         {reportError && <div className="status-pill alert report-status-pill">{reportError}</div>}
 
         <div className="daily-report-kpis">
-          <div><span>Total pozos</span><strong>{formatNumber(dailyReport?.water_entry?.total_pozos_m3 || 0, 2)} m³</strong></div>
-          <div><span>Ciudad</span><strong>{formatNumber(dailyReport?.water_entry?.ciudad_m3 || 0, 2)} m³</strong></div>
-          <div><span>Total entrada</span><strong>{formatNumber(dailyReport?.water_entry?.total_entrada_m3 || 0, 2)} m³</strong></div>
+          <div><span>Pozos periodo</span><strong>{formatNumber(dailyReport?.water_entry?.total_pozos_m3 || 0, 2)} m³</strong></div>
+          <div><span>Líneas periodo</span><strong>{formatNumber(linePeriodTotal, 2)} m³</strong></div>
+          <div><span>Lavadoras/Jarabes</span><strong>{formatNumber(flowPeriodTotal, 2)} m³</strong></div>
         </div>
 
         <ReportPreviewTable
@@ -229,7 +230,7 @@ function ReportesSection() {
           },
           {
             title: 'Sin energía confirmada',
-            description: 'Durango no muestra kWh ni kWh/m³ hasta tener una fuente energética confiable.',
+            description: 'Durango mantiene la fuente energética como pendiente de confirmar.',
             status: 'Pendiente de fuente',
           },
           {

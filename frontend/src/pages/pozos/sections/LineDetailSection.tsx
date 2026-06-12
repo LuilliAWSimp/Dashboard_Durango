@@ -175,7 +175,7 @@ export default function LineDetailSection({ lineId }: LineDetailSectionProps) {
         <div className="panel chart-panel fade-up well-detail-flow-chart">
           <PanelHeader
             title="Flujo de línea"
-            subtitle="Histórico filtrable de la línea seleccionada. Las líneas no muestran kWh."
+            subtitle="Histórico filtrable de la línea seleccionada con flujo y volumen del periodo."
           />
           <SqlChartDateControls controller={detailChart} title="Fechas de la gráfica" />
           <ChartPeriodNote range={detailChart.range} source="Un día: flujo promedio por hora · varios días: flujo promedio por día" />

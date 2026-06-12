@@ -178,10 +178,16 @@ LINE_SENSOR_BY_ID = {int(item['sensor_id']): item for item in LINE_SENSOR_MAP}
 FLOW_SENSOR_MAP = [
     {'sensor_id': 3002, 'name': 'Lavadora Ciel', 'category': 'lavadora'},
     {'sensor_id': 3004, 'name': 'Lavadora de Vidrio', 'category': 'lavadora'},
-    {'sensor_id': 3006, 'name': 'Jarabes', 'category': 'pendiente'},
+    {'sensor_id': 3006, 'name': 'Jarabes - pendiente de clasificacion operativa', 'category': 'pendiente'},
 ]
 
 FLOW_SENSOR_BY_ID = {int(item['sensor_id']): item for item in FLOW_SENSOR_MAP}
+
+CONFIRMED_WELL_SLOT_INDICES = tuple(range(len(WELL_NAMES)))
+CONFIRMED_LINE_SLOT_INDICES = tuple(range(len(LINE_SENSOR_MAP)))
+CONFIRMED_FLOW_SLOT_INDICES = tuple(range(len(FLOW_SENSOR_MAP)))
+CONFIRMED_LINE_SENSOR_IDS = {int(item['sensor_id']) for item in LINE_SENSOR_MAP}
+CONFIRMED_FLOW_SENSOR_IDS = {int(item['sensor_id']) for item in FLOW_SENSOR_MAP}
 
 
 # dbo.NIVELES_BOS expone niveles por columna. El dashboard conserva el nombre
@@ -864,7 +870,7 @@ def _discover_bos_well_slots(pozo_row: dict[str, Any] | None) -> list[dict[str, 
     iot.sp_get_energy_water to be configured.
     """
     explicit_slots: list[dict[str, Any]] = []
-    for index in range(10):
+    for index in CONFIRMED_WELL_SLOT_INDICES:
         explicit_energy_id = _optional_int(_bos_value(pozo_row, 'POZO_ENERGY_TOTAL', index, 'sensor_id', None))
         explicit_flow_out_id = _optional_int(_bos_value(pozo_row, 'POZO_FLOW_OUT', index, 'sensor_id', None))
         explicit_flow_in_id = _optional_int(_bos_value(pozo_row, 'POZO_FLOW_IN', index, 'sensor_id', None))
@@ -1092,25 +1098,39 @@ def _build_tank_inputs(tanque_row: dict[str, Any] | None, catalog: dict[int, dic
 
 
 def _line_slot_indices(row: dict[str, Any] | None) -> list[int]:
-    """Return only BOS line slots that are actually configured/readable."""
+    """Return only the five confirmed Durango line slots.
+
+    SQL Server can expose inherited LINEA_FLOW_IN slots from other plants.
+    Durango is locked to the confirmed structure: sensors 2002, 2006,
+    2004, 2008 and 2010. Extra slots are ignored even if a column exists.
+    """
     if not row:
         return []
     indices: list[int] = []
-    for index in range(10):
-        sensor_id = _bos_value(row, 'LINEA_FLOW_IN', index, 'sensor_id', None)
+    for index in CONFIRMED_LINE_SLOT_INDICES:
+        sensor_id = _optional_int(_bos_value(row, 'LINEA_FLOW_IN', index, 'sensor_id', None))
         raw_flow = _bos_value(row, 'LINEA_FLOW_IN', index, 'instant_value', None)
         raw_total = _bos_value(row, 'LINEA_FLOW_IN', index, 'total_value', None)
         raw_quality = _bos_value(row, 'LINEA_FLOW_IN', index, 'quality', None)
-        if sensor_id is not None or raw_flow is not None or raw_total is not None or raw_quality is not None:
-            indices.append(index)
+        has_reading = sensor_id is not None or raw_flow is not None or raw_total is not None or raw_quality is not None
+        if not has_reading:
+            continue
+        if sensor_id is not None and sensor_id not in CONFIRMED_LINE_SENSOR_IDS:
+            logger.info('water_bos ignored Durango inherited line slot index=%s sensor_id=%s', index, sensor_id)
+            continue
+        indices.append(index)
     return indices
 
 
 def _line_metadata(index: int, sensor_id: int, catalog: dict[int, dict[str, Any]]) -> tuple[int, str, str]:
+    configured = LINE_SENSOR_MAP[index] if index < len(LINE_SENSOR_MAP) else None
     mapped = LINE_SENSOR_BY_ID.get(sensor_id)
     if mapped:
         numero = int(mapped['numero'])
         line_name = str(mapped['name'])
+    elif configured:
+        numero = int(configured['numero'])
+        line_name = str(configured['name'])
     else:
         numero = index + 1
         line_name = f'Línea {numero}'
@@ -1170,17 +1190,28 @@ def _flow_status(flow: float | None, has_reading: bool) -> tuple[bool, str, str,
 
 
 def _flow_slot_indices(row: dict[str, Any] | None) -> list[int]:
-    """Return only TANQUE_FLOW_IN slots present in BOS; do not assume every plant has 9 flows."""
+    """Return only confirmed Durango auxiliary-flow slots.
+
+    Durango uses dbo.SensorsBOS_Tanque as auxiliary flow source for
+    Lavadora Ciel, Lavadora de Vidrio and Jarabes. It is not a tank-level
+    source, and inherited TANQUE_FLOW_IN slots are not surfaced as real
+    assets.
+    """
     if not row:
         return []
     indices: list[int] = []
-    for index in range(12):
-        sensor_id = _bos_value(row, 'TANQUE_FLOW_IN', index, 'sensor_id', None)
+    for index in CONFIRMED_FLOW_SLOT_INDICES:
+        sensor_id = _optional_int(_bos_value(row, 'TANQUE_FLOW_IN', index, 'sensor_id', None))
         raw_flow = _bos_value(row, 'TANQUE_FLOW_IN', index, 'instant_value', None)
         raw_total = _bos_value(row, 'TANQUE_FLOW_IN', index, 'total_value', None)
         raw_quality = _bos_value(row, 'TANQUE_FLOW_IN', index, 'quality', None)
-        if sensor_id is not None or raw_flow is not None or raw_total is not None or raw_quality is not None:
-            indices.append(index)
+        has_reading = sensor_id is not None or raw_flow is not None or raw_total is not None or raw_quality is not None
+        if not has_reading:
+            continue
+        if sensor_id is not None and sensor_id not in CONFIRMED_FLOW_SENSOR_IDS:
+            logger.info('water_bos ignored Durango inherited auxiliary-flow slot index=%s sensor_id=%s', index, sensor_id)
+            continue
+        indices.append(index)
     return indices
 
 
@@ -1558,18 +1589,10 @@ def get_bos_water_dashboard_payload(start_date: Any = None, end_date: Any = None
             normalized_period = _normalize_period(period, start_date, end_date)
             energy_water_rows = []
             if include_energy_water:
-                energy_water_rows = _energy_water_rows(
-                    session,
-                    period=normalized_period,
-                    start_date=start_date,
-                    end_date=end_date,
-                )
-                logger.info('water_bos SQL connected: iot.sp_get_energy_water rows=%s', len(energy_water_rows))
-                if not energy_water_rows:
-                    logger.info('water_bos iot.sp_get_energy_water returned 0 rows; using BOS instant/history fallback for wells, lines and flows')
+                logger.info('water_bos iot.sp_get_energy_water skipped: Durango has no confirmed operational energy source')
             else:
                 logger.info('water_bos iot.sp_get_energy_water skipped: Durango has no confirmed operational energy source for fast dashboard loads')
-            energy_water = _energy_water_summary(energy_water_rows)
+            energy_water = {}
     except SQLAlchemyError as exc:
         logger.exception('water_bos SQL connection/payload error: %s', exc)
         return _sql_connection_error_payload()
@@ -1621,7 +1644,7 @@ def get_bos_water_dashboard_payload(start_date: Any = None, end_date: Any = None
         'tank_levels': [],
         'tank_level_readings': tank_level_readings,
         'tank_level_history': tank_level_history,
-        'tank_level_columns': _tank_level_columns_metadata(),
+        'tank_level_columns': [],
         'supply_hours': [{'name': item['nombre'], 'value': _num(item.get('flow')), 'unit': 'L/s', 'detail': item.get('ubicacion', '')} for item in wells],
         'filters_vs_treated': [],
         'cip_weekly': [],

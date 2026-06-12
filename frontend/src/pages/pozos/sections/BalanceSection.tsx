@@ -77,7 +77,7 @@ function BalanceSection() {
 
       <section className="content-grid water-balance-main-grid">
         <div className="panel chart-panel fade-up">
-          <PanelHeader title="Volumen por pozo" subtitle="Volumen del periodo y flujo actual. No se muestra kWh/m³ sin fuente energética confirmada." />
+          <PanelHeader title="Volumen por pozo" subtitle="Volumen del periodo y flujo actual con fuente energética pendiente de confirmar." />
           <SqlChartDateControls controller={balanceChart} />
           <ChartPeriodNote range={balanceChart.range} source="Volumen del periodo desde totalizadores BOS cuando existe lectura inicial/final" />
           {wellRows.length ? (

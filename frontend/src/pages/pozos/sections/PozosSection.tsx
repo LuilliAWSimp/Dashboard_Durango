@@ -321,7 +321,7 @@ export default function PozosSection({ mode = 'pozos' }: PozosSectionProps = {})
       ) : null}
 
       <section className="panel table-wrapper fade-up pozos-operacion-table-panel">
-        <PanelHeader title="Vista comparativa" subtitle={isLineasMode ? 'Flujo y volumen del periodo; no se muestra kWh porque Durango no tiene fuente energética confirmada.' : 'Valores reales disponibles de BOS; no se muestra kWh/m³ sin fuente energética confirmada.'} />
+        <PanelHeader title="Vista comparativa" subtitle={isLineasMode ? 'Flujo y volumen del periodo con datos BOS disponibles.' : 'Valores reales disponibles de BOS para la estructura confirmada de Durango.'} />
         {isLineasMode ? (
           <>
             <SqlChartDateControls

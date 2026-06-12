@@ -19,68 +19,6 @@ function emptyChartRange() {
   return { startDate: '', endDate: '', refreshKey: 0 };
 }
 
-const demoStateOptions = [
-  { key: 'base', label: 'Base de datos' },
-  { key: 'apagado', label: 'Apagado manual' },
-  { key: 'inactivo', label: 'Inactivo' },
-];
-
-const demoStateMeta = {
-  apagado: { status: 'Apagado manual', statusType: 'idle', estado_comunicacion: 'En línea', communicationType: 'online' },
-  inactivo: { status: 'Inactivo', statusType: 'inactive', estado_comunicacion: 'En línea', communicationType: 'online' },
-};
-
-function getFallbackOnValue(well, field, fallback) {
-  const value = well[field];
-  if (value !== null && value !== undefined && value !== 0) return value;
-  return fallback;
-}
-
-function applyDemoWellState(well, overrideState) {
-  if (!overrideState || overrideState === 'base') return well;
-
-  const meta = demoStateMeta[overrideState];
-  if (!meta) return well;
-  const next = {
-    ...well,
-    estado_operativo: overrideState,
-    status: meta.status,
-    statusType: meta.statusType,
-    estado_comunicacion: meta.estado_comunicacion,
-    communicationType: meta.communicationType,
-    demoOverride: overrideState,
-  };
-  if (overrideState === 'apagado' || overrideState === 'inactivo') {
-    return {
-      ...next,
-      apagado_manual: overrideState === 'apagado',
-      kwh: 0,
-      flujo_entrada: 0,
-      flujo_salida: 0,
-      flow: 0,
-      dailyKwh: 0,
-      amps: 0,
-      efficiency: null,
-      loadFactor: 0,
-      ampFlowRatio: null,
-      ultima_lectura: overrideState === 'apagado' ? 'Ahora · apagado demo' : well.ultima_lectura,
-      updated: overrideState === 'apagado' ? 'Ahora · apagado demo' : well.updated,
-      diagnosis: overrideState === 'apagado'
-        ? 'Apagado manual para simulación visual; no debe tratarse como falla.'
-        : 'Pozo inactivo; se distingue de un apagado operativo normal.',
-    };
-  }
-  return next;
-}
-
-function filterWellsByStatus(wells, filter) {
-  if (filter === 'encendidos') return wells.filter((well) => ['normal', 'warning', 'critical'].includes(well.statusType));
-  if (filter === 'apagados') return wells.filter((well) => well.statusType === 'idle');
-  if (filter === 'inactivos') return wells.filter((well) => well.statusType === 'inactive');
-  if (filter === 'sin-comunicacion') return wells.filter((well) => well.statusType === 'communication');
-  return wells;
-}
-
 
 
 const sectionMap = {

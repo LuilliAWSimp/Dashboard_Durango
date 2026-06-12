@@ -60,7 +60,7 @@ interface FlujosSectionProps {
 const flowSensorConfig = [
   { sensor_id: 3002, nombre: 'Lavadora Ciel' },
   { sensor_id: 3004, nombre: 'Lavadora de Vidrio' },
-  { sensor_id: 3006, nombre: 'Jarabes' },
+  { sensor_id: 3006, nombre: 'Jarabes - pendiente de clasificación operativa' },
 ];
 
 function errorMessage(error: unknown): string | undefined {
@@ -138,13 +138,19 @@ function normalizeFlow(row: FlexibleRecord | undefined, index: number): FlujoIte
   const hasData = flow !== null || total !== null;
   const volumen = hasData ? numberOrNull(row.volumen_periodo_m3 ?? row.period_m3 ?? row.period_delta_m3) ?? 0 : null;
 
+  const sensorId = numberOrNull(row.sensor_id) ?? fallback.sensor_id;
+  const rawName = asText(row.nombre ?? row.name, fallback.nombre);
+  const displayName = sensorId === 3006 && !rawName.toLowerCase().includes('pendiente')
+    ? `${rawName} - pendiente de clasificación operativa`
+    : rawName;
+
   return {
     ...fallback,
     id: asText(row.id, fallback.id),
     numero: numberOrNull(row.numero) ?? fallback.numero,
-    nombre: asText(row.nombre ?? row.name, fallback.nombre),
+    nombre: displayName,
     ubicacion: asText(row.ubicacion ?? row.location, fallback.ubicacion),
-    sensor_id: numberOrNull(row.sensor_id) ?? fallback.sensor_id,
+    sensor_id: sensorId,
     status: asText(row.status, hasData ? (Number(flow || 0) > 0 ? 'Operando' : 'Sin flujo') : 'Sin datos'),
     statusType: asText(row.statusType, hasData ? (Number(flow || 0) > 0 ? 'normal' : 'idle') : 'communication'),
     estado_comunicacion: asText(row.estado_comunicacion, hasData ? 'En línea' : 'Sin comunicación'),

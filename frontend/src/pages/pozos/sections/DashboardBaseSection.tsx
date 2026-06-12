@@ -234,7 +234,7 @@ export default function DashboardBaseSection() {
         <div className="panel chart-panel fade-up resumen-primary-chart">
           <PanelHeader
             title="Volumen y flujo por pozo"
-            subtitle="Comparativo real de pozos para el periodo seleccionado. No se muestra energía porque Durango no tiene fuente kWh confirmada."
+            subtitle="Comparativo real de pozos para el periodo seleccionado con datos BOS disponibles."
           />
           <DateRangeControls
             className="chart-date-range-panel"

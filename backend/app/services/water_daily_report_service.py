@@ -64,7 +64,7 @@ def _missing(payload: dict[str, Any], flow_rows: list[dict[str, Any]]) -> list[d
     missing.extend([
         {
             'name': 'Energia por pozo',
-            'detail': 'Durango no tiene fuente energetica operativa confirmada; no se calcula kWh ni kWh/m3.',
+            'detail': 'Durango no tiene fuente energetica operativa confirmada; no se calcula consumo energetico.',
         },
         {
             'name': 'Niveles de tanques',
@@ -103,17 +103,11 @@ def get_daily_water_report(report_date: Any = None, start_date: Any = None, end_
 
     entry_rows: list[dict[str, Any]] = []
     total_pozos = 0.0
-    ciudad = 0.0
     for idx, well in enumerate(wells, start=1):
         name = str(well.get('nombre') or well.get('name') or f'Pozo {idx}')
-        is_city = 'ciudad' in name.lower()
         supply = _num(well.get('period_m3') or well.get('entry_m3') or well.get('period_delta_m3') or 0)
-        if is_city:
-            ciudad += supply
-            equipo = 'Ciudad'
-        else:
-            total_pozos += supply
-            equipo = f"Pozo {well.get('numero') or idx}"
+        total_pozos += supply
+        equipo = f"Pozo {well.get('numero') or idx}"
         entry_rows.append({
             'equipo': equipo,
             'ubicacion': well.get('ubicacion') or name,
@@ -167,7 +161,8 @@ def get_daily_water_report(report_date: Any = None, start_date: Any = None, end_
         for item in flow_rows
     ]
 
-    total_entry = total_pozos + ciudad
+    line_period_total = sum(_num(item.get('volumen_periodo_m3')) for item in line_rows)
+    total_entry = total_pozos
     supply_24h = [
         {
             'equipo': row['equipo'],
@@ -195,15 +190,14 @@ def get_daily_water_report(report_date: Any = None, start_date: Any = None, end_
         'water_entry': {
             'rows': entry_rows,
             'total_pozos_m3': round(total_pozos, 2),
-            'ciudad_m3': round(ciudad, 2),
             'total_entrada_m3': round(total_entry, 2),
         },
         'water_consumption': {
             'rows': consumption_rows,
             'total': round(flow_period_total, 2),
         },
-        'production_lines': {'rows': line_rows},
-        'operational_flows': {'rows': flow_rows},
+        'production_lines': {'rows': line_rows, 'total': round(line_period_total, 2)},
+        'operational_flows': {'rows': flow_rows, 'total': round(flow_period_total, 2)},
         'tank_levels': {'rows': []},
         'supply_24h': {'rows': supply_24h, 'note': 'Suministro del periodo calculado con diferencias de totalizadores BOS cuando estan disponibles.'},
         'entry_vs_exit': {'rows': entry_exit},
