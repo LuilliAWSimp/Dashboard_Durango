@@ -81,6 +81,16 @@ function flowValue(row: FlexibleRecord): number {
   return Number(row.flow_lps ?? row.flujo_lps ?? row.flow ?? row.flujo_salida ?? row.flujo_entrada ?? 0);
 }
 
+function periodVolume(row: FlexibleRecord): number {
+  return Number(row.volumen_periodo_m3 ?? row.period_m3 ?? row.period_delta_m3 ?? 0);
+}
+
+function hasCommunicationIssue(row: FlexibleRecord): boolean {
+  const type = String(row.communicationType || '').toLowerCase();
+  const label = String(row.estado_comunicacion || '').toLowerCase();
+  return ['communication', 'warning', 'offline'].includes(type) || label.includes('sin') || label.includes('antigua');
+}
+
 function buildOperationalAlerts(dashboard: DashboardOverview | null): Array<{ title: string; type: string; detail: string; priority: string; level: 'critical' | 'warning' | 'normal' }> {
   const alerts: Array<{ title: string; type: string; detail: string; priority: string; level: 'critical' | 'warning' | 'normal' }> = [];
   const wells = toArray(dashboard?.wells).map(normalizeSqlWell) as DashboardWell[];
@@ -90,7 +100,7 @@ function buildOperationalAlerts(dashboard: DashboardOverview | null): Array<{ ti
   wells.forEach((well) => {
     const flow = Number(well.flow ?? well.flujo_salida ?? well.flujo_entrada ?? 0);
     const amps = well.amps === null || well.amps === undefined ? null : Number(well.amps);
-    if (well.communicationType === 'communication' || String(well.estado_comunicacion || '').toLowerCase().includes('sin')) {
+    if (hasCommunicationIssue(well as unknown as FlexibleRecord)) {
       alerts.push({ title: well.name, type: 'Pozo sin lectura reciente', detail: 'Validar comunicación con BOS/SCADA.', priority: 'Alta', level: 'warning' });
     } else if ((amps && amps > 0) && flow <= 0) {
       alerts.push({ title: well.name, type: 'Pozo encendido sin flujo', detail: 'Hay amperaje disponible pero el flujo instantáneo es 0 L/s.', priority: 'Alta', level: 'critical' });
@@ -105,6 +115,8 @@ function buildOperationalAlerts(dashboard: DashboardOverview | null): Array<{ ti
     const label = String(line.nombre || line.name || `Línea ${index + 1}`);
     if (!hasReading(line)) {
       alerts.push({ title: label, type: 'Línea sin lectura', detail: 'No hay flujo ni totalizador disponible en el payload actual.', priority: 'Alta', level: 'warning' });
+    } else if (hasCommunicationIssue(line)) {
+      alerts.push({ title: label, type: 'Línea con lectura no reciente', detail: 'BOS reporta una última comunicación antigua para esta línea.', priority: 'Media', level: 'warning' });
     } else if (flow <= 0 && total > 0) {
       alerts.push({ title: label, type: 'Línea sin flujo actual', detail: 'Totalizador disponible, pero flujo instantáneo en 0 L/s.', priority: 'Media', level: 'warning' });
     }
@@ -117,10 +129,12 @@ function buildOperationalAlerts(dashboard: DashboardOverview | null): Array<{ ti
     const sensorId = Number(flow.sensor_id || 0);
     if (!hasReading(flow)) {
       alerts.push({ title: label, type: 'Sensor sin comunicación', detail: `Sensor ${sensorId || 'sin ID'} sin lectura disponible.`, priority: 'Alta', level: 'warning' });
-    } else if (value <= 0 && total > 0) {
-      alerts.push({ title: label, type: 'Flujo 0 con totalizador', detail: 'El totalizador existe pero el flujo actual está en 0 L/s.', priority: 'Media', level: 'warning' });
+    } else if (hasCommunicationIssue(flow)) {
+      alerts.push({ title: label, type: 'Lectura no reciente', detail: 'BOS reporta una última comunicación antigua para este punto.', priority: 'Media', level: 'warning' });
+    } else if (value <= 0 && Boolean(flow.period_data_available) && periodVolume(flow) <= 0) {
+      alerts.push({ title: label, type: 'Totalizador sin variación', detail: 'Flujo instantáneo en 0 L/s y sin avance de totalizador en el periodo.', priority: 'Media', level: 'warning' });
     }
-    if (sensorId === 3006) {
+    if (sensorId === 3004) {
       alerts.push({ title: label, type: 'Jarabes pendiente de validar', detail: 'Punto operativo pendiente de clasificar; se muestra sin reclasificar.', priority: 'Media', level: 'warning' });
     }
   });
@@ -139,7 +153,7 @@ function buildFlowSummary(dashboard: DashboardOverview | null) {
     total: Number(item.totalizador_m3 ?? item.total_m3 ?? 0),
     status: String(item.status || (flowValue(item) > 0 ? 'Operando' : 'Sin flujo')),
     statusType: String(item.statusType || (flowValue(item) > 0 ? 'normal' : 'idle')),
-    note: Number(item.sensor_id || 0) === 3006 ? 'Pendiente de clasificar' : String(item.category || ''),
+    note: Number(item.sensor_id || 0) === 3004 ? 'Pendiente de clasificar' : String(item.category || ''),
   }));
 }
 

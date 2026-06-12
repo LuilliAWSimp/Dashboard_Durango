@@ -59,8 +59,8 @@ interface FlujosSectionProps {
 
 const flowSensorConfig = [
   { sensor_id: 3002, nombre: 'Lavadora Ciel' },
-  { sensor_id: 3004, nombre: 'Lavadora de Vidrio' },
-  { sensor_id: 3006, nombre: 'Jarabes - pendiente de clasificación operativa' },
+  { sensor_id: 3004, nombre: 'Jarabes - pendiente de clasificación operativa' },
+  { sensor_id: 3006, nombre: 'Lavadora de Vidrio' },
 ];
 
 function errorMessage(error: unknown): string | undefined {
@@ -140,7 +140,7 @@ function normalizeFlow(row: FlexibleRecord | undefined, index: number): FlujoIte
 
   const sensorId = numberOrNull(row.sensor_id) ?? fallback.sensor_id;
   const rawName = asText(row.nombre ?? row.name, fallback.nombre);
-  const displayName = sensorId === 3006 && !rawName.toLowerCase().includes('pendiente')
+  const displayName = sensorId === 3004 && !rawName.toLowerCase().includes('pendiente')
     ? `${rawName} - pendiente de clasificación operativa`
     : rawName;
 

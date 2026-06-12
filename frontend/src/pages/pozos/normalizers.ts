@@ -22,6 +22,11 @@ export function normalizeSqlWell(well: FlexibleRecord, index: number): Normalize
   const updated = formatSqlDate(well.updated || well.ultima_lectura);
   const rawAmps = well.amps ?? well.amperaje ?? null;
   const amps = rawAmps === null || rawAmps === undefined || rawAmps === '' ? null : Number(rawAmps);
+  const backendStatus = String(well.status || state.status);
+  const backendStatusType = String(well.statusType || state.statusType);
+  const backendCommunication = String(well.estado_comunicacion || (isFlowing ? 'Normal' : 'Normal'));
+  const backendCommunicationType = String(well.communicationType || 'normal');
+  const hasCommunicationWarning = ['communication', 'warning', 'offline'].includes(backendCommunicationType);
   return {
     ...well,
     id: well.id || `pozo-${index + 1}`,
@@ -29,10 +34,10 @@ export function normalizeSqlWell(well: FlexibleRecord, index: number): Normalize
     nombre: name,
     name,
     ubicacion: well.ubicacion || well.location || name,
-    status: isFlowing ? 'Encendido' : (well.status || state.status),
-    statusType: isFlowing ? 'normal' : (well.statusType || state.statusType),
-    estado_comunicacion: isFlowing ? 'Normal' : (well.estado_comunicacion || 'Normal'),
-    communicationType: isFlowing ? 'normal' : (well.communicationType || 'normal'),
+    status: hasCommunicationWarning ? backendStatus : (isFlowing ? 'Encendido' : backendStatus),
+    statusType: hasCommunicationWarning ? backendStatusType : (isFlowing ? 'normal' : backendStatusType),
+    estado_comunicacion: backendCommunication,
+    communicationType: backendCommunicationType,
     flujo_salida: flowOut,
     flujo_entrada: flowIn,
     flow,
@@ -56,17 +61,20 @@ export function normalizeSqlLine(line: FlexibleRecord, index: number): Normalize
   const state = statusFromFlow(flow, line.active);
   const name = line.nombre || line.name || `Línea ${index + 1}`;
   const updated = formatSqlDate(line.updated || line.ultima_lectura || line.timestamp);
-  const hasCommunication = flow > 0 || Number(line.quality || 0) === 0;
+  const backendStatus = String(line.status || state.status);
+  const backendStatusType = String(line.statusType || state.statusType);
+  const backendCommunication = String(line.estado_comunicacion || 'Normal');
+  const backendCommunicationType = String(line.communicationType || 'normal');
   return {
     id: line.id || `linea-${index + 1}`,
     numero: line.numero || index + 1,
     nombre: name,
     name,
     ubicacion: line.ubicacion || 'Líneas de producción',
-    status: state.status,
-    statusType: state.statusType,
-    estado_comunicacion: hasCommunication ? 'Normal' : 'Revisar calidad',
-    communicationType: hasCommunication ? 'normal' : 'communication',
+    status: backendStatus,
+    statusType: backendStatusType,
+    estado_comunicacion: backendCommunication,
+    communicationType: backendCommunicationType,
     kwh: null,
     dailyKwh: null,
     totalizador_m3: Number(line.total_m3 || line.totalizador_m3 || 0),

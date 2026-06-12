@@ -31,7 +31,7 @@ function TanquesSection() {
   const dashboardChart = useSqlChartDashboard('dashboard');
   const dashboard = dashboardChart.dashboard as DashboardData | null;
   const flows = toArray(dashboard?.flows);
-  const jarabesRows = flows.filter((row) => asNumber(row.sensor_id) === 3006 || String(row.nombre || row.name || '').toLowerCase().includes('jarabes'));
+  const jarabesRows = flows.filter((row) => asNumber(row.sensor_id) === 3004 || String(row.nombre || row.name || '').toLowerCase().includes('jarabes'));
   const auxiliaryRows = flows.filter((row) => [3002, 3004, 3006].includes(asNumber(row.sensor_id)));
 
   return (

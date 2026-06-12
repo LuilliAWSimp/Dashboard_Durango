@@ -160,8 +160,8 @@ FLOW_IN_SENSOR_IDS = [1003, 1053]
 
 DISTRIBUTION_NAMES = [
     'Lavadora Ciel',
-    'Lavadora de Vidrio',
     'Jarabes',
+    'Lavadora de Vidrio',
 ]
 
 
@@ -177,8 +177,8 @@ LINE_SENSOR_BY_ID = {int(item['sensor_id']): item for item in LINE_SENSOR_MAP}
 
 FLOW_SENSOR_MAP = [
     {'sensor_id': 3002, 'name': 'Lavadora Ciel', 'category': 'lavadora'},
-    {'sensor_id': 3004, 'name': 'Lavadora de Vidrio', 'category': 'lavadora'},
-    {'sensor_id': 3006, 'name': 'Jarabes - pendiente de clasificacion operativa', 'category': 'pendiente'},
+    {'sensor_id': 3004, 'name': 'Jarabes - pendiente de clasificacion operativa', 'category': 'pendiente'},
+    {'sensor_id': 3006, 'name': 'Lavadora de Vidrio', 'category': 'lavadora'},
 ]
 
 FLOW_SENSOR_BY_ID = {int(item['sensor_id']): item for item in FLOW_SENSOR_MAP}
@@ -188,6 +188,26 @@ CONFIRMED_LINE_SLOT_INDICES = tuple(range(len(LINE_SENSOR_MAP)))
 CONFIRMED_FLOW_SLOT_INDICES = tuple(range(len(FLOW_SENSOR_MAP)))
 CONFIRMED_LINE_SENSOR_IDS = {int(item['sensor_id']) for item in LINE_SENSOR_MAP}
 CONFIRMED_FLOW_SENSOR_IDS = {int(item['sensor_id']) for item in FLOW_SENSOR_MAP}
+
+
+def _durango_aux_sensor_from_source(source_value: Any) -> int | None:
+    text_value = str(source_value or '').upper()
+    if 'CIEL' in text_value:
+        return 3002
+    if 'JARABE' in text_value:
+        return 3004
+    if 'VIDRIO' in text_value:
+        return 3006
+    return None
+
+
+def _durango_aux_sensor_id(row: dict[str, Any] | None, index: int, fallback_sensor: int) -> int:
+    # En Durango el cruce Lavadora/Jarabes se valido por la columna source.
+    # Si source trae una etiqueta conocida, se usa para evitar nombres cruzados.
+    source_sensor = _durango_aux_sensor_from_source(_bos_value(row, 'TANQUE_FLOW_IN', index, 'source', None))
+    if source_sensor is not None:
+        return source_sensor
+    return int(_num(_bos_value(row, 'TANQUE_FLOW_IN', index, 'sensor_id', fallback_sensor), fallback_sensor))
 
 
 # dbo.NIVELES_BOS expone niveles por columna. El dashboard conserva el nombre
@@ -793,6 +813,40 @@ def _status_from_values(flow_out: float, flow_in: float, amps: float | None = No
     return False, 'Apagado', 'idle', 'Normal', 'normal'
 
 
+def _reading_freshness(value: Any, stale_minutes: int = 60) -> tuple[bool, str, str, int | None]:
+    """Classify whether the BOS timestamp is recent enough for live operation.
+
+    Durango may receive valid values from BOS with an old timestamp. Those
+    values must remain visible, but the UI/report should not present them as
+    current.
+    """
+    dt_value = _parse_datetime(value)
+    if not dt_value:
+        return False, 'Sin timestamp BOS', 'communication', None
+    try:
+        now = datetime.now(dt_value.tzinfo) if dt_value.tzinfo else datetime.utcnow()
+        if dt_value > now + timedelta(minutes=5):
+            return False, 'Normal', 'normal', 0
+        age_minutes = int((now - dt_value).total_seconds() // 60)
+    except Exception:
+        return False, 'Normal', 'normal', None
+    if age_minutes > stale_minutes:
+        return True, 'Última comunicación antigua', 'warning', age_minutes
+    return False, 'Normal', 'normal', age_minutes
+
+
+def _apply_freshness_to_status(
+    active: bool,
+    status: str,
+    status_type: str,
+    communication: str,
+    communication_type: str,
+    timestamp_value: Any,
+) -> tuple[bool, str, str, str, str, bool, int | None]:
+    is_stale, freshness_label, freshness_type, age_minutes = _reading_freshness(timestamp_value)
+    if is_stale:
+        return active, 'Lectura no reciente', 'warning', freshness_label, freshness_type, True, age_minutes
+    return active, status, status_type, communication, communication_type, False, age_minutes
 
 
 def _optional_num(value: Any) -> float | None:
@@ -984,6 +1038,11 @@ def _build_wells(
             or _amps_from_quality(quality_in)
         )
         active, status, status_type, comm, comm_type = _status_from_values(flow_out, flow_in, amps)
+        updated_value = _first(pozo_row, 'time_stamp', 'timestamp')
+        updated_iso = _iso(updated_value) or 'Dato SQL Server'
+        active, status, status_type, comm, comm_type, reading_stale, reading_age_minutes = _apply_freshness_to_status(
+            active, status, status_type, comm, comm_type, updated_value
+        )
 
         location_row = locations.get(well_id, {})
         fallback_name = str(slot.get('name') or (WELL_NAMES[index] if index < len(WELL_NAMES) else f'POZO {numero}')).strip()
@@ -1040,8 +1099,10 @@ def _build_wells(
             'flujo_entrada': flow_in,
             'flujo_salida': flow_out,
             'flow': max(flow_out, flow_in),
-            'updated': _iso(_first(pozo_row, 'time_stamp', 'timestamp')) or 'Dato SQL Server',
-            'ultima_lectura': _iso(_first(pozo_row, 'time_stamp', 'timestamp')) or 'Dato SQL Server',
+            'updated': updated_iso,
+            'ultima_lectura': updated_iso,
+            'reading_stale': reading_stale,
+            'reading_age_minutes': reading_age_minutes,
             'latitude': location_row.get('latitude'),
             'longitude': location_row.get('longitude'),
             'dynamic_level_m': location_row.get('dynamic_level_m'),
@@ -1069,7 +1130,7 @@ def _build_tank_inputs(tanque_row: dict[str, Any] | None, catalog: dict[int, dic
     updated = _iso(_first(tanque_row, 'time_stamp', 'timestamp')) if tanque_row else None
     for index in _flow_slot_indices(tanque_row):
         fallback_sensor = int(FLOW_SENSOR_MAP[index]['sensor_id']) if index < len(FLOW_SENSOR_MAP) else 3002 + index * 2
-        sensor_id = int(_num(_bos_value(tanque_row, 'TANQUE_FLOW_IN', index, 'sensor_id', fallback_sensor), fallback_sensor))
+        sensor_id = _durango_aux_sensor_id(tanque_row, index, fallback_sensor)
         _sensor_id, name, location = _flow_item_metadata(index, catalog, sensor_id)
         raw_flow = _bos_value(tanque_row, 'TANQUE_FLOW_IN', index, 'instant_value', None)
         raw_total = _bos_value(tanque_row, 'TANQUE_FLOW_IN', index, 'total_value', None)
@@ -1090,7 +1151,7 @@ def _build_tank_inputs(tanque_row: dict[str, Any] | None, catalog: dict[int, dic
             'ultima_lectura': updated or 'Sin datos',
             'source_table': 'dbo.SensorsBOS_Tanque',
             'source_key': f'TANQUE_FLOW_IN[{index}]',
-            'category': (FLOW_SENSOR_BY_ID.get(sensor_id) or {}).get('category') or ('lavadora' if sensor_id in {3002, 3004} else 'pendiente'),
+            'category': (FLOW_SENSOR_BY_ID.get(sensor_id) or {}).get('category') or ('lavadora' if sensor_id in {3002, 3006} else 'pendiente'),
             'description': location,
             'has_reading': has_reading,
         })
@@ -1157,6 +1218,16 @@ def _build_lines(
         period_m3, period_available = _period_delta_from_totalizers(raw_total, raw_start_total, has_period)
         quality = _num(_bos_value(linea_row, 'LINEA_FLOW_IN', index, 'quality', 0))
         numero, line_name, sensor_name = _line_metadata(index, sensor_id, catalog)
+        updated_value = _first(linea_row, 'time_stamp', 'timestamp')
+        updated_iso = _iso(updated_value) or 'Dato SQL Server'
+        active = flow > 0
+        status = 'Operando' if active else 'Sin flujo'
+        status_type = 'normal' if active else 'idle'
+        communication = 'En línea'
+        communication_type = 'online'
+        active, status, status_type, communication, communication_type, reading_stale, reading_age_minutes = _apply_freshness_to_status(
+            active, status, status_type, communication, communication_type, updated_value
+        )
         lines.append({
             'id': f'linea-{numero}',
             'numero': numero,
@@ -1173,27 +1244,35 @@ def _build_lines(
             'period_source': 'bos_totalizer_delta' if period_available else 'bos_instant_only',
             'period_data_available': period_available,
             'quality': quality,
-            'active': flow > 0,
-            'updated': _iso(_first(linea_row, 'time_stamp', 'timestamp')) or 'Dato SQL Server',
-            'ultima_lectura': _iso(_first(linea_row, 'time_stamp', 'timestamp')) or 'Dato SQL Server',
+            'active': active,
+            'status': status,
+            'statusType': status_type,
+            'estado_comunicacion': communication,
+            'communicationType': communication_type,
+            'updated': updated_iso,
+            'ultima_lectura': updated_iso,
+            'reading_stale': reading_stale,
+            'reading_age_minutes': reading_age_minutes,
         })
     return sorted(lines, key=lambda item: int(item.get('numero') or 0))
 
 
 
-def _flow_status(flow: float | None, has_reading: bool) -> tuple[bool, str, str, str, str]:
+def _flow_status(flow: float | None, has_reading: bool, period_m3: float = 0.0, period_available: bool = False) -> tuple[bool, str, str, str, str]:
     if not has_reading:
         return False, 'Sin datos', 'communication', 'Sin comunicación', 'offline'
     if _num(flow, 0) > 0:
         return True, 'Operando', 'normal', 'En línea', 'online'
-    return False, 'Sin flujo', 'idle', 'En línea', 'online'
+    if period_available and _num(period_m3, 0) > 0:
+        return True, 'Totalizador activo', 'normal', 'En línea', 'online'
+    return False, 'Sin flujo instantáneo', 'idle', 'En línea', 'online'
 
 
 def _flow_slot_indices(row: dict[str, Any] | None) -> list[int]:
     """Return only confirmed Durango auxiliary-flow slots.
 
     Durango uses dbo.SensorsBOS_Tanque as auxiliary flow source for
-    Lavadora Ciel, Lavadora de Vidrio and Jarabes. It is not a tank-level
+    Lavadora Ciel, Jarabes and Lavadora de Vidrio. It is not a tank-level
     source, and inherited TANQUE_FLOW_IN slots are not surfaced as real
     assets.
     """
@@ -1201,7 +1280,8 @@ def _flow_slot_indices(row: dict[str, Any] | None) -> list[int]:
         return []
     indices: list[int] = []
     for index in CONFIRMED_FLOW_SLOT_INDICES:
-        sensor_id = _optional_int(_bos_value(row, 'TANQUE_FLOW_IN', index, 'sensor_id', None))
+        fallback_sensor = int(FLOW_SENSOR_MAP[index]['sensor_id']) if index < len(FLOW_SENSOR_MAP) else 3002 + index * 2
+        sensor_id = _durango_aux_sensor_id(row, index, fallback_sensor)
         raw_flow = _bos_value(row, 'TANQUE_FLOW_IN', index, 'instant_value', None)
         raw_total = _bos_value(row, 'TANQUE_FLOW_IN', index, 'total_value', None)
         raw_quality = _bos_value(row, 'TANQUE_FLOW_IN', index, 'quality', None)
@@ -1237,7 +1317,7 @@ def _build_flows(
     updated = _iso(_first(tanque_row, 'time_stamp', 'timestamp')) if tanque_row else None
     for index in _flow_slot_indices(tanque_row):
         fallback_sensor = int(FLOW_SENSOR_MAP[index]['sensor_id']) if index < len(FLOW_SENSOR_MAP) else 3002 + index * 2
-        sensor_id = int(_num(_bos_value(tanque_row, 'TANQUE_FLOW_IN', index, 'sensor_id', fallback_sensor), fallback_sensor))
+        sensor_id = _durango_aux_sensor_id(tanque_row, index, fallback_sensor)
         sensor_id, name, location = _flow_item_metadata(index, catalog, sensor_id)
         raw_flow = _bos_value(tanque_row, 'TANQUE_FLOW_IN', index, 'instant_value', None)
         raw_total = _bos_value(tanque_row, 'TANQUE_FLOW_IN', index, 'total_value', None)
@@ -1247,7 +1327,10 @@ def _build_flows(
         total = _optional_num(raw_total)
         raw_start_total = _bos_value(tanque_start_row, 'TANQUE_FLOW_IN', index, 'total_value', None)
         period_m3, period_available = _period_delta_from_totalizers(raw_total, raw_start_total, has_period)
-        active, status, status_type, communication, communication_type = _flow_status(flow, has_reading)
+        active, status, status_type, communication, communication_type = _flow_status(flow, has_reading, period_m3, period_available)
+        active, status, status_type, communication, communication_type, reading_stale, reading_age_minutes = _apply_freshness_to_status(
+            active, status, status_type, communication, communication_type, _first(tanque_row, 'time_stamp', 'timestamp')
+        )
         flows.append({
             'id': f'flujo-{index + 1:02d}',
             'numero': index + 1,
@@ -1271,12 +1354,14 @@ def _build_flows(
             'statusType': status_type,
             'estado_comunicacion': communication,
             'communicationType': communication_type,
+            'reading_stale': reading_stale,
+            'reading_age_minutes': reading_age_minutes,
             'updated': updated or 'Sin datos',
             'ultima_lectura': updated or 'Sin datos',
             'source_table': 'dbo.SensorsBOS_Tanque',
             'source_key': f'TANQUE_FLOW_IN[{index}]',
-            'category': (FLOW_SENSOR_BY_ID.get(sensor_id) or {}).get('category') or ('lavadora' if sensor_id in {3002, 3004} else 'pendiente'),
-            'classification_note': 'Jarabes pendiente de validar clasificacion operativa.' if sensor_id == 3006 else '',
+            'category': (FLOW_SENSOR_BY_ID.get(sensor_id) or {}).get('category') or ('lavadora' if sensor_id in {3002, 3006} else 'pendiente'),
+            'classification_note': 'Jarabes pendiente de validar clasificacion operativa.' if sensor_id == 3004 else '',
             'diagnosis': (f'Lectura real del punto auxiliar sensor {sensor_id}; periodo desde delta de totalizador.' if period_available else f'Lectura instantanea real del punto auxiliar sensor {sensor_id}; periodo no disponible sin totalizadores validos.') if has_reading else f'Sin lectura disponible para sensor {sensor_id}.',
         })
     return flows
@@ -1333,7 +1418,7 @@ def _build_flow_history(rows: list[dict[str, Any]], catalog: dict[int, dict[str,
             continue
         for index in _flow_slot_indices(row):
             fallback_sensor = int(FLOW_SENSOR_MAP[index]['sensor_id']) if index < len(FLOW_SENSOR_MAP) else 3002 + index * 2
-            sensor_id = int(_num(_bos_value(row, 'TANQUE_FLOW_IN', index, 'sensor_id', fallback_sensor), fallback_sensor))
+            sensor_id = _durango_aux_sensor_id(row, index, fallback_sensor)
             sensor_id, name, location = _flow_item_metadata(index, catalog, sensor_id)
             raw_flow = _bos_value(row, 'TANQUE_FLOW_IN', index, 'instant_value', None)
             raw_total = _bos_value(row, 'TANQUE_FLOW_IN', index, 'total_value', None)
@@ -1539,13 +1624,13 @@ def _cards(wells: list[dict[str, Any]], lines: list[dict[str, Any]], tank_inputs
     total_flow_out = sum(_num(item.get('flujo_salida')) for item in wells)
     total_flow_in = sum(_num(item.get('flujo_entrada')) for item in wells)
     active_lines = sum(1 for item in lines if item.get('active'))
-    active_tank = sum(1 for item in tank_inputs if item.get('active'))
+    active_tank = sum(1 for item in tank_inputs if item.get('active') or _num(item.get('total_m3'), 0) > 0)
     return [
         {'label': 'Pozos operando', 'value': f'{active_wells}/{len(wells)}', 'unit': 'pozos', 'trend': 'Datos desde monitoreo', 'accent': 'blue'},
         {'label': 'Flujo salida pozos', 'value': f'{total_flow_out:,.2f}', 'unit': 'L/s', 'trend': 'Lectura actual de salida', 'accent': 'cyan'},
         {'label': 'Flujo entrada pozos', 'value': f'{total_flow_in:,.2f}', 'unit': 'L/s', 'trend': 'Lectura actual de entrada', 'accent': 'teal'},
         {'label': 'Líneas activas', 'value': f'{active_lines}/{len(lines)}', 'unit': 'líneas', 'trend': 'Datos desde monitoreo', 'accent': 'sky'},
-        {'label': 'Lavadoras/Jarabes', 'value': f'{active_tank}/{len(tank_inputs)}', 'unit': 'puntos', 'trend': 'Datos auxiliares BOS', 'accent': 'indigo'},
+        {'label': 'Lavadoras/Jarabes', 'value': f'{active_tank}/{len(tank_inputs)}', 'unit': 'puntos con lectura', 'trend': 'Flujo instantáneo o totalizador disponible', 'accent': 'indigo'},
     ]
 
 

@@ -36,6 +36,17 @@ function flowValue(row: FlexibleRecord): number {
   return Number(row.flow_lps ?? row.flujo_lps ?? row.flow ?? row.flujo_salida ?? row.flujo_entrada ?? 0);
 }
 
+function statusForFlowPoint(row: FlexibleRecord): { label: string; type: string } {
+  const explicitLabel = String(row.status || '').trim();
+  const explicitType = String(row.statusType || '').trim();
+  if (explicitLabel) return { label: explicitLabel, type: explicitType || 'idle' };
+  const flow = flowValue(row);
+  const period = Number(row.volumen_periodo_m3 ?? row.period_m3 ?? row.period_delta_m3 ?? 0);
+  if (flow > 0) return { label: 'Operando', type: 'normal' };
+  if (Boolean(row.period_data_available) && period > 0) return { label: 'Totalizador activo', type: 'normal' };
+  return { label: 'Sin flujo instantáneo', type: 'idle' };
+}
+
 function BalanceSection() {
   const balanceChart = useSqlChartDashboard('dashboard');
   const dashboard = balanceChart.dashboard as DashboardData | null;
@@ -112,17 +123,17 @@ function BalanceSection() {
           {flows.length ? flows.map((item, index) => {
             const sensorId = Number(item.sensor_id || 0);
             const flow = flowValue(item);
-            const statusType = flow > 0 ? 'normal' : 'warning';
+            const status = statusForFlowPoint(item);
             return (
-              <article className={`water-type-card ${statusType}`} key={`${sensorId}-${index}`}>
+              <article className={`water-type-card ${status.type}`} key={`${sensorId}-${index}`}>
                 <div className="water-type-head">
                   <div><span>{sensorId ? `Sensor ${sensorId}` : 'Sensor'}</span><strong>{String(item.nombre || item.name || `Punto ${index + 1}`)}</strong></div>
-                  <StatusBadge type={statusType}>{flow > 0 ? 'Operando' : 'Sin flujo'}</StatusBadge>
+                  <StatusBadge type={status.type}>{status.label}</StatusBadge>
                 </div>
                 <div className="water-type-foot">
                   <span>Flujo actual</span>
                   <strong>{formatNumber(flow, 2)} L/s</strong>
-                  <p>{sensorId === 3006 ? 'Jarabes pendiente de validación operativa.' : 'Dato real de flujo BOS.'}</p>
+                  <p>{sensorId === 3004 ? 'Jarabes pendiente de validación operativa.' : 'Dato real de flujo BOS.'}</p>
                 </div>
               </article>
             );
