@@ -5,6 +5,7 @@ import ChartEmptyState from '../components/ChartEmptyState';
 import PanelHeader from '../components/PanelHeader';
 import StatusBadge from '../components/StatusBadge';
 import useSqlChartDashboard from '../hooks/useSqlChartDashboard';
+import { defaultTodayRange } from '../dateUtils';
 
 function toArray(value: unknown): FlexibleRecord[] {
   return Array.isArray(value) ? value as FlexibleRecord[] : [];
@@ -28,10 +29,10 @@ function flowValue(row: FlexibleRecord): number {
 }
 
 function TanquesSection() {
-  const dashboardChart = useSqlChartDashboard('dashboard');
+  const dashboardChart = useSqlChartDashboard('dashboard', defaultTodayRange, { forceRefresh: true, includeHistory: false, includeEnergyWater: false });
   const dashboard = dashboardChart.dashboard as DashboardData | null;
   const flows = toArray(dashboard?.flows);
-  const jarabesRows = flows.filter((row) => asNumber(row.sensor_id) === 3006 || String(row.nombre || row.name || '').toLowerCase().includes('jarabes'));
+  const jarabesRows = flows.filter((row) => asNumber(row.sensor_id) === 3004 || String(row.nombre || row.name || '').toLowerCase().includes('jarabes'));
   const auxiliaryRows = flows.filter((row) => [3002, 3004, 3006].includes(asNumber(row.sensor_id)));
 
   return (
@@ -110,14 +111,15 @@ function TanquesSection() {
             const sensorId = asNumber(row.sensor_id);
             const name = String(row.nombre || row.name || `Punto ${index + 1}`);
             const flow = flowValue(row);
+            const status = String(row.status || (flow > 0 ? 'Con flujo' : 'Sin flujo instantáneo'));
+            const statusType = String(row.statusType || (flow > 0 ? 'normal' : 'warning'));
             return (
               <article key={`${sensorId}-${index}`}>
                 <div>
                   <span>{name}</span>
                   <strong>{formatNumber(flow)} L/s</strong>
-                  <p>{sensorId ? `Sensor ${sensorId}` : 'Sensor no disponible'} · Punto auxiliar BOS</p>
                 </div>
-                <StatusBadge type={flow > 0 ? 'normal' : 'warning'}>{flow > 0 ? 'Con flujo' : 'Sin flujo'}</StatusBadge>
+                <StatusBadge type={statusType}>{status}</StatusBadge>
               </article>
             );
           }) : <ChartEmptyState message="Sin puntos auxiliares disponibles en la respuesta actual." />}

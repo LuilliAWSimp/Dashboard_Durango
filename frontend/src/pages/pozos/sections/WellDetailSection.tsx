@@ -240,11 +240,11 @@ export default function WellDetailSection({ wellId, backPath = '/pozos/pozos', b
   const [sqlError, setSqlError] = useState('');
   const [dailyReport, setDailyReport] = useState<DailyWaterReport | null>(null);
   const [dailyReportError, setDailyReportError] = useState('');
-  const detailChart = useSqlChartDashboard('dashboard', defaultTodayRange, { includeHistory: true });
+  const detailChart = useSqlChartDashboard('dashboard', defaultTodayRange, { forceRefresh: true, includeHistory: true, includeEnergyWater: false });
 
   useEffect(() => {
     let mounted = true;
-    fetchWaterDashboard('dashboard')
+    fetchWaterDashboard('dashboard', { force_refresh: true, include_history: false, include_energy_water: false })
       .then((data) => { if (mounted) setSqlDashboard(data as DashboardData); })
       .catch((error) => { if (mounted) setSqlError((error as { message?: string })?.message || 'No se pudo leer SQL Server'); });
     return () => { mounted = false; };
@@ -269,7 +269,6 @@ export default function WellDetailSection({ wellId, backPath = '/pozos/pozos', b
   const reportEntry = findReportEntryForWell(dailyReport, well);
   const supplyM3 = getReportDailySupplyM3(reportEntry);
   const timeline = buildWellTimeline(dashboardForDetail, wellId ? well : null) as WellTimelinePoint[];
-  const efficiencyGap = null;
   const historicalRows = timeline.slice(-5).reverse();
 
   return (
@@ -303,10 +302,6 @@ export default function WellDetailSection({ wellId, backPath = '/pozos/pozos', b
             <span>Suministro diario</span>
             <strong>{supplyM3 === null ? '—' : formatNumber(supplyM3, 2)} <small>{supplyM3 === null ? '' : 'm³'}</small></strong>
           </article>
-          <article>
-            <span>Energía periodo</span>
-            <strong>Pendiente <small>sin fuente confiable</small></strong>
-          </article>
         </div>
       </section>
 
@@ -314,7 +309,7 @@ export default function WellDetailSection({ wellId, backPath = '/pozos/pozos', b
         <div className="panel chart-panel fade-up well-detail-flow-chart">
           <PanelHeader
             title="Agua por periodo"
-            subtitle="Histórico filtrable del pozo seleccionado; energía no confirmada para Durango"
+            subtitle="Histórico filtrable del pozo seleccionado con flujo y amperaje disponible."
           />
           <SqlChartDateControls controller={detailChart} />
           <ChartPeriodNote range={detailChart.range} source="Un día: puntos por hora · varios días: puntos por día" />
@@ -335,23 +330,26 @@ export default function WellDetailSection({ wellId, backPath = '/pozos/pozos', b
 
       <section className="content-grid well-detail-secondary-grid">
         <div className="panel summary-panel fade-up">
-          <PanelHeader title="Eficiencia energética" subtitle="Pendiente: Durango no tiene fuente kWh/m³ confirmada" />
-          <div className="well-efficiency-card">
-            <div>
-              <span>Actual</span>
-              <strong>Sin fuente <small>kWh/m³</small></strong>
-            </div>
-            <div>
-              <span>Promedio referencia</span>
-              <strong>— <small>pendiente</small></strong>
-            </div>
-            <div className={efficiencyGap && efficiencyGap > 0.12 ? 'efficiency-gap warning' : 'efficiency-gap'}>
-              <span>Diferencia</span>
-              <strong>{efficiencyGap === null ? '—' : `${efficiencyGap > 0 ? '+' : ''}${efficiencyGap.toFixed(2)}`}</strong>
-            </div>
-          </div>
-          <div className="load-factor-box">
-            <p>Se omite kWh/m³ para no mostrar valores inventados. La gráfica principal usa agua/flujo y amperaje cuando BOS lo entrega.</p>
+          <PanelHeader title="Estado operativo" subtitle="Diagnóstico básico con lecturas reales disponibles" />
+          <div className="diagnostic-stack">
+            <article>
+              <div>
+                <span>Comunicación</span>
+                <strong>{well.estado_comunicacion}</strong>
+              </div>
+            </article>
+            <article>
+              <div>
+                <span>Última lectura</span>
+                <strong>{well.ultima_lectura}</strong>
+              </div>
+            </article>
+            <article>
+              <div>
+                <span>Diagnóstico</span>
+                <strong>{well.diagnosis}</strong>
+              </div>
+            </article>
           </div>
         </div>
 
@@ -370,12 +368,11 @@ export default function WellDetailSection({ wellId, backPath = '/pozos/pozos', b
         </div>
 
         <div className="panel summary-panel fade-up">
-          <PanelHeader title="Metadata técnica" subtitle="Base temporal para futura lectura desde SQL Server" />
+          <PanelHeader title="Datos disponibles" subtitle="Referencia operativa desde monitoreo; sin tanques de nivel asociados" />
           <div className="metadata-list">
             <div><span>Amperaje nominal</span><strong>{profile.nominalAmps || '—'} A</strong></div>
             <div><span>Tipo de bomba</span><strong>{profile.pumpType || '—'}</strong></div>
             <div><span>Línea asociada</span><strong>{profile.line || '—'}</strong></div>
-            <div><span>Tanque asociado</span><strong>{profile.tank || '—'}</strong></div>
           </div>
         </div>
       </section>

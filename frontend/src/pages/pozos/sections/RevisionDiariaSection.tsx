@@ -19,6 +19,7 @@ import PanelHeader from '../components/PanelHeader';
 import SqlChartDateControls from '../components/SqlChartDateControls';
 import StatusBadge from '../components/StatusBadge';
 import useSqlChartDashboard from '../hooks/useSqlChartDashboard';
+import { defaultTodayRange } from '../dateUtils';
 
 const axisColor = '#b9e7ff';
 const gridColor = 'rgba(56,189,248,0.14)';
@@ -66,6 +67,16 @@ function flowValue(row: FlexibleRecord): number {
   return asNumber(row.flow_lps ?? row.flujo_lps ?? row.flow ?? row.flujo_salida ?? row.flujo_entrada ?? 0);
 }
 
+function periodVolume(row: FlexibleRecord): number {
+  return asNumber(row.volumen_periodo_m3 ?? row.period_m3 ?? row.period_delta_m3 ?? 0);
+}
+
+function hasCommunicationIssue(row: FlexibleRecord): boolean {
+  const type = String(row.communicationType || '').toLowerCase();
+  const label = String(row.estado_comunicacion || '').toLowerCase();
+  return ['communication', 'warning', 'offline'].includes(type) || label.includes('sin') || label.includes('antigua');
+}
+
 function hasReading(row: FlexibleRecord): boolean {
   return [row.flow_lps, row.flujo_lps, row.flow, row.totalizador_m3, row.total_m3].some((value) => value !== null && value !== undefined && value !== '');
 }
@@ -86,7 +97,7 @@ function buildPriorities(dashboard: DashboardData | null): PriorityRow[] {
     const name = String(well.name || well.nombre || `Pozo ${well.numero || ''}`);
     const flow = asNumber(well.flow ?? well.flujo_salida ?? well.flujo_entrada);
     const amps = well.amps === null || well.amps === undefined ? null : asNumber(well.amps);
-    if (String(well.communicationType || '').includes('communication') || String(well.estado_comunicacion || '').toLowerCase().includes('sin')) {
+    if (hasCommunicationIssue(well as unknown as FlexibleRecord)) {
       priorities.push({ target: name, type: 'Pozo sin lectura reciente', description: 'Validar comunicación con BOS/SCADA.', metric: String(well.ultima_lectura || 'Sin lectura'), owner: 'Operación', priority: 'Alta', level: 'warning', category: 'pozos' });
     } else if (amps && amps > 0 && flow <= 0) {
       priorities.push({ target: name, type: 'Pozo encendido sin flujo', description: 'Hay amperaje disponible y flujo instantáneo en 0 L/s.', metric: `${formatNumber(amps, 2)} A · ${formatNumber(flow)} L/s`, owner: 'Operación', priority: 'Crítica', level: 'critical', category: 'pozos' });
@@ -101,6 +112,8 @@ function buildPriorities(dashboard: DashboardData | null): PriorityRow[] {
     const total = asNumber(line.totalizador_m3 ?? line.total_m3);
     if (!hasReading(line)) {
       priorities.push({ target: name, type: 'Línea sin lectura', description: 'No hay flujo ni totalizador disponible.', metric: 'Sin lectura BOS', owner: 'Operación', priority: 'Alta', level: 'warning', category: 'lineas' });
+    } else if (hasCommunicationIssue(line)) {
+      priorities.push({ target: name, type: 'Línea con lectura no reciente', description: 'BOS reporta una última comunicación antigua para esta línea.', metric: String(line.ultima_lectura || line.updated || 'Fecha no disponible'), owner: 'Operación', priority: 'Media', level: 'warning', category: 'lineas' });
     } else if (flow <= 0 && total > 0) {
       priorities.push({ target: name, type: 'Línea sin flujo', description: 'Totalizador disponible con flujo actual en 0 L/s.', metric: `${formatNumber(total, 0)} m³`, owner: 'Operación', priority: 'Media', level: 'warning', category: 'lineas' });
     }
@@ -113,11 +126,13 @@ function buildPriorities(dashboard: DashboardData | null): PriorityRow[] {
     const total = asNumber(flow.totalizador_m3 ?? flow.total_m3);
     if (!hasReading(flow)) {
       priorities.push({ target: name, type: 'Sensor sin comunicación', description: 'No hay lectura disponible para este punto.', metric: sensorId ? `Sensor ${sensorId}` : 'Sensor sin ID', owner: 'Operación', priority: 'Alta', level: 'warning', category: 'flujos' });
-    } else if (value <= 0 && total > 0) {
-      priorities.push({ target: name, type: 'Flujo 0 con totalizador', description: 'El totalizador existe pero el flujo actual es 0 L/s.', metric: `${formatNumber(total, 0)} m³`, owner: 'Operación', priority: 'Media', level: 'warning', category: 'flujos' });
+    } else if (hasCommunicationIssue(flow)) {
+      priorities.push({ target: name, type: 'Lectura no reciente', description: 'BOS reporta una última comunicación antigua para este punto.', metric: String(flow.ultima_lectura || flow.updated || 'Fecha no disponible'), owner: 'Operación', priority: 'Media', level: 'warning', category: 'flujos' });
+    } else if (value <= 0 && Boolean(flow.period_data_available) && periodVolume(flow) <= 0) {
+      priorities.push({ target: name, type: 'Totalizador sin variación', description: 'Flujo instantáneo en 0 L/s y sin avance de totalizador en el periodo.', metric: `${formatNumber(total, 0)} m³`, owner: 'Operación', priority: 'Media', level: 'warning', category: 'flujos' });
     }
-    if (sensorId === 3006) {
-      priorities.push({ target: name, type: 'Jarabes pendiente', description: 'Punto reportado como Jarabes; falta confirmar clasificación operativa.', metric: 'Sensor 3006', owner: 'Operación', priority: 'Media', level: 'warning', category: 'flujos' });
+    if (sensorId === 3004) {
+      priorities.push({ target: name, type: 'Jarabes pendiente', description: 'Punto reportado como Jarabes; falta confirmar clasificación operativa.', metric: 'Sensor 3004', owner: 'Operación', priority: 'Media', level: 'warning', category: 'flujos' });
     }
   });
 
@@ -159,7 +174,7 @@ function buildDiagnostics(dashboard: DashboardData | null): DiagnosticRow[] {
     const name = String(well.name || well.nombre || `Pozo ${well.numero || ''}`);
     const flow = asNumber(well.flow ?? well.flujo_salida ?? well.flujo_entrada);
     const amps = well.amps === null || well.amps === undefined ? null : asNumber(well.amps);
-    if (String(well.communicationType || '').includes('communication')) {
+    if (hasCommunicationIssue(well as unknown as FlexibleRecord)) {
       return { well: name, symptom: 'Sin lectura reciente.', cause: 'Fuente BOS/SCADA no entregó lectura válida en el payload actual.', action: 'Revisar comunicación o disponibilidad del sensor.', priority: 'Alta', level: 'warning' as PriorityLevel };
     }
     if (amps && amps > 0 && flow <= 0) {
@@ -173,7 +188,7 @@ function buildDiagnostics(dashboard: DashboardData | null): DiagnosticRow[] {
 }
 
 function RevisionDiariaSection() {
-  const reviewChart = useSqlChartDashboard('dashboard');
+  const reviewChart = useSqlChartDashboard('dashboard', defaultTodayRange, { forceRefresh: true, includeHistory: false, includeEnergyWater: false });
   const dashboard = reviewChart.dashboard as DashboardData | null;
   const priorities = buildPriorities(dashboard);
   const diagnostics = buildDiagnostics(dashboard);
@@ -185,14 +200,14 @@ function RevisionDiariaSection() {
     name: row.name as string,
     score: asNumber(row.flujo),
     reason: (row.fullName || row.name) as string,
-    action: 'Ranking por flujo real; eficiencia kWh/m³ pendiente de fuente energética confiable.',
+    action: 'Ranking por flujo real; la eficiencia energética queda pendiente de fuente confiable.',
   })).filter((row) => row.score || row.reason);
   const alertBreakdown = priorityBreakdown(priorities);
   const cards = [
     { label: 'Alertas operativas', value: String(priorities.filter((item) => item.level !== 'normal').length), unit: '', trend: alertBreakdown, accent: 'red' },
     { label: 'Pozos revisados', value: String(toArray(dashboard?.wells).length), unit: 'pozos', trend: 'Datos reales BOS', accent: 'cyan' },
     { label: 'Líneas revisadas', value: String(toArray(dashboard?.production_lines).length), unit: 'líneas', trend: 'Datos reales BOS', accent: 'teal' },
-    { label: 'Lavadoras/Jarabes', value: String(flows.length), unit: 'puntos', trend: 'Jarabes pendiente si aparece sensor 3006', accent: 'blue' },
+    { label: 'Lavadoras/Jarabes', value: String(flows.length), unit: 'puntos', trend: 'Jarabes pendiente si aparece sensor 3004', accent: 'blue' },
   ];
 
   return (
@@ -242,7 +257,7 @@ function RevisionDiariaSection() {
         </div>
 
         <div className="panel chart-panel fade-up daily-ranking-panel">
-          <PanelHeader title="Ranking de suministro/flujo real" subtitle="Sustituye kWh/m³ porque Durango no tiene fuente energética operativa confirmada" />
+          <PanelHeader title="Ranking de suministro/flujo real" subtitle="Ranking operativo sin fuente energética confirmada" />
           <SqlChartDateControls controller={reviewChart} />
           {reviewRows.length ? (
             <ResponsiveContainer width="100%" height={300}>
@@ -307,7 +322,7 @@ function RevisionDiariaSection() {
           <div className="daily-export-list">
             <article><div className="export-check-icon"><ClipboardCheck size={15} /></div><div><strong>Datos BOS</strong><span>{reportReady ? 'Reporte disponible con fuente SQL Server/BOS.' : 'Pendiente: fuente BOS no disponible.'}</span></div></article>
             <article><div className="export-check-icon"><ClipboardCheck size={15} /></div><div><strong>Concesión</strong><span>Sin fuente confirmada; no se calcula porcentaje usado.</span></div></article>
-            <article><div className="export-check-icon"><ClipboardCheck size={15} /></div><div><strong>Eficiencia energética</strong><span>Pendiente de fuente confiable; no se muestra kWh/m³.</span></div></article>
+            <article><div className="export-check-icon"><ClipboardCheck size={15} /></div><div><strong>Eficiencia energética</strong><span>Pendiente de fuente confiable.</span></div></article>
           </div>
         </div>
 
@@ -316,7 +331,6 @@ function RevisionDiariaSection() {
           <div className="review-rule-stack">
             <article><span>Crítico</span><p>Pozo con amperaje disponible y flujo actual en cero.</p></article>
             <article><span>Revisar</span><p>Sensor sin lectura, línea sin flujo o totalizador sin flujo instantáneo.</p></article>
-            <article><span>Pendiente</span><p>Jarabes se muestra como punto operativo pendiente de clasificación.</p></article>
           </div>
         </div>
       </section>

@@ -19,6 +19,7 @@ import PanelHeader from '../components/PanelHeader';
 import SqlChartDateControls from '../components/SqlChartDateControls';
 import StatusBadge from '../components/StatusBadge';
 import useSqlChartDashboard from '../hooks/useSqlChartDashboard';
+import { defaultTodayRange } from '../dateUtils';
 
 const axisColor = '#b9e7ff';
 const gridColor = 'rgba(56,189,248,0.14)';
@@ -36,8 +37,19 @@ function flowValue(row: FlexibleRecord): number {
   return Number(row.flow_lps ?? row.flujo_lps ?? row.flow ?? row.flujo_salida ?? row.flujo_entrada ?? 0);
 }
 
+function statusForFlowPoint(row: FlexibleRecord): { label: string; type: string } {
+  const explicitLabel = String(row.status || '').trim();
+  const explicitType = String(row.statusType || '').trim();
+  if (explicitLabel) return { label: explicitLabel, type: explicitType || 'idle' };
+  const flow = flowValue(row);
+  const period = Number(row.volumen_periodo_m3 ?? row.period_m3 ?? row.period_delta_m3 ?? 0);
+  if (flow > 0) return { label: 'Operando', type: 'normal' };
+  if (Boolean(row.period_data_available) && period > 0) return { label: 'Totalizador activo', type: 'normal' };
+  return { label: 'Sin flujo instantáneo', type: 'idle' };
+}
+
 function BalanceSection() {
-  const balanceChart = useSqlChartDashboard('dashboard');
+  const balanceChart = useSqlChartDashboard('dashboard', defaultTodayRange, { forceRefresh: true, includeHistory: false, includeEnergyWater: false });
   const dashboard = balanceChart.dashboard as DashboardData | null;
   const entryExitRows = buildEntryExitRows(dashboard);
   const wellRows = buildWellPeriodRows(dashboard).map((row) => ({ ...row, flujo: Number(row.flujo || 0) }));
@@ -77,7 +89,7 @@ function BalanceSection() {
 
       <section className="content-grid water-balance-main-grid">
         <div className="panel chart-panel fade-up">
-          <PanelHeader title="Volumen por pozo" subtitle="Volumen del periodo y flujo actual. No se muestra kWh/m³ sin fuente energética confirmada." />
+          <PanelHeader title="Volumen por pozo" subtitle="Volumen del periodo y flujo actual con fuente energética pendiente de confirmar." />
           <SqlChartDateControls controller={balanceChart} />
           <ChartPeriodNote range={balanceChart.range} source="Volumen del periodo desde totalizadores BOS cuando existe lectura inicial/final" />
           {wellRows.length ? (
@@ -100,7 +112,7 @@ function BalanceSection() {
           <PanelHeader title="Resumen del día" subtitle="Lectura ejecutiva sin datos mock" />
           <div className="water-balance-summary-stack">
             <article><span>Estado del balance</span><strong>{entryExitRows.length ? 'Datos BOS disponibles' : 'Sin balance disponible'}</strong><p>El balance se calcula solo con campos presentes en el payload actual.</p></article>
-            <article><span>Lavadoras/Jarabes</span><strong>{formatNumber(flowTotal, 2)} L/s</strong><p>Incluye puntos auxiliares reales; Jarabes permanece pendiente de validar clasificación.</p></article>
+            <article><span>Lavadoras/Jarabes</span><strong>{formatNumber(flowTotal, 2)} L/s</strong><p>Incluye Lavadora Ciel, Jarabes y Lavadora de Vidrio.</p></article>
             <article><span>Líneas</span><strong>{formatNumber(lineTotal, 2)} L/s</strong><p>Solo se muestran líneas que BOS reporta como configuradas.</p></article>
           </div>
         </div>
@@ -112,17 +124,17 @@ function BalanceSection() {
           {flows.length ? flows.map((item, index) => {
             const sensorId = Number(item.sensor_id || 0);
             const flow = flowValue(item);
-            const statusType = flow > 0 ? 'normal' : 'warning';
+            const status = statusForFlowPoint(item);
             return (
-              <article className={`water-type-card ${statusType}`} key={`${sensorId}-${index}`}>
+              <article className={`water-type-card ${status.type}`} key={`${sensorId}-${index}`}>
                 <div className="water-type-head">
                   <div><span>{sensorId ? `Sensor ${sensorId}` : 'Sensor'}</span><strong>{String(item.nombre || item.name || `Punto ${index + 1}`)}</strong></div>
-                  <StatusBadge type={statusType}>{flow > 0 ? 'Operando' : 'Sin flujo'}</StatusBadge>
+                  <StatusBadge type={status.type}>{status.label}</StatusBadge>
                 </div>
                 <div className="water-type-foot">
                   <span>Flujo actual</span>
                   <strong>{formatNumber(flow, 2)} L/s</strong>
-                  <p>{sensorId === 3006 ? 'Jarabes pendiente de validación operativa.' : 'Dato real de flujo BOS.'}</p>
+                  <p>{sensorId === 3004 ? 'Jarabes pendiente de validación operativa.' : 'Dato real de flujo BOS.'}</p>
                 </div>
               </article>
             );

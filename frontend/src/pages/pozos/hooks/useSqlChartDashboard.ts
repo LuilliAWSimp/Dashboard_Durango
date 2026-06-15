@@ -15,6 +15,7 @@ function errorMessage(error: unknown): string | undefined {
 export interface UseSqlChartDashboardOptions {
   includeHistory?: boolean;
   includeEnergyWater?: boolean;
+  forceRefresh?: boolean;
 }
 
 export interface UseSqlChartDashboardResult {
@@ -49,6 +50,7 @@ export default function useSqlChartDashboard(
       period: dateRangePeriod(range),
       include_history: Boolean(options.includeHistory),
       include_energy_water: Boolean(options.includeEnergyWater),
+      force_refresh: Boolean(options.forceRefresh),
     })
       .then((data) => { if (mounted) setDashboard(data); })
       .catch((fetchError: unknown) => {
@@ -59,7 +61,7 @@ export default function useSqlChartDashboard(
       })
       .finally(() => { if (mounted) setLoading(false); });
     return () => { mounted = false; };
-  }, [section, range.startDate, range.endDate, range.refreshKey, options.includeHistory, options.includeEnergyWater]);
+  }, [section, range.startDate, range.endDate, range.refreshKey, options.includeHistory, options.includeEnergyWater, options.forceRefresh]);
 
   const apply = () => {
     clearWaterCache();

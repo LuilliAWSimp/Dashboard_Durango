@@ -18,7 +18,7 @@ from app.schemas.water import (
     WaterWellItem,
 )
 from app.services.water_source_service import load_active_source_payload
-from app.services.water_bos_service import get_bos_water_dashboard_payload, tank_level_source_status
+from app.services.water_bos_service import get_bos_water_dashboard_payload
 
 
 WATER_SECTION_META = {
@@ -183,17 +183,10 @@ def get_water_dashboard_payload(section: str = 'dashboard', start_date: Any = No
     title, subtitle = WATER_SECTION_META.get(section, WATER_SECTION_META['dashboard'])
 
     if section == 'tanques':
-        level_source_status = tank_level_source_status()
-        if level_source_status == 'missing':
-            empty = _empty_payload(section, None)
-            empty.subtitle = f'{subtitle}. Esta planta no tiene sensores de nivel de tanques/cisternas configurados actualmente.'
-            empty.source_status = 'sqlserver_no_tank_levels'
-            return empty
-        if level_source_status == 'error':
-            empty = _empty_payload(section, None)
-            empty.subtitle = f'{subtitle}. Sin conexión a SQL Server ARCA.'
-            empty.source_status = 'sql_error'
-            return empty
+        empty = _empty_payload(section, None)
+        empty.subtitle = f'{subtitle}. Sin niveles de tanques configurados para Durango.'
+        empty.source_status = 'not_applicable_no_tank_levels'
+        return empty
 
     bos_data = get_bos_water_dashboard_payload(start_date=start_date, end_date=end_date, period=period, include_history=include_history, include_energy_water=include_energy_water)
     if bos_data and bos_data.get('__sql_error__'):

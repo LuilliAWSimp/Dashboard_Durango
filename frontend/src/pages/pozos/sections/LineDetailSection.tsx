@@ -123,11 +123,11 @@ export default function LineDetailSection({ lineId }: LineDetailSectionProps) {
   const navigate = useNavigate();
   const [sqlDashboard, setSqlDashboard] = useState<DashboardData | null>(null);
   const [sqlError, setSqlError] = useState('');
-  const detailChart = useSqlChartDashboard('dashboard', defaultTodayRange, { includeHistory: true });
+  const detailChart = useSqlChartDashboard('dashboard', defaultTodayRange, { forceRefresh: true, includeHistory: true, includeEnergyWater: false });
 
   useEffect(() => {
     let mounted = true;
-    fetchWaterDashboard('dashboard')
+    fetchWaterDashboard('dashboard', { force_refresh: true, include_history: false, include_energy_water: false })
       .then((data) => { if (mounted) setSqlDashboard(data as DashboardData); })
       .catch((error) => { if (mounted) setSqlError(errorMessage(error) || 'No se pudo leer SQL Server'); });
     return () => { mounted = false; };
@@ -175,7 +175,7 @@ export default function LineDetailSection({ lineId }: LineDetailSectionProps) {
         <div className="panel chart-panel fade-up well-detail-flow-chart">
           <PanelHeader
             title="Flujo de línea"
-            subtitle="Histórico filtrable de la línea seleccionada. Las líneas no muestran kWh."
+            subtitle="Histórico filtrable de la línea seleccionada con flujo y volumen del periodo."
           />
           <SqlChartDateControls controller={detailChart} title="Fechas de la gráfica" />
           <ChartPeriodNote range={detailChart.range} source="Un día: flujo promedio por hora · varios días: flujo promedio por día" />

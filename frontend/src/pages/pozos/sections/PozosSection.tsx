@@ -128,13 +128,13 @@ export default function PozosSection({ mode = 'pozos' }: PozosSectionProps = {})
   const [sqlDashboard, setSqlDashboard] = useState<DashboardData | null>(null);
   const [sqlError, setSqlError] = useState('');
   const [sqlLoading, setSqlLoading] = useState(true);
-  const tableController = useSqlChartDashboard('dashboard', defaultTodayRange, { includeHistory: true });
+  const tableController = useSqlChartDashboard('dashboard', defaultTodayRange, { forceRefresh: true, includeHistory: true, includeEnergyWater: false });
 
   useEffect(() => {
     let mounted = true;
     setSqlLoading(true);
     setSqlError('');
-    fetchWaterDashboard('dashboard')
+    fetchWaterDashboard('dashboard', { force_refresh: true, include_history: false, include_energy_water: false })
       .then((data) => { if (mounted) setSqlDashboard(data as DashboardData); })
       .catch((error) => {
         if (mounted) {
@@ -259,11 +259,12 @@ export default function PozosSection({ mode = 'pozos' }: PozosSectionProps = {})
           <h2>{sectionTitle}</h2>
           <p>{sectionDescription}</p>
         </div>
-        <div className="pozos-operacion-summary">
+        <div className={`pozos-operacion-summary ${isLineasMode ? 'lineas-operacion-summary' : ''}`}>
           <article><span>Encendidos</span><strong>{summary.encendidos}/{summary.total}</strong></article>
           <article><span>Apagados</span><strong>{summary.apagados}</strong></article>
           <article><span>Inactivos</span><strong>{summary.inactivos}</strong></article>
           <article><span>Sin comunicación</span><strong>{summary.sinComunicacion}</strong></article>
+          {isLineasMode ? <article><span>Total líneas</span><strong>{summary.total}</strong></article> : null}
         </div>
       </section>
 
@@ -321,7 +322,7 @@ export default function PozosSection({ mode = 'pozos' }: PozosSectionProps = {})
       ) : null}
 
       <section className="panel table-wrapper fade-up pozos-operacion-table-panel">
-        <PanelHeader title="Vista comparativa" subtitle={isLineasMode ? 'Flujo y volumen del periodo; no se muestra kWh porque Durango no tiene fuente energética confirmada.' : 'Valores reales disponibles de BOS; no se muestra kWh/m³ sin fuente energética confirmada.'} />
+        <PanelHeader title="Vista comparativa" subtitle={isLineasMode ? 'Flujo y volumen del periodo con datos BOS disponibles.' : 'Valores reales disponibles de BOS para la estructura confirmada de Durango.'} />
         {isLineasMode ? (
           <>
             <SqlChartDateControls

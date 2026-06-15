@@ -74,11 +74,21 @@ function toArray(value: unknown): FlexibleRecord[] {
 }
 
 function hasReading(row: FlexibleRecord): boolean {
-  return row.flow_lps !== null || row.flujo_lps !== null || row.flow !== null || row.totalizador_m3 !== null || row.total_m3 !== null;
+  return [row.flow_lps, row.flujo_lps, row.flow, row.totalizador_m3, row.total_m3].some((value) => value !== null && value !== undefined && value !== '');
 }
 
 function flowValue(row: FlexibleRecord): number {
   return Number(row.flow_lps ?? row.flujo_lps ?? row.flow ?? row.flujo_salida ?? row.flujo_entrada ?? 0);
+}
+
+function periodVolume(row: FlexibleRecord): number {
+  return Number(row.volumen_periodo_m3 ?? row.period_m3 ?? row.period_delta_m3 ?? 0);
+}
+
+function hasCommunicationIssue(row: FlexibleRecord): boolean {
+  const type = String(row.communicationType || '').toLowerCase();
+  const label = String(row.estado_comunicacion || '').toLowerCase();
+  return ['communication', 'warning', 'offline'].includes(type) || label.includes('sin') || label.includes('antigua');
 }
 
 function buildOperationalAlerts(dashboard: DashboardOverview | null): Array<{ title: string; type: string; detail: string; priority: string; level: 'critical' | 'warning' | 'normal' }> {
@@ -90,7 +100,7 @@ function buildOperationalAlerts(dashboard: DashboardOverview | null): Array<{ ti
   wells.forEach((well) => {
     const flow = Number(well.flow ?? well.flujo_salida ?? well.flujo_entrada ?? 0);
     const amps = well.amps === null || well.amps === undefined ? null : Number(well.amps);
-    if (well.communicationType === 'communication' || String(well.estado_comunicacion || '').toLowerCase().includes('sin')) {
+    if (hasCommunicationIssue(well as unknown as FlexibleRecord)) {
       alerts.push({ title: well.name, type: 'Pozo sin lectura reciente', detail: 'Validar comunicación con BOS/SCADA.', priority: 'Alta', level: 'warning' });
     } else if ((amps && amps > 0) && flow <= 0) {
       alerts.push({ title: well.name, type: 'Pozo encendido sin flujo', detail: 'Hay amperaje disponible pero el flujo instantáneo es 0 L/s.', priority: 'Alta', level: 'critical' });
@@ -105,6 +115,8 @@ function buildOperationalAlerts(dashboard: DashboardOverview | null): Array<{ ti
     const label = String(line.nombre || line.name || `Línea ${index + 1}`);
     if (!hasReading(line)) {
       alerts.push({ title: label, type: 'Línea sin lectura', detail: 'No hay flujo ni totalizador disponible en el payload actual.', priority: 'Alta', level: 'warning' });
+    } else if (hasCommunicationIssue(line)) {
+      alerts.push({ title: label, type: 'Línea con lectura no reciente', detail: 'BOS reporta una última comunicación antigua para esta línea.', priority: 'Media', level: 'warning' });
     } else if (flow <= 0 && total > 0) {
       alerts.push({ title: label, type: 'Línea sin flujo actual', detail: 'Totalizador disponible, pero flujo instantáneo en 0 L/s.', priority: 'Media', level: 'warning' });
     }
@@ -117,11 +129,12 @@ function buildOperationalAlerts(dashboard: DashboardOverview | null): Array<{ ti
     const sensorId = Number(flow.sensor_id || 0);
     if (!hasReading(flow)) {
       alerts.push({ title: label, type: 'Sensor sin comunicación', detail: `Sensor ${sensorId || 'sin ID'} sin lectura disponible.`, priority: 'Alta', level: 'warning' });
-    } else if (value <= 0 && total > 0) {
-      alerts.push({ title: label, type: 'Flujo 0 con totalizador', detail: 'El totalizador existe pero el flujo actual está en 0 L/s.', priority: 'Media', level: 'warning' });
+    } else if (hasCommunicationIssue(flow)) {
+      alerts.push({ title: label, type: 'Lectura no reciente', detail: 'BOS reporta una última comunicación antigua para este punto.', priority: 'Media', level: 'warning' });
+    } else if (value <= 0 && Boolean(flow.period_data_available) && periodVolume(flow) <= 0) {
+      alerts.push({ title: label, type: 'Totalizador sin variación', detail: 'Flujo instantáneo en 0 L/s y sin avance de totalizador en el periodo.', priority: 'Media', level: 'warning' });
     }
-    if (sensorId === 3006) {
-      alerts.push({ title: label, type: 'Jarabes pendiente de validar', detail: 'Punto operativo pendiente de clasificar; se muestra sin reclasificar.', priority: 'Media', level: 'warning' });
+    if (sensorId === 3004) {
     }
   });
 
@@ -137,9 +150,9 @@ function buildFlowSummary(dashboard: DashboardOverview | null) {
     sensorId: item.sensor_id,
     flow: flowValue(item),
     total: Number(item.totalizador_m3 ?? item.total_m3 ?? 0),
-    status: String(item.status || (flowValue(item) > 0 ? 'Operando' : 'Sin flujo')),
+    status: String(item.status || (flowValue(item) > 0 ? 'Operando' : 'Sin flujo instantáneo')),
     statusType: String(item.statusType || (flowValue(item) > 0 ? 'normal' : 'idle')),
-    note: Number(item.sensor_id || 0) === 3006 ? 'Pendiente de clasificar' : String(item.category || ''),
+    note: Number(item.sensor_id || 0) === 3004 ? 'Pendiente de clasificar' : String(item.category || ''),
   }));
 }
 
@@ -172,7 +185,7 @@ export default function DashboardBaseSection() {
       if (!mounted) return;
       loadFastDashboard(forceRefresh);
     };
-    run(false);
+    run(true);
     const interval = window.setInterval(() => run(true), AUTO_REFRESH_MS);
     return () => {
       mounted = false;
@@ -183,7 +196,7 @@ export default function DashboardBaseSection() {
   useEffect(() => {
     let mounted = true;
     setChartError('');
-    fetchWaterDashboard('dashboard', { ...chartRange, period: dateRangePeriod(chartRange), include_history: false, include_energy_water: false })
+    fetchWaterDashboard('dashboard', { ...chartRange, period: dateRangePeriod(chartRange), force_refresh: true, include_history: false, include_energy_water: false })
       .then((data) => { if (mounted) setChartDashboard(data as DashboardData); })
       .catch((error) => {
         if (mounted) {
@@ -232,10 +245,7 @@ export default function DashboardBaseSection() {
 
       <section className="content-grid resumen-top-grid">
         <div className="panel chart-panel fade-up resumen-primary-chart">
-          <PanelHeader
-            title="Volumen y flujo por pozo"
-            subtitle="Comparativo real de pozos para el periodo seleccionado. No se muestra energía porque Durango no tiene fuente kWh confirmada."
-          />
+          <PanelHeader title="Volumen y flujo por pozo" />
           <DateRangeControls
             className="chart-date-range-panel"
             title="Fechas de la gráfica"
@@ -336,7 +346,7 @@ export default function DashboardBaseSection() {
 
       <section className="content-grid resumen-bottom-grid">
         <div className="panel summary-panel fade-up resumen-tanks-panel">
-          <PanelHeader title="Lavadoras y Jarabes" subtitle="Puntos auxiliares reales; Jarabes queda pendiente de clasificación" />
+          <PanelHeader title="Lavadoras y Jarabes" subtitle="Lavadora Ciel, Jarabes y Lavadora de Vidrio" />
           <div className="tank-summary-grid">
             {flowSummary.length ? flowSummary.map((item) => (
               <article className="tank-summary-card" key={`${item.sensorId}-${item.name}`}>

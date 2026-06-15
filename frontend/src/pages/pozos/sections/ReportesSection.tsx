@@ -51,7 +51,6 @@ interface OperationalFlowRow {
   totalizador_m3?: NumericValue;
   volumen_periodo_m3?: NumericValue;
   estado?: string;
-  observacion?: string;
 }
 
 interface PendingFieldRow {
@@ -64,7 +63,6 @@ interface DailyWaterReportSection<T> {
   [key: string]: unknown;
   rows?: T[];
   total_pozos_m3?: NumericValue;
-  ciudad_m3?: NumericValue;
   total_entrada_m3?: NumericValue;
 }
 
@@ -128,7 +126,8 @@ function ReportesSection() {
   const consumptionRows = dailyReport?.water_consumption?.rows || [];
   const lineRows = dailyReport?.production_lines?.rows || [];
   const flowRows = dailyReport?.operational_flows?.rows || [];
-  const pendingRows = dailyReport?.missing_fields || [];
+  const linePeriodTotal = lineRows.reduce((sum, item) => sum + Number(item.volumen_periodo_m3 || 0), 0);
+  const flowPeriodTotal = flowRows.reduce((sum, item) => sum + Number(item.volumen_periodo_m3 || 0), 0);
   const reportStatus = `Reporte: ${formatDateRangeStatus(reportRange, 'Hoy')}`;
 
   return (
@@ -136,7 +135,7 @@ function ReportesSection() {
       <div className="panel report-hero-panel">
         <PanelHeader
           title="Reportes"
-          subtitle="Reporte operativo de Durango con pozos, líneas, lavadoras y Jarabes desde datos BOS disponibles."
+          subtitle="Reporte operativo de Durango con pozos, líneas y flujos."
         />
         <DateRangeControls
           className="report-date-range-panel"
@@ -186,9 +185,9 @@ function ReportesSection() {
         {reportError && <div className="status-pill alert report-status-pill">{reportError}</div>}
 
         <div className="daily-report-kpis">
-          <div><span>Total pozos</span><strong>{formatNumber(dailyReport?.water_entry?.total_pozos_m3 || 0, 2)} m³</strong></div>
-          <div><span>Ciudad</span><strong>{formatNumber(dailyReport?.water_entry?.ciudad_m3 || 0, 2)} m³</strong></div>
-          <div><span>Total entrada</span><strong>{formatNumber(dailyReport?.water_entry?.total_entrada_m3 || 0, 2)} m³</strong></div>
+          <div><span>Pozos periodo</span><strong>{formatNumber(dailyReport?.water_entry?.total_pozos_m3 || 0, 2)} m³</strong></div>
+          <div><span>Líneas periodo</span><strong>{formatNumber(linePeriodTotal, 2)} m³</strong></div>
+          <div><span>Lavadoras/Jarabes</span><strong>{formatNumber(flowPeriodTotal, 2)} m³</strong></div>
         </div>
 
         <ReportPreviewTable
@@ -207,35 +206,28 @@ function ReportesSection() {
           rows={lineRows.map((item) => [item.linea, item.sensor_id, formatNumber(item.flujo_lps, 2), formatNumber(item.volumen_periodo_m3, 2), formatNumber(item.totalizador_m3, 2), item.estado])}
         />
         <ReportPreviewTable
-          title="Lavadoras y Jarabes"
-          headers={['Punto', 'Sensor', 'Tipo', 'Flujo L/s', 'Volumen periodo m³', 'Totalizador m³', 'Estado', 'Observación']}
-          rows={flowRows.map((item) => [item.equipo, item.sensor_id, item.tipo, formatNumber(item.flujo_lps, 2), formatNumber(item.volumen_periodo_m3, 2), formatNumber(item.totalizador_m3, 2), item.estado, item.observacion])}
+          title="Flujos"
+          headers={['Punto', 'Sensor', 'Tipo', 'Flujo L/s', 'Volumen periodo m³', 'Totalizador m³', 'Estado']}
+          rows={flowRows.map((item) => [item.equipo, item.sensor_id, item.tipo, formatNumber(item.flujo_lps, 2), formatNumber(item.volumen_periodo_m3, 2), formatNumber(item.totalizador_m3, 2), item.estado])}
         />
-
-        <div className="daily-report-pending">
-          <h3>Datos pendientes de mapear en BD</h3>
-          {pendingRows.length ? pendingRows.map((item) => (
-            <p key={item.name}><strong>{item.name}:</strong> {item.detail}</p>
-          )) : <p>Sin pendientes detectados para esta consulta.</p>}
-        </div>
       </article>
 
       <section className="cards-grid reports-grid">
         {[
           {
-            title: 'Fuentes usadas',
-            description: 'Pozos, líneas, lavadoras y Jarabes desde lecturas operativas BOS.',
-            status: dailyReport?.source_status || 'Pendiente',
+            title: 'Pozos',
+            description: 'Pozo 1 y Pozo 2 en el reporte operativo.',
+            status: `${entryRows.length}/2`,
           },
           {
-            title: 'Sin energía confirmada',
-            description: 'Durango no muestra kWh ni kWh/m³ hasta tener una fuente energética confiable.',
-            status: 'Pendiente de fuente',
+            title: 'Líneas',
+            description: 'Cinco líneas reales de Durango.',
+            status: `${lineRows.length}/5`,
           },
           {
-            title: 'Tanques no aplicados',
-            description: 'No se muestran niveles de tanques porque Durango no tiene fuente operativa confirmada.',
-            status: 'No aplica',
+            title: 'Flujos',
+            description: 'Lavadora Ciel, Jarabes y Lavadora de Vidrio.',
+            status: `${flowRows.length}/3`,
           },
         ].map((card) => (
           <article key={card.title} className="panel report-card-clean">

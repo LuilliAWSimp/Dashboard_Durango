@@ -4968,3 +4968,42 @@ th { color: #c1d0e8; font-weight: 700; position: sticky; top: 0; background: #0f
     justify-content: center;
   }
 }
+
+/* Ajuste visual Durango: KPIs superiores de Lineas en 3 + 2 */
+.lineas-operacion-summary {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  align-content: center;
+}
+
+.lineas-operacion-summary article {
+  grid-column: span 2;
+  padding: 18px 20px;
+  min-height: 104px;
+}
+
+.lineas-operacion-summary article:nth-child(4),
+.lineas-operacion-summary article:nth-child(5) {
+  grid-column: span 3;
+}
+
+.lineas-operacion-summary strong {
+  font-size: clamp(28px, 2.2vw, 36px);
+}
+
+@media (max-width: 980px) {
+  .lineas-operacion-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .lineas-operacion-summary article,
+  .lineas-operacion-summary article:nth-child(4),
+  .lineas-operacion-summary article:nth-child(5) {
+    grid-column: span 1;
+  }
+}
+
+@media (max-width: 640px) {
+  .lineas-operacion-summary {
+    grid-template-columns: 1fr;
+  }
+}
