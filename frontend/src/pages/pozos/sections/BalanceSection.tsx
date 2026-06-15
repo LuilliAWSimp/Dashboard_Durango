@@ -19,6 +19,7 @@ import PanelHeader from '../components/PanelHeader';
 import SqlChartDateControls from '../components/SqlChartDateControls';
 import StatusBadge from '../components/StatusBadge';
 import useSqlChartDashboard from '../hooks/useSqlChartDashboard';
+import { defaultTodayRange } from '../dateUtils';
 
 const axisColor = '#b9e7ff';
 const gridColor = 'rgba(56,189,248,0.14)';
@@ -48,7 +49,7 @@ function statusForFlowPoint(row: FlexibleRecord): { label: string; type: string 
 }
 
 function BalanceSection() {
-  const balanceChart = useSqlChartDashboard('dashboard');
+  const balanceChart = useSqlChartDashboard('dashboard', defaultTodayRange, { forceRefresh: true, includeHistory: false, includeEnergyWater: false });
   const dashboard = balanceChart.dashboard as DashboardData | null;
   const entryExitRows = buildEntryExitRows(dashboard);
   const wellRows = buildWellPeriodRows(dashboard).map((row) => ({ ...row, flujo: Number(row.flujo || 0) }));

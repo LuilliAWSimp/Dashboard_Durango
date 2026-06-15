@@ -128,7 +128,7 @@ export default function PozosSection({ mode = 'pozos' }: PozosSectionProps = {})
   const [sqlDashboard, setSqlDashboard] = useState<DashboardData | null>(null);
   const [sqlError, setSqlError] = useState('');
   const [sqlLoading, setSqlLoading] = useState(true);
-  const tableController = useSqlChartDashboard('dashboard', defaultTodayRange, { includeHistory: true });
+  const tableController = useSqlChartDashboard('dashboard', defaultTodayRange, { forceRefresh: true, includeHistory: true, includeEnergyWater: false });
 
   useEffect(() => {
     let mounted = true;

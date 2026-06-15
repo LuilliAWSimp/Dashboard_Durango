@@ -74,7 +74,7 @@ function toArray(value: unknown): FlexibleRecord[] {
 }
 
 function hasReading(row: FlexibleRecord): boolean {
-  return row.flow_lps !== null || row.flujo_lps !== null || row.flow !== null || row.totalizador_m3 !== null || row.total_m3 !== null;
+  return [row.flow_lps, row.flujo_lps, row.flow, row.totalizador_m3, row.total_m3].some((value) => value !== null && value !== undefined && value !== '');
 }
 
 function flowValue(row: FlexibleRecord): number {
@@ -151,7 +151,7 @@ function buildFlowSummary(dashboard: DashboardOverview | null) {
     sensorId: item.sensor_id,
     flow: flowValue(item),
     total: Number(item.totalizador_m3 ?? item.total_m3 ?? 0),
-    status: String(item.status || (flowValue(item) > 0 ? 'Operando' : 'Sin flujo')),
+    status: String(item.status || (flowValue(item) > 0 ? 'Operando' : 'Sin flujo instantáneo')),
     statusType: String(item.statusType || (flowValue(item) > 0 ? 'normal' : 'idle')),
     note: Number(item.sensor_id || 0) === 3004 ? 'Pendiente de clasificar' : String(item.category || ''),
   }));
@@ -186,7 +186,7 @@ export default function DashboardBaseSection() {
       if (!mounted) return;
       loadFastDashboard(forceRefresh);
     };
-    run(false);
+    run(true);
     const interval = window.setInterval(() => run(true), AUTO_REFRESH_MS);
     return () => {
       mounted = false;
@@ -197,7 +197,7 @@ export default function DashboardBaseSection() {
   useEffect(() => {
     let mounted = true;
     setChartError('');
-    fetchWaterDashboard('dashboard', { ...chartRange, period: dateRangePeriod(chartRange), include_history: false, include_energy_water: false })
+    fetchWaterDashboard('dashboard', { ...chartRange, period: dateRangePeriod(chartRange), force_refresh: true, include_history: false, include_energy_water: false })
       .then((data) => { if (mounted) setChartDashboard(data as DashboardData); })
       .catch((error) => {
         if (mounted) {

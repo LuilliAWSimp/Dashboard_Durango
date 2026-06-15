@@ -123,11 +123,11 @@ export default function LineDetailSection({ lineId }: LineDetailSectionProps) {
   const navigate = useNavigate();
   const [sqlDashboard, setSqlDashboard] = useState<DashboardData | null>(null);
   const [sqlError, setSqlError] = useState('');
-  const detailChart = useSqlChartDashboard('dashboard', defaultTodayRange, { includeHistory: true });
+  const detailChart = useSqlChartDashboard('dashboard', defaultTodayRange, { forceRefresh: true, includeHistory: true, includeEnergyWater: false });
 
   useEffect(() => {
     let mounted = true;
-    fetchWaterDashboard('dashboard')
+    fetchWaterDashboard('dashboard', { force_refresh: true, include_history: false, include_energy_water: false })
       .then((data) => { if (mounted) setSqlDashboard(data as DashboardData); })
       .catch((error) => { if (mounted) setSqlError(errorMessage(error) || 'No se pudo leer SQL Server'); });
     return () => { mounted = false; };

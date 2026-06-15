@@ -240,11 +240,11 @@ export default function WellDetailSection({ wellId, backPath = '/pozos/pozos', b
   const [sqlError, setSqlError] = useState('');
   const [dailyReport, setDailyReport] = useState<DailyWaterReport | null>(null);
   const [dailyReportError, setDailyReportError] = useState('');
-  const detailChart = useSqlChartDashboard('dashboard', defaultTodayRange, { includeHistory: true });
+  const detailChart = useSqlChartDashboard('dashboard', defaultTodayRange, { forceRefresh: true, includeHistory: true, includeEnergyWater: false });
 
   useEffect(() => {
     let mounted = true;
-    fetchWaterDashboard('dashboard')
+    fetchWaterDashboard('dashboard', { force_refresh: true, include_history: false, include_energy_water: false })
       .then((data) => { if (mounted) setSqlDashboard(data as DashboardData); })
       .catch((error) => { if (mounted) setSqlError((error as { message?: string })?.message || 'No se pudo leer SQL Server'); });
     return () => { mounted = false; };

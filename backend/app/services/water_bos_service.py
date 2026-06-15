@@ -861,6 +861,37 @@ def _reading_freshness(value: Any, stale_minutes: int = 60, now_value: Any = Non
     return False, 'Normal', 'normal', age_minutes
 
 
+def _source_freshness(timestamp_value: Any, sql_now: Any = None, stale_minutes: int = 60) -> dict[str, Any]:
+    """Return a reusable freshness descriptor calculated against SQL Server time.
+
+    All Durango BOS modules compare ``Time_Stamp`` with ``SELECT GETDATE()``
+    obtained from the same SQL Server, never with the Python/container clock.
+    This avoids false "Lectura no reciente" warnings caused by time-zone drift.
+    """
+    is_stale, label, label_type, age_minutes = _reading_freshness(
+        timestamp_value, stale_minutes=stale_minutes, now_value=sql_now
+    )
+    return {
+        'updated_at': _iso(timestamp_value) or '',
+        'sql_now': _iso(sql_now) or '',
+        'reading_stale': is_stale,
+        'reading_age_minutes': age_minutes,
+        'label': label,
+        'type': label_type,
+    }
+
+
+def _latest_timestamp_value(*values: Any) -> Any:
+    parsed: list[tuple[datetime, Any]] = []
+    for value in values:
+        dt_value = _parse_datetime(value)
+        if dt_value:
+            parsed.append((dt_value, value))
+    if not parsed:
+        return None
+    return max(parsed, key=lambda item: item[0])[1]
+
+
 def _apply_freshness_to_status(
     active: bool,
     status: str,
@@ -870,10 +901,10 @@ def _apply_freshness_to_status(
     timestamp_value: Any,
     now_value: Any = None,
 ) -> tuple[bool, str, str, str, str, bool, int | None]:
-    is_stale, freshness_label, freshness_type, age_minutes = _reading_freshness(timestamp_value, now_value=now_value)
-    if is_stale:
-        return active, 'Lectura no reciente', 'warning', freshness_label, freshness_type, True, age_minutes
-    return active, status, status_type, communication, communication_type, False, age_minutes
+    freshness = _source_freshness(timestamp_value, now_value)
+    if freshness['reading_stale']:
+        return active, 'Lectura no reciente', 'warning', str(freshness['label']), str(freshness['type']), True, freshness['reading_age_minutes']
+    return active, status, status_type, communication, communication_type, False, freshness['reading_age_minutes']
 
 
 def _optional_num(value: Any) -> float | None:
@@ -1151,30 +1182,58 @@ def _build_wells(
     return wells
 
 
-def _build_tank_inputs(tanque_row: dict[str, Any] | None, catalog: dict[int, dict[str, Any]]) -> list[dict[str, Any]]:
+def _build_tank_inputs(
+    tanque_row: dict[str, Any] | None,
+    catalog: dict[int, dict[str, Any]],
+    tanque_start_row: dict[str, Any] | None = None,
+    has_period: bool = False,
+    sql_now: Any = None,
+) -> list[dict[str, Any]]:
     # Durango usa dbo.SensorsBOS_Tanque para lavadoras/Jarabes, no para niveles
     # físicos de tanques. No se agregan ranuras si BOS no las reporta.
     tank_inputs: list[dict[str, Any]] = []
-    updated = _iso(_first(tanque_row, 'time_stamp', 'timestamp')) if tanque_row else None
+    updated_value = _first(tanque_row, 'time_stamp', 'timestamp') if tanque_row else None
+    updated = _iso(updated_value) if tanque_row else None
     for index in _flow_slot_indices(tanque_row):
         fallback_sensor = int(FLOW_SENSOR_MAP[index]['sensor_id']) if index < len(FLOW_SENSOR_MAP) else 3002 + index * 2
         sensor_id = _durango_aux_sensor_id(tanque_row, index, fallback_sensor)
         _sensor_id, name, location = _flow_item_metadata(index, catalog, sensor_id)
         raw_flow = _bos_value(tanque_row, 'TANQUE_FLOW_IN', index, 'instant_value', None)
         raw_total = _bos_value(tanque_row, 'TANQUE_FLOW_IN', index, 'total_value', None)
+        raw_start_total = _bos_value(tanque_start_row, 'TANQUE_FLOW_IN', index, 'total_value', None)
         raw_quality = _bos_value(tanque_row, 'TANQUE_FLOW_IN', index, 'quality', None)
         has_reading = raw_flow is not None or raw_total is not None
         flow = _num(raw_flow) if raw_flow is not None else None
         total = _optional_num(raw_total)
+        period_m3, period_available = _period_delta_from_totalizers(raw_total, raw_start_total, has_period)
+        active, status, status_type, communication, communication_type = _flow_status(flow, has_reading, period_m3, period_available)
+        active, status, status_type, communication, communication_type, reading_stale, reading_age_minutes = _apply_freshness_to_status(
+            active, status, status_type, communication, communication_type, updated_value, sql_now
+        )
         tank_inputs.append({
             'id': f'flujo-{index + 1:02d}',
             'name': name,
+            'nombre': name,
             'label': name,
             'sensor_id': sensor_id,
             'flow_lps': flow,
+            'flujo_lps': flow,
+            'flow': flow,
             'total_m3': total,
+            'totalizador_m3': total,
+            'period_m3': period_m3,
+            'period_delta_m3': period_m3,
+            'volumen_periodo_m3': period_m3,
+            'period_source': 'bos_totalizer_delta' if period_available else 'bos_instant_only',
+            'period_data_available': period_available,
             'quality': _num(raw_quality) if raw_quality is not None else None,
-            'active': bool(flow and flow > 0),
+            'active': active,
+            'status': status,
+            'statusType': status_type,
+            'estado_comunicacion': communication,
+            'communicationType': communication_type,
+            'reading_stale': reading_stale,
+            'reading_age_minutes': reading_age_minutes,
             'updated': updated or 'Sin datos',
             'ultima_lectura': updated or 'Sin datos',
             'source_table': 'dbo.SensorsBOS_Tanque',
@@ -1184,7 +1243,6 @@ def _build_tank_inputs(tanque_row: dict[str, Any] | None, catalog: dict[int, dic
             'has_reading': has_reading,
         })
     return tank_inputs
-
 
 def _line_slot_indices(row: dict[str, Any] | None) -> list[int]:
     """Return only the five confirmed Durango line slots.
@@ -1714,7 +1772,7 @@ def get_bos_water_dashboard_payload(start_date: Any = None, end_date: Any = None
         return _sql_connection_error_payload()
 
     wells = _build_wells(pozo_row, catalog, locations, energy_water, pozo_start_row=pozo_start_row, has_period=has_period, latest_quality_by_sensor=latest_quality_by_sensor, well_slots=well_slots, sql_now=sql_now)
-    tank_inputs = _build_tank_inputs(tanque_row, catalog)
+    tank_inputs = _build_tank_inputs(tanque_row, catalog, tanque_start_row=tanque_start_row, has_period=has_period, sql_now=sql_now)
     flows = _build_flows(tanque_row, catalog, tanque_start_row=tanque_start_row, has_period=has_period, sql_now=sql_now)
     tank_level_readings = _build_tank_level_readings(niveles_row)
     lines = _build_lines(linea_row, catalog, linea_start_row=linea_start_row, has_period=has_period, sql_now=sql_now)
@@ -1743,12 +1801,16 @@ def get_bos_water_dashboard_payload(start_date: Any = None, end_date: Any = None
         {'label': 'Pozos', 'entrada': sum(_num(item.get('flujo_entrada')) for item in wells), 'salida': sum(_num(item.get('flujo_salida')) for item in wells)},
         {'label': 'Líneas y puntos BOS', 'entrada': sum(_num(item.get('flow_lps')) for item in tank_inputs), 'salida': sum(_num(item.get('flow_lps')) for item in lines)},
     ]
-    updated = (
-        _first(pozo_row, 'time_stamp', 'timestamp')
-        or _first(tanque_row, 'time_stamp', 'timestamp')
-        or _first(linea_row, 'time_stamp', 'timestamp')
-        or _first(niveles_row, 'time_stamp', 'timestamp')
-    )
+    pozo_updated = _first(pozo_row, 'time_stamp', 'timestamp')
+    tanque_updated = _first(tanque_row, 'time_stamp', 'timestamp')
+    linea_updated = _first(linea_row, 'time_stamp', 'timestamp')
+    niveles_updated = _first(niveles_row, 'time_stamp', 'timestamp')
+    updated = _latest_timestamp_value(pozo_updated, tanque_updated, linea_updated, niveles_updated)
+    source_freshness = {
+        'pozos': _source_freshness(pozo_updated, sql_now),
+        'lineas': _source_freshness(linea_updated, sql_now),
+        'lavadoras_jarabes': _source_freshness(tanque_updated, sql_now),
+    }
     return {
         'title': 'Pozos',
         'subtitle': 'Lectura directa desde SQL Server ARCA / BOS',
@@ -1777,6 +1839,7 @@ def get_bos_water_dashboard_payload(start_date: Any = None, end_date: Any = None
         'flow_history': flow_history,
         'distribution_flows': water_consumption,
         'energy_water_rows': energy_water_rows,
+        'source_freshness': source_freshness,
         'well_flow_history': well_flow_history,
         'production_line_history': production_line_history,
         'source_status': 'sqlserver_sp' if energy_water_rows else 'sqlserver_bos',

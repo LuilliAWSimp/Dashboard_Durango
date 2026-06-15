@@ -19,6 +19,7 @@ import PanelHeader from '../components/PanelHeader';
 import SqlChartDateControls from '../components/SqlChartDateControls';
 import StatusBadge from '../components/StatusBadge';
 import useSqlChartDashboard from '../hooks/useSqlChartDashboard';
+import { defaultTodayRange } from '../dateUtils';
 
 const axisColor = '#b9e7ff';
 const gridColor = 'rgba(56,189,248,0.14)';
@@ -187,7 +188,7 @@ function buildDiagnostics(dashboard: DashboardData | null): DiagnosticRow[] {
 }
 
 function RevisionDiariaSection() {
-  const reviewChart = useSqlChartDashboard('dashboard');
+  const reviewChart = useSqlChartDashboard('dashboard', defaultTodayRange, { forceRefresh: true, includeHistory: false, includeEnergyWater: false });
   const dashboard = reviewChart.dashboard as DashboardData | null;
   const priorities = buildPriorities(dashboard);
   const diagnostics = buildDiagnostics(dashboard);
