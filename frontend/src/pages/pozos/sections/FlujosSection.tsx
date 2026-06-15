@@ -409,7 +409,6 @@ export default function FlujosSection({ itemId }: FlujosSectionProps) {
             <div className="pozo-mini-head scada-well-head">
               <div>
                 <strong>{flujo.nombre}</strong>
-                {flowSecondaryText(flujo) ? <small>{flowSecondaryText(flujo)}</small> : null}
               </div>
               <StatusBadge type={flujo.statusType}>{flujo.status}</StatusBadge>
             </div>

@@ -246,10 +246,7 @@ export default function DashboardBaseSection() {
 
       <section className="content-grid resumen-top-grid">
         <div className="panel chart-panel fade-up resumen-primary-chart">
-          <PanelHeader
-            title="Volumen y flujo por pozo"
-            subtitle="Comparativo real de pozos para el periodo seleccionado con datos BOS disponibles."
-          />
+          <PanelHeader title="Volumen y flujo por pozo" />
           <DateRangeControls
             className="chart-date-range-panel"
             title="Fechas de la gráfica"

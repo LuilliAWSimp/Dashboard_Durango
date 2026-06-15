@@ -259,11 +259,12 @@ export default function PozosSection({ mode = 'pozos' }: PozosSectionProps = {})
           <h2>{sectionTitle}</h2>
           <p>{sectionDescription}</p>
         </div>
-        <div className="pozos-operacion-summary">
+        <div className={`pozos-operacion-summary ${isLineasMode ? 'lineas-operacion-summary' : ''}`}>
           <article><span>Encendidos</span><strong>{summary.encendidos}/{summary.total}</strong></article>
           <article><span>Apagados</span><strong>{summary.apagados}</strong></article>
           <article><span>Inactivos</span><strong>{summary.inactivos}</strong></article>
           <article><span>Sin comunicación</span><strong>{summary.sinComunicacion}</strong></article>
+          {isLineasMode ? <article><span>Total líneas</span><strong>{summary.total}</strong></article> : null}
         </div>
       </section>
 

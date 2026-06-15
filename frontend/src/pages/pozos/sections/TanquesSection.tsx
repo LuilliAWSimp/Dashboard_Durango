@@ -118,7 +118,6 @@ function TanquesSection() {
                 <div>
                   <span>{name}</span>
                   <strong>{formatNumber(flow)} L/s</strong>
-                  <p>{sensorId ? `Sensor ${sensorId}` : 'Sensor no disponible'} · Punto auxiliar BOS</p>
                 </div>
                 <StatusBadge type={statusType}>{status}</StatusBadge>
               </article>
