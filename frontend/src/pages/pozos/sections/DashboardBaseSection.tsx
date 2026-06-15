@@ -135,7 +135,6 @@ function buildOperationalAlerts(dashboard: DashboardOverview | null): Array<{ ti
       alerts.push({ title: label, type: 'Totalizador sin variación', detail: 'Flujo instantáneo en 0 L/s y sin avance de totalizador en el periodo.', priority: 'Media', level: 'warning' });
     }
     if (sensorId === 3004) {
-      alerts.push({ title: label, type: 'Jarabes pendiente de validar', detail: 'Punto operativo pendiente de clasificar; se muestra sin reclasificar.', priority: 'Media', level: 'warning' });
     }
   });
 
@@ -347,7 +346,7 @@ export default function DashboardBaseSection() {
 
       <section className="content-grid resumen-bottom-grid">
         <div className="panel summary-panel fade-up resumen-tanks-panel">
-          <PanelHeader title="Lavadoras y Jarabes" subtitle="Puntos auxiliares reales; Jarabes queda pendiente de clasificación" />
+          <PanelHeader title="Lavadoras y Jarabes" subtitle="Lavadora Ciel, Jarabes y Lavadora de Vidrio" />
           <div className="tank-summary-grid">
             {flowSummary.length ? flowSummary.map((item) => (
               <article className="tank-summary-card" key={`${item.sensorId}-${item.name}`}>

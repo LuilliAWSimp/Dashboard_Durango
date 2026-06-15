@@ -55,26 +55,6 @@ def _missing(payload: dict[str, Any], flow_rows: list[dict[str, Any]]) -> list[d
             'detail': 'No se recibieron lecturas de puntos auxiliares para lavadoras/Jarabes.',
         })
 
-    if any(int(_num(item.get('sensor_id'), 0)) == 3004 for item in flow_rows):
-        missing.append({
-            'name': 'Clasificacion Jarabes',
-            'detail': 'Sensor 3004 identificado como Jarabes; queda pendiente confirmar si debe modelarse como linea, consumo o punto operativo separado.',
-        })
-
-    missing.extend([
-        {
-            'name': 'Energia por pozo',
-            'detail': 'Durango no tiene fuente energetica operativa confirmada; no se calcula consumo energetico.',
-        },
-        {
-            'name': 'Niveles de tanques',
-            'detail': 'Durango no tiene niveles de tanques operativos confirmados para el reporte.',
-        },
-        {
-            'name': 'Concesion',
-            'detail': 'No existe fuente confirmada para limite autorizado o consumo acumulado oficial.',
-        },
-    ])
     return missing
 
 
@@ -136,8 +116,6 @@ def get_daily_water_report(report_date: Any = None, start_date: Any = None, end_
         sensor_id = int(_num(item.get('sensor_id'), 0)) if item.get('sensor_id') is not None else None
         category = str(item.get('category') or '').lower()
         observation_parts: list[str] = []
-        if sensor_id == 3004 or category == 'pendiente':
-            observation_parts.append('Punto Jarabes pendiente de validacion operativa.')
         flow_lps = _num(item.get('flow_lps') or item.get('flujo_lps') or item.get('flow'))
         volume_period = _num(item.get('period_m3') or item.get('period_delta_m3') or item.get('volumen_periodo_m3'))
         if flow_lps <= 0 and volume_period > 0:
@@ -145,7 +123,7 @@ def get_daily_water_report(report_date: Any = None, start_date: Any = None, end_
         flow_rows.append({
             'equipo': item.get('nombre') or item.get('name') or f'Punto {idx}',
             'sensor_id': sensor_id,
-            'tipo': 'Lavadora' if category == 'lavadora' else 'Pendiente de validar',
+            'tipo': 'Lavadora' if category == 'lavadora' else 'Flujo',
             'flujo_lps': round(flow_lps, 2),
             'totalizador_m3': round(_num(item.get('total_m3') or item.get('totalizador_m3')), 2),
             'volumen_periodo_m3': round(volume_period, 2),
@@ -186,7 +164,7 @@ def get_daily_water_report(report_date: Any = None, start_date: Any = None, end_
         'date': selected_day.isoformat(),
         'generated_at': datetime.utcnow().isoformat(),
         'source_status': payload.get('source_status', 'sqlserver_empty'),
-        'data_source': 'SQL Server ARCA / BOS (lecturas operativas Durango)',
+        'data_source': 'Datos operativos Durango',
         'energy_water': {
             'rows': [],
             'source': 'Sin fuente energetica confirmada en Durango',

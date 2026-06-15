@@ -59,7 +59,7 @@ interface FlujosSectionProps {
 
 const flowSensorConfig = [
   { sensor_id: 3002, nombre: 'Lavadora Ciel' },
-  { sensor_id: 3004, nombre: 'Jarabes - pendiente de clasificación operativa' },
+  { sensor_id: 3004, nombre: 'Jarabes' },
   { sensor_id: 3006, nombre: 'Lavadora de Vidrio' },
 ];
 
@@ -140,9 +140,7 @@ function normalizeFlow(row: FlexibleRecord | undefined, index: number): FlujoIte
 
   const sensorId = numberOrNull(row.sensor_id) ?? fallback.sensor_id;
   const rawName = asText(row.nombre ?? row.name, fallback.nombre);
-  const displayName = sensorId === 3004 && !rawName.toLowerCase().includes('pendiente')
-    ? `${rawName} - pendiente de clasificación operativa`
-    : rawName;
+  const displayName = rawName;
 
   return {
     ...fallback,
@@ -217,7 +215,7 @@ function FlujoDetailSection({ flujo, dashboard, sqlError }: { flujo: FlujoItem; 
             <h2>{flujo.nombre}</h2>
             <StatusBadge type={flujo.statusType}>{flujo.status}</StatusBadge>
           </div>
-          <p>{flujo.descripcion || sqlError || 'Lectura del flujo seleccionado desde BOS. Jarabes queda pendiente de clasificar si corresponde.'}</p>
+          <p>{flujo.descripcion || sqlError || 'Lectura del flujo seleccionado.'}</p>
         </div>
         <div className="well-detail-hero-metrics">
           <article>

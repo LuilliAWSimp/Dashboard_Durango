@@ -331,7 +331,6 @@ function RevisionDiariaSection() {
           <div className="review-rule-stack">
             <article><span>Crítico</span><p>Pozo con amperaje disponible y flujo actual en cero.</p></article>
             <article><span>Revisar</span><p>Sensor sin lectura, línea sin flujo o totalizador sin flujo instantáneo.</p></article>
-            <article><span>Pendiente</span><p>Jarabes se muestra como punto operativo pendiente de clasificación.</p></article>
           </div>
         </div>
       </section>

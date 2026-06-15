@@ -76,29 +76,85 @@ function table(title, headers, rows, emptyText = 'Sin datos disponibles para est
   return `<section class="block"><h2>${escapeHtml(title)}</h2><table><thead><tr>${headers.map(h => `<th>${escapeHtml(h.label)}</th>`).join('')}</tr></thead><tbody>${rows.map(row => `<tr>${headers.map(h => `<td>${escapeHtml(format(row[h.key], h.suffix || ''))}</td>`).join('')}</tr>`).join('')}</tbody></table></section>`;
 }
 
+function toNumber(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const numberValue = Number(String(value).replace(/,/g, ''));
+  return Number.isFinite(numberValue) ? numberValue : null;
+}
+
+function firstNumericValue(row, keys) {
+  for (const key of keys) {
+    const value = toNumber(row[key]);
+    if (value !== null) return value;
+  }
+  return null;
+}
+
+function hasPositiveMetric(rows, keys) {
+  return rows.some((row) => (firstNumericValue(row, keys) || 0) > 0);
+}
+
+function compactName(value) {
+  const label = String(value ?? '').trim();
+  return label || 'Sin nombre';
+}
+
+function barChart(title, rows, labelKeys, valueKeys, suffix) {
+  const items = rows
+    .map((row, index) => {
+      const labelKey = labelKeys.find((key) => row[key] !== undefined && row[key] !== null && row[key] !== '');
+      const label = compactName(labelKey ? row[labelKey] : `Elemento ${index + 1}`);
+      const value = firstNumericValue(row, valueKeys);
+      return { label, value };
+    })
+    .filter((item) => item.value !== null && item.value >= 0);
+
+  if (!items.length) return '';
+  const maxValue = Math.max(...items.map((item) => item.value), 0);
+  if (maxValue <= 0) return '';
+
+  return `<section class="block chart-block"><h2>${escapeHtml(title)}</h2><div class="bar-chart">${items.map((item) => {
+    const width = Math.max((item.value / maxValue) * 100, item.value > 0 ? 3 : 0);
+    return `<div class="bar-row"><div class="bar-label">${escapeHtml(item.label)}</div><div class="bar-track"><div class="bar-fill" style="width:${width.toFixed(2)}%"></div></div><div class="bar-value">${escapeHtml(format(item.value, suffix))}</div></div>`;
+  }).join('')}</div></section>`;
+}
+
+function metricChart(titleBase, rows, labelKeys, periodKeys, flowKeys) {
+  if (hasPositiveMetric(rows, periodKeys)) {
+    return barChart(`${titleBase} - volumen del periodo`, rows, labelKeys, periodKeys, ' m³');
+  }
+  if (hasPositiveMetric(rows, flowKeys)) {
+    return barChart(`${titleBase} - flujo actual`, rows, labelKeys, flowKeys, ' L/s');
+  }
+  return '';
+}
+
+
 export function buildDailyWaterReportHtml(report, logoUrl) {
   const entry = report.water_entry || {};
   const consumption = report.water_consumption || {};
+  const entryRows = entry.rows || [];
   const lines = report.production_lines?.rows || [];
   const flows = report.operational_flows?.rows || [];
-  const missing = report.missing_fields || [];
   const linePeriodTotal = lines.reduce((sum, item) => sum + Number(item.volumen_periodo_m3 || item.period_m3 || 0), 0);
   const flowPeriodTotal = flows.reduce((sum, item) => sum + Number(item.volumen_periodo_m3 || item.period_m3 || 0), 0);
   const title = String(report.title || 'Reporte Diario de Agua');
   const fileTitle = reportFileBaseName(report);
+  const wellChart = metricChart('Pozos', entryRows, ['equipo', 'ubicacion'], ['suministro_m3', 'volumen_periodo_m3', 'period_m3'], ['flujo_lps', 'flow_lps', 'flow']);
+  const lineChart = metricChart('Líneas', lines, ['linea', 'name'], ['volumen_periodo_m3', 'period_m3', 'period_delta_m3'], ['flujo_lps', 'flow_lps', 'flow']);
+  const flowChart = metricChart('Flujos', flows, ['equipo', 'name'], ['volumen_periodo_m3', 'period_m3', 'period_delta_m3'], ['flujo_lps', 'flow_lps', 'flow']);
+
   return `<!doctype html><html lang="es"><head><meta charset="utf-8" /><title>${escapeHtml(fileTitle)}</title><style>
-    @page{size:letter;margin:14mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#1f2937;background:#fff;margin:0}.page{padding:22px}.top-band{height:76px;background:linear-gradient(135deg,#d71920,#8a1515);clip-path:polygon(0 0,100% 0,92% 100%,0 100%);margin-bottom:22px;display:flex;align-items:center;padding:14px 24px}.logo{width:230px;max-height:58px;object-fit:contain;background:white;border-radius:8px;padding:6px}.meta{display:grid;grid-template-columns:1fr auto;gap:16px;margin-bottom:24px}.title h1{margin:0;font-size:22px}.title p,.report-code p{margin:4px 0;font-size:13px}.report-code{text-align:right}.report-code strong{color:#d71920}.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px}.kpi{border:1px solid #e5e7eb;border-radius:12px;padding:12px}.kpi-label{font-size:12px;color:#64748b}.kpi-value{font-size:22px;font-weight:800}.block{break-inside:avoid;margin:18px 0}.block h2{font-size:15px;margin:0 0 8px;color:#111827}.note{border:1px solid #bfdbfe;background:#eff6ff;border-radius:10px;padding:10px;color:#1e3a8a;font-size:12px}table{width:100%;border-collapse:collapse;font-size:11px}th{color:#475569;border-bottom:2px solid #9ca3af;text-align:left;padding:7px}td{border-bottom:1px solid #e5e7eb;padding:7px}.empty{color:#64748b}.pending{border:1px solid #fecaca;background:#fff7f7;border-radius:10px;padding:10px}.pending li{margin:4px 0}.footer{margin-top:18px;color:#94a3b8;font-size:10px;text-align:right}@media print{.no-print{display:none}.page{padding:0}.top-band{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body><main class="page">
+    @page{size:letter;margin:0}*{box-sizing:border-box}html,body{background:#fff;margin:0}body{font-family:Arial,sans-serif;color:#1f2937}.page{padding:18mm 16mm}.top-band{height:76px;background:linear-gradient(135deg,#d71920,#8a1515);clip-path:polygon(0 0,100% 0,92% 100%,0 100%);margin-bottom:22px;display:flex;align-items:center;padding:14px 24px}.logo{width:230px;max-height:58px;object-fit:contain;background:white;border-radius:8px;padding:6px}.meta{display:grid;grid-template-columns:1fr auto;gap:16px;margin-bottom:24px}.title h1{margin:0;font-size:22px}.title p,.report-code p{margin:4px 0;font-size:13px}.report-code{text-align:right}.report-code strong{color:#d71920}.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px}.kpi{border:1px solid #e5e7eb;border-radius:12px;padding:12px}.kpi-label{font-size:12px;color:#64748b}.kpi-value{font-size:22px;font-weight:800}.block{break-inside:avoid;margin:18px 0}.block h2{font-size:15px;margin:0 0 8px;color:#111827}table{width:100%;border-collapse:collapse;font-size:11px}th{color:#475569;border-bottom:2px solid #9ca3af;text-align:left;padding:7px}td{border-bottom:1px solid #e5e7eb;padding:7px}.empty{color:#64748b}.chart-block{border:1px solid #e5e7eb;border-radius:12px;padding:12px}.bar-chart{display:grid;gap:8px}.bar-row{display:grid;grid-template-columns:116px 1fr 86px;gap:8px;align-items:center;font-size:11px}.bar-label{font-weight:700;color:#334155;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.bar-track{height:12px;border-radius:999px;background:#f1f5f9;overflow:hidden}.bar-fill{height:100%;border-radius:999px;background:#d71920}.bar-value{text-align:right;font-weight:700;color:#111827}@media print{.no-print{display:none}.top-band,.bar-fill{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body><main class="page">
     <div class="top-band">${logoUrl ? `<img class="logo" src="${logoUrl}" />` : ''}</div>
-    <section class="meta"><div class="title"><h1>${escapeHtml(title)}</h1><p>Planta: ${escapeHtml(report.plant || 'Durango')}</p><p>Fecha: ${escapeHtml(report.date || '')}</p><p>Fuente: ${escapeHtml(report.data_source || '')}</p></div><div class="report-code"><p>Reporte: <strong>${escapeHtml(report.report_code || '')}</strong></p><p>Estado: ${escapeHtml(report.source_status || '')}</p></div></section>
-    <section class="kpis"><div class="kpi"><div class="kpi-label">Pozos periodo</div><div class="kpi-value">${format(entry.total_pozos_m3)} m³</div></div><div class="kpi"><div class="kpi-label">Líneas periodo</div><div class="kpi-value">${format(linePeriodTotal)} m³</div></div><div class="kpi"><div class="kpi-label">Lavadoras/Jarabes</div><div class="kpi-value">${format(flowPeriodTotal)} m³</div></div></section>
-    <section class="block note">Durango no tiene fuente energética ni niveles de tanques operativos confirmados en este dashboard. Las tablas muestran lecturas BOS reales disponibles; los volúmenes de periodo se calculan solo cuando existen totalizadores inicial/final.</section>
-    ${table('Entrada de Agua - Pozos', [{key:'equipo',label:'Equipo'},{key:'ubicacion',label:'Ubicación'},{key:'suministro_m3',label:'Volumen periodo',suffix:' m³'},{key:'flujo_lps',label:'Flujo actual',suffix:' L/s'},{key:'estado',label:'Estado'},{key:'comunicacion',label:'Comunicación'}], entry.rows || [])}
+    <section class="meta"><div class="title"><h1>${escapeHtml(title)}</h1><p>Planta: ${escapeHtml(report.plant || 'Durango')}</p><p>Fecha: ${escapeHtml(report.date || '')}</p></div><div class="report-code"><p>Reporte: <strong>${escapeHtml(report.report_code || '')}</strong></p><p>Estado: ${escapeHtml(report.source_status || '')}</p></div></section>
+    <section class="kpis"><div class="kpi"><div class="kpi-label">Pozos periodo</div><div class="kpi-value">${format(entry.total_pozos_m3)} m³</div></div><div class="kpi"><div class="kpi-label">Líneas periodo</div><div class="kpi-value">${format(linePeriodTotal)} m³</div></div><div class="kpi"><div class="kpi-label">Flujos periodo</div><div class="kpi-value">${format(flowPeriodTotal)} m³</div></div></section>
+    ${wellChart}${lineChart}${flowChart}
+    ${table('Pozos', [{key:'equipo',label:'Equipo'},{key:'ubicacion',label:'Ubicación'},{key:'suministro_m3',label:'Volumen periodo',suffix:' m³'},{key:'flujo_lps',label:'Flujo actual',suffix:' L/s'},{key:'estado',label:'Estado'},{key:'comunicacion',label:'Comunicación'}], entryRows)}
     ${table('Líneas', [{key:'linea',label:'Línea'},{key:'sensor_id',label:'Sensor'},{key:'flujo_lps',label:'Flujo actual',suffix:' L/s'},{key:'volumen_periodo_m3',label:'Volumen periodo',suffix:' m³'},{key:'totalizador_m3',label:'Totalizador',suffix:' m³'},{key:'estado',label:'Estado'}], lines)}
-    ${table('Lavadoras y Jarabes', [{key:'equipo',label:'Punto'},{key:'sensor_id',label:'Sensor'},{key:'tipo',label:'Tipo'},{key:'flujo_lps',label:'Flujo actual',suffix:' L/s'},{key:'volumen_periodo_m3',label:'Volumen periodo',suffix:' m³'},{key:'totalizador_m3',label:'Totalizador',suffix:' m³'},{key:'estado',label:'Estado'},{key:'observacion',label:'Observación'}], flows)}
+    ${table('Flujos', [{key:'equipo',label:'Punto'},{key:'sensor_id',label:'Sensor'},{key:'tipo',label:'Tipo'},{key:'flujo_lps',label:'Flujo actual',suffix:' L/s'},{key:'volumen_periodo_m3',label:'Volumen periodo',suffix:' m³'},{key:'totalizador_m3',label:'Totalizador',suffix:' m³'},{key:'estado',label:'Estado'}], flows)}
     ${table('Consumo de Agua - Volumen del periodo', [{key:'equipo',label:'Equipo'},{key:'ubicacion',label:'Detalle'},{key:'suministro',label:'Volumen periodo',suffix:' m³'},{key:'porcentaje',label:'Participación',suffix:'%'}], consumption.rows || [])}
     ${table('Suministro Agua 24 hrs', [{key:'equipo',label:'Equipo'},{key:'ubicacion',label:'Ubicación'},{key:'lectura_inicio_m3',label:'Lectura inicio'},{key:'lectura_final_m3',label:'Lectura final'},{key:'suministro_m3',label:'Suministro',suffix:' m³'}], report.supply_24h?.rows || [])}
-    <section class="block pending"><h2>Datos pendientes o no confirmados</h2>${missing.length ? `<ul>${missing.map(item => `<li><strong>${escapeHtml(item.name)}</strong>: ${escapeHtml(item.detail)}</li>`).join('')}</ul>` : '<p>Sin pendientes detectados para esta consulta.</p>'}</section>
-    <div class="footer">Generado: ${escapeHtml(report.generated_at || '')}</div>
   </main></body></html>`;
 }
 
@@ -114,12 +170,9 @@ export function exportDailyWaterReportExcel(report) {
 export async function printDailyWaterReportPdf(report, logoUrl) {
   const embeddedLogo = await resolveImageToDataUrl(logoUrl);
   const html = buildDailyWaterReportHtml(report, embeddedLogo);
-  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
   const iframe = document.createElement('iframe');
   const reportTitle = reportFileBaseName(report);
   const previousTitle = document.title;
-  let printStarted = false;
   let cleanedUp = false;
 
   iframe.style.position = 'fixed';
@@ -128,49 +181,46 @@ export async function printDailyWaterReportPdf(report, logoUrl) {
   iframe.style.opacity = '0';
   iframe.style.border = '0';
   iframe.setAttribute('aria-hidden', 'true');
+  iframe.src = 'about:blank';
 
   const cleanup = () => {
     if (cleanedUp) return;
     cleanedUp = true;
     document.title = previousTitle;
-    setTimeout(() => {
-      iframe.remove();
-      URL.revokeObjectURL(url);
-    }, 1200);
+    setTimeout(() => iframe.remove(), 1200);
   };
 
-  iframe.onload = async () => {
-    if (printStarted) return;
-    printStarted = true;
-
-    const frameWindow = iframe.contentWindow;
-    if (!frameWindow) {
-      cleanup();
-      return;
-    }
-
-    const handleAfterPrint = () => {
-      frameWindow.removeEventListener('afterprint', handleAfterPrint);
-      cleanup();
-    };
-
-    frameWindow.addEventListener('afterprint', handleAfterPrint);
-
-    try {
-      await waitForFrameImages(frameWindow);
-      frameWindow.document.title = reportTitle;
-      document.title = reportTitle;
-      setTimeout(() => {
-        frameWindow.focus();
-        frameWindow.print();
-      }, 250);
-    } catch (error) {
-      frameWindow.removeEventListener('afterprint', handleAfterPrint);
-      cleanup();
-      console.error('No se pudo preparar el PDF del reporte diario:', error);
-    }
-  };
-
-  iframe.src = url;
   document.body.appendChild(iframe);
+  const frameWindow = iframe.contentWindow;
+  const frameDocument = iframe.contentDocument || frameWindow?.document;
+  if (!frameWindow || !frameDocument) {
+    cleanup();
+    return;
+  }
+
+  frameDocument.open();
+  frameDocument.write(html);
+  frameDocument.close();
+  frameDocument.title = reportTitle;
+  document.title = reportTitle;
+
+  const handleAfterPrint = () => {
+    frameWindow.removeEventListener('afterprint', handleAfterPrint);
+    cleanup();
+  };
+
+  frameWindow.addEventListener('afterprint', handleAfterPrint);
+
+  try {
+    await waitForFrameImages(frameWindow);
+    setTimeout(() => {
+      frameWindow.focus();
+      frameWindow.print();
+    }, 250);
+  } catch (error) {
+    frameWindow.removeEventListener('afterprint', handleAfterPrint);
+    cleanup();
+    console.error('No se pudo preparar el PDF del reporte diario:', error);
+  }
 }
+

@@ -177,7 +177,7 @@ LINE_SENSOR_BY_ID = {int(item['sensor_id']): item for item in LINE_SENSOR_MAP}
 
 FLOW_SENSOR_MAP = [
     {'sensor_id': 3002, 'name': 'Lavadora Ciel', 'category': 'lavadora'},
-    {'sensor_id': 3004, 'name': 'Jarabes - pendiente de clasificacion operativa', 'category': 'pendiente'},
+    {'sensor_id': 3004, 'name': 'Jarabes', 'category': 'flujo'},
     {'sensor_id': 3006, 'name': 'Lavadora de Vidrio', 'category': 'lavadora'},
 ]
 
@@ -1238,7 +1238,7 @@ def _build_tank_inputs(
             'ultima_lectura': updated or 'Sin datos',
             'source_table': 'dbo.SensorsBOS_Tanque',
             'source_key': f'TANQUE_FLOW_IN[{index}]',
-            'category': (FLOW_SENSOR_BY_ID.get(sensor_id) or {}).get('category') or ('lavadora' if sensor_id in {3002, 3006} else 'pendiente'),
+            'category': (FLOW_SENSOR_BY_ID.get(sensor_id) or {}).get('category') or ('lavadora' if sensor_id in {3002, 3006} else 'flujo'),
             'description': location,
             'has_reading': has_reading,
         })
@@ -1448,8 +1448,8 @@ def _build_flows(
             'ultima_lectura': updated or 'Sin datos',
             'source_table': 'dbo.SensorsBOS_Tanque',
             'source_key': f'TANQUE_FLOW_IN[{index}]',
-            'category': (FLOW_SENSOR_BY_ID.get(sensor_id) or {}).get('category') or ('lavadora' if sensor_id in {3002, 3006} else 'pendiente'),
-            'classification_note': 'Jarabes pendiente de validar clasificacion operativa.' if sensor_id == 3004 else '',
+            'category': (FLOW_SENSOR_BY_ID.get(sensor_id) or {}).get('category') or ('lavadora' if sensor_id in {3002, 3006} else 'flujo'),
+            'classification_note': '',
             'diagnosis': (f'Lectura real del punto auxiliar sensor {sensor_id}; periodo desde delta de totalizador.' if period_available else f'Lectura instantanea real del punto auxiliar sensor {sensor_id}; periodo no disponible sin totalizadores validos.') if has_reading else f'Sin lectura disponible para sensor {sensor_id}.',
         })
     return flows
@@ -1791,7 +1791,7 @@ def get_bos_water_dashboard_payload(start_date: Any = None, end_date: Any = None
             'name': item.get('name') or item.get('label') or f'Flujo {idx + 1}',
             'value': _num(item.get('flow_lps')),
             'unit': 'L/s',
-            'detail': ('Lavadora' if item.get('category') == 'lavadora' else 'Punto operativo pendiente de clasificar') + f" · Sensor {item.get('sensor_id')}",
+            'detail': ('Lavadora' if item.get('category') == 'lavadora' else 'Flujo auxiliar'),
             'sensor_id': item.get('sensor_id'),
             'category': item.get('category'),
         }

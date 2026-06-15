@@ -112,7 +112,7 @@ function BalanceSection() {
           <PanelHeader title="Resumen del día" subtitle="Lectura ejecutiva sin datos mock" />
           <div className="water-balance-summary-stack">
             <article><span>Estado del balance</span><strong>{entryExitRows.length ? 'Datos BOS disponibles' : 'Sin balance disponible'}</strong><p>El balance se calcula solo con campos presentes en el payload actual.</p></article>
-            <article><span>Lavadoras/Jarabes</span><strong>{formatNumber(flowTotal, 2)} L/s</strong><p>Incluye puntos auxiliares reales; Jarabes permanece pendiente de validar clasificación.</p></article>
+            <article><span>Lavadoras/Jarabes</span><strong>{formatNumber(flowTotal, 2)} L/s</strong><p>Incluye Lavadora Ciel, Jarabes y Lavadora de Vidrio.</p></article>
             <article><span>Líneas</span><strong>{formatNumber(lineTotal, 2)} L/s</strong><p>Solo se muestran líneas que BOS reporta como configuradas.</p></article>
           </div>
         </div>
