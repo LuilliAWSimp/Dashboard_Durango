@@ -163,7 +163,7 @@ function metricChart(titleBase: string, rows: TableRow[], labelKeys: string[], p
 }
 
 
-export function buildDailyWaterReportHtml(report: DailyWaterReport, logoUrl?: string): string {
+export function buildDailyWaterReportHtml(report: DailyWaterReport, logoUrl?: string, documentTitle?: string): string {
   const entry = report.water_entry || {};
   const consumption = report.water_consumption || {};
   const entryRows = entry.rows || [];
@@ -172,7 +172,7 @@ export function buildDailyWaterReportHtml(report: DailyWaterReport, logoUrl?: st
   const linePeriodTotal = lines.reduce((sum, item) => sum + Number(item.volumen_periodo_m3 || item.period_m3 || 0), 0);
   const flowPeriodTotal = flows.reduce((sum, item) => sum + Number(item.volumen_periodo_m3 || item.period_m3 || 0), 0);
   const title = String(report.title || 'Reporte Diario de Agua');
-  const fileTitle = reportFileBaseName(report);
+  const fileTitle = documentTitle ?? reportFileBaseName(report);
   const wellChart = metricChart('Pozos', entryRows, ['equipo', 'ubicacion'], ['suministro_m3', 'volumen_periodo_m3', 'period_m3'], ['flujo_lps', 'flow_lps', 'flow']);
   const lineChart = metricChart('Líneas', lines, ['linea', 'name'], ['volumen_periodo_m3', 'period_m3', 'period_delta_m3'], ['flujo_lps', 'flow_lps', 'flow']);
   const flowChart = metricChart('Flujos', flows, ['equipo', 'name'], ['volumen_periodo_m3', 'period_m3', 'period_delta_m3'], ['flujo_lps', 'flow_lps', 'flow']);
@@ -202,9 +202,8 @@ export function exportDailyWaterReportExcel(report: DailyWaterReport): void {
 
 export async function printDailyWaterReportPdf(report: DailyWaterReport, logoUrl?: string): Promise<void> {
   const embeddedLogo = await resolveImageToDataUrl(logoUrl);
-  const html = buildDailyWaterReportHtml(report, embeddedLogo);
+  const html = buildDailyWaterReportHtml(report, embeddedLogo, '');
   const iframe = document.createElement('iframe');
-  const reportTitle = reportFileBaseName(report);
   const previousTitle = document.title;
   let cleanedUp = false;
 
@@ -234,8 +233,10 @@ export async function printDailyWaterReportPdf(report: DailyWaterReport, logoUrl
   frameDocument.open();
   frameDocument.write(html);
   frameDocument.close();
-  frameDocument.title = reportTitle;
-  document.title = reportTitle;
+  frameDocument.title = '';
+  const titleElement = frameDocument.querySelector('title');
+  if (titleElement) titleElement.textContent = '';
+  document.title = '';
 
   const handleAfterPrint = () => {
     frameWindow.removeEventListener('afterprint', handleAfterPrint);
