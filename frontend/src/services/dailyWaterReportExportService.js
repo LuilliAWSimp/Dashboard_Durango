@@ -167,61 +167,117 @@ export function exportDailyWaterReportExcel(report) {
   downloadBlob(html, `${reportFileBaseName(report)}.xls`, 'application/vnd.ms-excel;charset=utf-8');
 }
 
-export async function printDailyWaterReportPdf(report, logoUrl) {
-  const embeddedLogo = await resolveImageToDataUrl(logoUrl);
-  const html = buildDailyWaterReportHtml(report, embeddedLogo, '');
-  const iframe = document.createElement('iframe');
-  const previousTitle = document.title;
-  let cleanedUp = false;
 
-  iframe.style.position = 'fixed';
-  iframe.style.width = '0';
-  iframe.style.height = '0';
-  iframe.style.opacity = '0';
-  iframe.style.border = '0';
-  iframe.setAttribute('aria-hidden', 'true');
-  iframe.src = 'about:blank';
+async function downloadControlledPdfFromHtml(html, filename) {
+  const [{ jsPDF }, html2canvasModule] = await Promise.all([
+    import('jspdf'),
+    import('html2canvas'),
+  ]);
+  const html2canvas = html2canvasModule.default;
+  const iframe = document.createElement('iframe');
+  let cleanedUp = false;
 
   const cleanup = () => {
     if (cleanedUp) return;
     cleanedUp = true;
-    document.title = previousTitle;
-    setTimeout(() => iframe.remove(), 1200);
+    setTimeout(() => iframe.remove(), 500);
   };
+
+  iframe.style.position = 'fixed';
+  iframe.style.left = '-10000px';
+  iframe.style.top = '0';
+  iframe.style.width = '794px';
+  iframe.style.height = '1123px';
+  iframe.style.opacity = '0';
+  iframe.style.pointerEvents = 'none';
+  iframe.style.border = '0';
+  iframe.setAttribute('aria-hidden', 'true');
+  iframe.src = 'about:blank';
 
   document.body.appendChild(iframe);
-  const frameWindow = iframe.contentWindow;
-  const frameDocument = iframe.contentDocument || frameWindow?.document;
-  if (!frameWindow || !frameDocument) {
-    cleanup();
-    return;
-  }
-
-  frameDocument.open();
-  frameDocument.write(html);
-  frameDocument.close();
-  frameDocument.title = '';
-  const titleElement = frameDocument.querySelector('title');
-  if (titleElement) titleElement.textContent = '';
-  document.title = '';
-
-  const handleAfterPrint = () => {
-    frameWindow.removeEventListener('afterprint', handleAfterPrint);
-    cleanup();
-  };
-
-  frameWindow.addEventListener('afterprint', handleAfterPrint);
 
   try {
+    const frameWindow = iframe.contentWindow;
+    const frameDocument = iframe.contentDocument || frameWindow?.document;
+    if (!frameWindow || !frameDocument) throw new Error('No se pudo crear el documento temporal del PDF.');
+
+    frameDocument.open();
+    frameDocument.write(html);
+    frameDocument.close();
+    frameDocument.title = '';
+    const titleElement = frameDocument.querySelector('title');
+    if (titleElement) titleElement.textContent = '';
+
     await waitForFrameImages(frameWindow);
-    setTimeout(() => {
-      frameWindow.focus();
-      frameWindow.print();
-    }, 250);
-  } catch (error) {
-    frameWindow.removeEventListener('afterprint', handleAfterPrint);
+    await new Promise((resolve) => setTimeout(resolve, 180));
+
+    const pageElement = (frameDocument.querySelector('.page')) || frameDocument.body;
+    const scale = Math.min(Math.max(window.devicePixelRatio || 1.5, 1.5), 2);
+    const canvas = await html2canvas(pageElement, {
+      backgroundColor: '#ffffff',
+      logging: false,
+      scale,
+      useCORS: true,
+      windowWidth: Math.max(pageElement.scrollWidth, 794),
+      windowHeight: Math.max(pageElement.scrollHeight, 1123),
+    });
+
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
+    const pageWidthMm = 210;
+    const pageHeightMm = 297;
+    const marginLeftMm = 10;
+    const marginTopMm = 10;
+    const marginBottomMm = 12;
+    const contentWidthMm = pageWidthMm - marginLeftMm * 2;
+    const contentHeightMm = pageHeightMm - marginTopMm - marginBottomMm;
+    const sliceHeightPx = Math.floor((canvas.width * contentHeightMm) / contentWidthMm);
+
+    let sourceY = 0;
+    let pageIndex = 0;
+
+    while (sourceY < canvas.height) {
+      const currentSliceHeight = Math.min(sliceHeightPx, canvas.height - sourceY);
+      const pageCanvas = document.createElement('canvas');
+      pageCanvas.width = canvas.width;
+      pageCanvas.height = currentSliceHeight;
+      const context = pageCanvas.getContext('2d');
+      if (!context) throw new Error('No se pudo preparar una página del PDF.');
+
+      context.fillStyle = '#ffffff';
+      context.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+      context.drawImage(
+        canvas,
+        0,
+        sourceY,
+        canvas.width,
+        currentSliceHeight,
+        0,
+        0,
+        canvas.width,
+        currentSliceHeight,
+      );
+
+      if (pageIndex > 0) pdf.addPage('a4', 'portrait');
+      const imageHeightMm = (currentSliceHeight * contentWidthMm) / canvas.width;
+      const imageData = pageCanvas.toDataURL('image/jpeg', 0.96);
+      pdf.addImage(imageData, 'JPEG', marginLeftMm, marginTopMm, contentWidthMm, imageHeightMm, undefined, 'FAST');
+
+      sourceY += currentSliceHeight;
+      pageIndex += 1;
+    }
+
+    pdf.save(filename);
+  } finally {
     cleanup();
-    console.error('No se pudo preparar el PDF del reporte diario:', error);
   }
 }
 
+export async function printDailyWaterReportPdf(report, logoUrl) {
+  try {
+    const embeddedLogo = await resolveImageToDataUrl(logoUrl);
+    const html = buildDailyWaterReportHtml(report, embeddedLogo, '');
+    await downloadControlledPdfFromHtml(html, `${reportFileBaseName(report)}.pdf`);
+  } catch (error) {
+    console.error('No se pudo generar el PDF del reporte diario:', error);
+  }
+}
