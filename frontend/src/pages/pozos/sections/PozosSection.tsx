@@ -134,7 +134,7 @@ export default function PozosSection({ mode = 'pozos' }: PozosSectionProps = {})
     let mounted = true;
     setSqlLoading(true);
     setSqlError('');
-    fetchWaterDashboard('dashboard')
+    fetchWaterDashboard('dashboard', { force_refresh: true, include_history: false, include_energy_water: false })
       .then((data) => { if (mounted) setSqlDashboard(data as DashboardData); })
       .catch((error) => {
         if (mounted) {
