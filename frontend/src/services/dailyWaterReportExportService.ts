@@ -152,6 +152,10 @@ function barChart(title: string, rows: TableRow[], labelKeys: string[], valueKey
   }).join('')}</div></section>`;
 }
 
+function emptyChart(title: string): string {
+  return `<section class="block chart-block"><h2>${escapeHtml(title)}</h2><p class="empty">Sin valores suficientes para graficar en este reporte.</p></section>`;
+}
+
 function metricChart(titleBase: string, rows: TableRow[], labelKeys: string[], periodKeys: string[], flowKeys: string[]): string {
   if (hasPositiveMetric(rows, periodKeys)) {
     return barChart(`${titleBase} - volumen del periodo`, rows, labelKeys, periodKeys, ' m³');
@@ -159,7 +163,7 @@ function metricChart(titleBase: string, rows: TableRow[], labelKeys: string[], p
   if (hasPositiveMetric(rows, flowKeys)) {
     return barChart(`${titleBase} - flujo actual`, rows, labelKeys, flowKeys, ' L/s');
   }
-  return '';
+  return emptyChart(`${titleBase} - volumen del periodo`);
 }
 
 
@@ -182,10 +186,12 @@ export function buildDailyWaterReportHtml(report: DailyWaterReport, logoUrl?: st
     <div class="top-band">${logoUrl ? `<img class="logo" src="${logoUrl}" />` : ''}</div>
     <section class="meta"><div class="title"><h1>${escapeHtml(title)}</h1><p>Planta: ${escapeHtml(report.plant || 'Durango')}</p><p>Fecha: ${escapeHtml(report.date || '')}</p></div><div class="report-code"><p>Reporte: <strong>${escapeHtml(report.report_code || '')}</strong></p><p>Estado: ${escapeHtml(report.source_status || '')}</p></div></section>
     <section class="kpis"><div class="kpi"><div class="kpi-label">Pozos periodo</div><div class="kpi-value">${format(entry.total_pozos_m3)} m³</div></div><div class="kpi"><div class="kpi-label">Líneas periodo</div><div class="kpi-value">${format(linePeriodTotal)} m³</div></div><div class="kpi"><div class="kpi-label">Flujos periodo</div><div class="kpi-value">${format(flowPeriodTotal)} m³</div></div></section>
-    ${wellChart}${lineChart}${flowChart}
     ${table('Pozos', [{key:'equipo',label:'Equipo'},{key:'ubicacion',label:'Ubicación'},{key:'suministro_m3',label:'Volumen periodo',suffix:' m³'},{key:'flujo_lps',label:'Flujo actual',suffix:' L/s'},{key:'estado',label:'Estado'},{key:'comunicacion',label:'Comunicación'}], entryRows)}
+    ${wellChart}
     ${table('Líneas', [{key:'linea',label:'Línea'},{key:'sensor_id',label:'Sensor'},{key:'flujo_lps',label:'Flujo actual',suffix:' L/s'},{key:'volumen_periodo_m3',label:'Volumen periodo',suffix:' m³'},{key:'totalizador_m3',label:'Totalizador',suffix:' m³'},{key:'estado',label:'Estado'}], lines)}
+    ${lineChart}
     ${table('Flujos', [{key:'equipo',label:'Punto'},{key:'sensor_id',label:'Sensor'},{key:'tipo',label:'Tipo'},{key:'flujo_lps',label:'Flujo actual',suffix:' L/s'},{key:'volumen_periodo_m3',label:'Volumen periodo',suffix:' m³'},{key:'totalizador_m3',label:'Totalizador',suffix:' m³'},{key:'estado',label:'Estado'}], flows)}
+    ${flowChart}
     ${table('Consumo de Agua - Volumen del periodo', [{key:'equipo',label:'Equipo'},{key:'ubicacion',label:'Detalle'},{key:'suministro',label:'Volumen periodo',suffix:' m³'},{key:'porcentaje',label:'Participación',suffix:'%'}], consumption.rows || [])}
     ${table('Suministro Agua 24 hrs', [{key:'equipo',label:'Equipo'},{key:'ubicacion',label:'Ubicación'},{key:'lectura_inicio_m3',label:'Lectura inicio'},{key:'lectura_final_m3',label:'Lectura final'},{key:'suministro_m3',label:'Suministro',suffix:' m³'}], report.supply_24h?.rows || [])}
   </main></body></html>`;
