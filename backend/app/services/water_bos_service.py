@@ -15,8 +15,12 @@ from app.database import SessionLocal
 logger = logging.getLogger(__name__)
 
 _CACHE_TTL_SECONDS = 10 * 60
+_CURRENT_PAYLOAD_TTL_SECONDS = 20
+_HISTORY_PAYLOAD_TTL_SECONDS = 10 * 60
+_MONTHLY_PAYLOAD_TTL_SECONDS = 30 * 60
 _SENSOR_CATALOG_CACHE: dict[str, Any] = {'expires_at': 0.0, 'value': None}
 _WELL_LOCATIONS_CACHE: dict[str, Any] = {'expires_at': 0.0, 'value': None}
+_DASHBOARD_PAYLOAD_CACHE: dict[str, dict[str, Any]] = {}
 _SQL_OBJECT_EXISTS_CACHE: dict[str, bool] = {}
 _OPTIONAL_SOURCE_WARNED: set[str] = set()
 _OPTIONAL_BOS_TABLES = {'dbo.NIVELES_BOS'}
@@ -139,6 +143,52 @@ def _cache_set(cache: dict[str, Any], value: Any, label: str) -> Any:
     cache['expires_at'] = monotonic() + _CACHE_TTL_SECONDS
     logger.info('water_bos cache refreshed: %s ttl=%ss', label, _CACHE_TTL_SECONDS)
     return value
+
+
+def _payload_cache_key(start_date: Any = None, end_date: Any = None, period: Any = None, include_history: bool = False, include_energy_water: bool = False) -> str:
+    start_bound, end_bound = _date_bounds(start_date, end_date)
+    normalized_period = _normalize_period(period, start_date, end_date)
+    return '|'.join([
+        str(start_bound or ''),
+        str(end_bound or ''),
+        normalized_period,
+        'history' if include_history else 'current',
+        'energy' if include_energy_water else 'noenergy',
+    ])
+
+
+def _payload_cache_ttl(start_date: Any = None, end_date: Any = None, period: Any = None, include_history: bool = False) -> int:
+    if not include_history:
+        return _CURRENT_PAYLOAD_TTL_SECONDS
+    normalized_period = _normalize_period(period, start_date, end_date)
+    start_bound, end_bound = _date_bounds(start_date, end_date)
+    if normalized_period == 'monthly' or (start_bound and end_bound and abs((end_bound - start_bound).days) + 1 > 31):
+        return _MONTHLY_PAYLOAD_TTL_SECONDS
+    return _HISTORY_PAYLOAD_TTL_SECONDS
+
+
+def _payload_cache_get(cache_key: str) -> dict[str, Any] | None:
+    entry = _DASHBOARD_PAYLOAD_CACHE.get(cache_key)
+    if not entry:
+        return None
+    if monotonic() >= float(entry.get('expires_at') or 0):
+        _DASHBOARD_PAYLOAD_CACHE.pop(cache_key, None)
+        logger.info('water_bos payload cache expired: %s', cache_key)
+        return None
+    logger.info('water_bos payload cache hit: %s', cache_key)
+    return deepcopy(entry.get('value'))
+
+
+def _payload_cache_set(cache_key: str, payload: dict[str, Any] | None, ttl_seconds: int) -> dict[str, Any] | None:
+    if not payload or payload.get('__sql_error__'):
+        logger.info('water_bos payload cache skipped for empty/error payload: %s', cache_key)
+        return payload
+    _DASHBOARD_PAYLOAD_CACHE[cache_key] = {
+        'expires_at': monotonic() + max(int(ttl_seconds or _CURRENT_PAYLOAD_TTL_SECONDS), 1),
+        'value': deepcopy(payload),
+    }
+    logger.info('water_bos payload cache refreshed: %s ttl=%ss', cache_key, ttl_seconds)
+    return payload
 
 
 def _sql_connection_error_payload() -> dict[str, Any]:
@@ -1722,9 +1772,14 @@ def _cards(wells: list[dict[str, Any]], lines: list[dict[str, Any]], tank_inputs
     ]
 
 
-def get_bos_water_dashboard_payload(start_date: Any = None, end_date: Any = None, period: Any = None, include_history: bool = False, include_energy_water: bool = False) -> dict[str, Any] | None:
+def get_bos_water_dashboard_payload(start_date: Any = None, end_date: Any = None, period: Any = None, include_history: bool = False, include_energy_water: bool = False, force_refresh: bool = False) -> dict[str, Any] | None:
     start_bound, end_bound = _date_bounds(start_date, end_date)
     has_period = bool(start_bound or end_bound)
+    cache_key = _payload_cache_key(start_date, end_date, period, include_history, include_energy_water)
+    if not force_refresh:
+        cached_payload = _payload_cache_get(cache_key)
+        if cached_payload is not None:
+            return cached_payload
     sql_errors = {'count': 0}
     try:
         with SessionLocal() as session:
@@ -1811,7 +1866,7 @@ def get_bos_water_dashboard_payload(start_date: Any = None, end_date: Any = None
         'lineas': _source_freshness(linea_updated, sql_now),
         'lavadoras_jarabes': _source_freshness(tanque_updated, sql_now),
     }
-    return {
+    payload = {
         'title': 'Pozos',
         'subtitle': 'Lectura directa desde SQL Server ARCA / BOS',
         'cards': _cards(wells, lines, tank_inputs),
@@ -1851,3 +1906,4 @@ def get_bos_water_dashboard_payload(start_date: Any = None, end_date: Any = None
         'date_range': {'start_date': str(start_bound or ''), 'end_date': str(end_bound or ''), 'period': normalized_period},
         'aggregation': normalized_period,
     }
+    return _payload_cache_set(cache_key, payload, _payload_cache_ttl(start_date, end_date, period, include_history))

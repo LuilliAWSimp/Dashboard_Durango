@@ -6,6 +6,7 @@ import Sidebar from './components/Sidebar';
 import LoginPage from './pages/LoginPage';
 import PozosDashboardPage from './pages/PozosDashboardPage';
 import { getAuth, logout } from './services/authService';
+import { fetchWaterDashboard } from './services/waterService';
 
 const DEFAULT_POZOS_SECTION = 'dashboard';
 
@@ -33,6 +34,65 @@ function nowText() {
     second: '2-digit',
     hour12: false,
   });
+}
+
+
+function preloadWithTimeout(timeoutMs = 12000) {
+  const preload = fetchWaterDashboard('dashboard', {
+    include_history: false,
+    include_energy_water: false,
+  }).then((data) => {
+    if (String(data?.source_status || '').toLowerCase() === 'sql_error') {
+      throw new Error('No se pudo preparar la información de planta.');
+    }
+    return data;
+  });
+  const timeout = new Promise((_, reject) => {
+    window.setTimeout(() => reject(new Error('Tiempo de espera agotado al preparar los datos de planta.')), timeoutMs);
+  });
+  return Promise.race([preload, timeout]);
+}
+
+function warmWaterHistoryCache() {
+  const today = new Date().toISOString().slice(0, 10);
+  window.setTimeout(() => {
+    fetchWaterDashboard('dashboard', {
+      startDate: today,
+      endDate: today,
+      period: 'hourly',
+      include_history: true,
+      include_energy_water: false,
+    }).catch(() => {
+      // Warm cache no debe bloquear ni mostrar errores al usuario.
+    });
+  }, 1200);
+}
+
+function InitialPlantLoader({ status, error, onRetry, onSkip }) {
+  const hasError = status === 'error';
+  return (
+    <div className="initial-loader-screen" role="status" aria-live="polite">
+      <div className="initial-loader-card">
+        <div className="initial-loader-mark">ARCA</div>
+        <div className="initial-loader-copy">
+          <span>{PLANT_NAME}</span>
+          <h1>Cargando Dashboard ARCA</h1>
+          <p>{hasError ? 'No se pudo preparar la información de planta.' : 'Preparando datos de planta...'}</p>
+        </div>
+        {hasError ? (
+          <>
+            <div className="initial-loader-error">{error || 'Backend o SQL no respondió dentro del tiempo esperado.'}</div>
+            <div className="initial-loader-actions">
+              <button type="button" onClick={onRetry}>Reintentar</button>
+              <button type="button" className="secondary" onClick={onSkip}>Abrir dashboard sin precarga</button>
+            </div>
+          </>
+        ) : (
+          <div className="initial-loader-progress" aria-hidden="true"><span /></div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function Shell({ user, onLogout, sidebarProps, children, headerMeta, shellClass = '' }) {
@@ -68,12 +128,40 @@ function Shell({ user, onLogout, sidebarProps, children, headerMeta, shellClass 
 function PozosShell({ user, onLogout }) {
   const { section = DEFAULT_POZOS_SECTION, itemId } = useParams();
   const [collapsed, setCollapsed] = useState(true);
+  const [preloadState, setPreloadState] = useState({ status: 'loading', error: '' });
   const [headerMeta, setHeaderMeta] = useState({
     title: 'Resumen de Pozos',
     subtitle: '',
     onExport: () => {},
     onEmail: () => {},
   });
+
+  const runPreload = () => {
+    setPreloadState({ status: 'loading', error: '' });
+    preloadWithTimeout()
+      .then(() => {
+        setPreloadState({ status: 'ready', error: '' });
+        warmWaterHistoryCache();
+      })
+      .catch((error) => {
+        setPreloadState({ status: 'error', error: error?.message || 'No se pudo preparar la información de planta.' });
+      });
+  };
+
+  useEffect(() => {
+    runPreload();
+  }, []);
+
+  if (preloadState.status !== 'ready') {
+    return (
+      <InitialPlantLoader
+        status={preloadState.status}
+        error={preloadState.error}
+        onRetry={runPreload}
+        onSkip={() => setPreloadState({ status: 'ready', error: '' })}
+      />
+    );
+  }
 
   return (
     <Shell

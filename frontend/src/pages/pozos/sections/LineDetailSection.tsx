@@ -127,7 +127,7 @@ export default function LineDetailSection({ lineId }: LineDetailSectionProps) {
 
   useEffect(() => {
     let mounted = true;
-    fetchWaterDashboard('dashboard', { force_refresh: true, include_history: false, include_energy_water: false })
+    fetchWaterDashboard('dashboard', { force_refresh: false, include_history: false, include_energy_water: false })
       .then((data) => { if (mounted) setSqlDashboard(data as DashboardData); })
       .catch((error) => { if (mounted) setSqlError(errorMessage(error) || 'No se pudo leer SQL Server'); });
     return () => { mounted = false; };

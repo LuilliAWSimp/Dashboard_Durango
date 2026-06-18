@@ -179,7 +179,7 @@ def _normalize_dashboard_data(data: dict[str, Any], source: WaterSourceInfo | No
     }
 
 
-def get_water_dashboard_payload(section: str = 'dashboard', start_date: Any = None, end_date: Any = None, period: Any = None, include_history: bool = False, include_energy_water: bool = False) -> WaterDashboardPayload:
+def get_water_dashboard_payload(section: str = 'dashboard', start_date: Any = None, end_date: Any = None, period: Any = None, include_history: bool = False, include_energy_water: bool = False, force_refresh: bool = False) -> WaterDashboardPayload:
     title, subtitle = WATER_SECTION_META.get(section, WATER_SECTION_META['dashboard'])
 
     if section == 'tanques':
@@ -188,7 +188,7 @@ def get_water_dashboard_payload(section: str = 'dashboard', start_date: Any = No
         empty.source_status = 'not_applicable_no_tank_levels'
         return empty
 
-    bos_data = get_bos_water_dashboard_payload(start_date=start_date, end_date=end_date, period=period, include_history=include_history, include_energy_water=include_energy_water)
+    bos_data = get_bos_water_dashboard_payload(start_date=start_date, end_date=end_date, period=period, include_history=include_history, include_energy_water=include_energy_water, force_refresh=force_refresh)
     if bos_data and bos_data.get('__sql_error__'):
         empty = _empty_payload(section, None)
         empty.subtitle = f'{subtitle}. Sin conexión a SQL Server ARCA.'

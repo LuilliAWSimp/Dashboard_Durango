@@ -244,7 +244,7 @@ export default function WellDetailSection({ wellId, backPath = '/pozos/pozos', b
 
   useEffect(() => {
     let mounted = true;
-    fetchWaterDashboard('dashboard', { force_refresh: true, include_history: false, include_energy_water: false })
+    fetchWaterDashboard('dashboard', { force_refresh: false, include_history: false, include_energy_water: false })
       .then((data) => { if (mounted) setSqlDashboard(data as DashboardData); })
       .catch((error) => { if (mounted) setSqlError((error as { message?: string })?.message || 'No se pudo leer SQL Server'); });
     return () => { mounted = false; };

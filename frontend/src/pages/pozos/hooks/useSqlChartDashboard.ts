@@ -50,7 +50,7 @@ export default function useSqlChartDashboard(
       period: dateRangePeriod(range),
       include_history: Boolean(options.includeHistory),
       include_energy_water: Boolean(options.includeEnergyWater),
-      force_refresh: Boolean(options.forceRefresh),
+      force_refresh: Boolean(options.forceRefresh && range.refreshKey),
     })
       .then((data) => { if (mounted) setDashboard(data); })
       .catch((fetchError: unknown) => {

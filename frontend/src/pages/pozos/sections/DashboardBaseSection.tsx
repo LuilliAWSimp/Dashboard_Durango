@@ -185,8 +185,8 @@ export default function DashboardBaseSection() {
       if (!mounted) return;
       loadFastDashboard(forceRefresh);
     };
-    run(true);
-    const interval = window.setInterval(() => run(true), AUTO_REFRESH_MS);
+    run(false);
+    const interval = window.setInterval(() => run(false), AUTO_REFRESH_MS);
     return () => {
       mounted = false;
       window.clearInterval(interval);
@@ -196,7 +196,7 @@ export default function DashboardBaseSection() {
   useEffect(() => {
     let mounted = true;
     setChartError('');
-    fetchWaterDashboard('dashboard', { ...chartRange, period: dateRangePeriod(chartRange), force_refresh: true, include_history: false, include_energy_water: false })
+    fetchWaterDashboard('dashboard', { ...chartRange, period: dateRangePeriod(chartRange), force_refresh: Boolean(chartRange.refreshKey), include_history: false, include_energy_water: false })
       .then((data) => { if (mounted) setChartDashboard(data as DashboardData); })
       .catch((error) => {
         if (mounted) {

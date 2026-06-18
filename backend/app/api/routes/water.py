@@ -22,10 +22,10 @@ router = APIRouter(prefix='/water', tags=['water'])
 
 
 @router.get('/dashboard/{section}', response_model=WaterDashboardPayload)
-def read_water_dashboard(section: str, start_date: Optional[str] = Query(None), end_date: Optional[str] = Query(None), period: Optional[str] = Query(None), include_history: bool = Query(False), include_energy_water: bool = Query(False)):
+def read_water_dashboard(section: str, start_date: Optional[str] = Query(None), end_date: Optional[str] = Query(None), period: Optional[str] = Query(None), include_history: bool = Query(False), include_energy_water: bool = Query(False), force_refresh: bool = Query(False)):
     if section not in WATER_SECTION_META:
         raise HTTPException(status_code=404, detail='Sección de pozos no encontrada')
-    return get_water_dashboard_payload(section, start_date=start_date, end_date=end_date, period=period, include_history=include_history, include_energy_water=include_energy_water)
+    return get_water_dashboard_payload(section, start_date=start_date, end_date=end_date, period=period, include_history=include_history, include_energy_water=include_energy_water, force_refresh=force_refresh)
 
 
 @router.get('/reports/catalog', response_model=list[str])

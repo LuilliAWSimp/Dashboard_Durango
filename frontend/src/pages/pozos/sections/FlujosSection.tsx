@@ -330,7 +330,7 @@ export default function FlujosSection({ itemId }: FlujosSectionProps) {
     let mounted = true;
     setSqlLoading(true);
     setSqlError('');
-    fetchWaterDashboard('flujos', { force_refresh: true, include_history: false, include_energy_water: false })
+    fetchWaterDashboard('flujos', { force_refresh: false, include_history: false, include_energy_water: false })
       .then((data) => { if (mounted) setSqlDashboard(data as DashboardData); })
       .catch((error) => {
         if (mounted) {

@@ -1,8 +1,11 @@
 import api from './api';
 import type { ID } from '../types';
 
-const cache = new Map<string, { ts: number; data: unknown }>();
-const TTL_MS = 30 * 1000;
+const cache = new Map<string, { ts: number; data: unknown; ttl: number }>();
+
+const CURRENT_TTL_MS = 25 * 1000;
+const HISTORY_TTL_MS = 10 * 60 * 1000;
+const MONTHLY_HISTORY_TTL_MS = 30 * 60 * 1000;
 
 interface WaterRequestOptions {
   startDate?: string;
@@ -41,6 +44,29 @@ function cacheKey(section: string, options: WaterRequestOptions = {}): string {
   return `${section}:${params.start_date || ''}:${params.end_date || ''}:${params.period || ''}:${params.include_history ? 'history' : 'current'}:${params.include_energy_water ? 'energy' : 'noenergy'}`;
 }
 
+function dateSpanDays(startDate?: string, endDate?: string): number {
+  if (!startDate || !endDate) return 0;
+  const start = new Date(`${startDate}T00:00:00`);
+  const end = new Date(`${endDate}T00:00:00`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0;
+  return Math.abs(end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000) + 1;
+}
+
+function requestTtlMs(params: WaterRequestParams): number {
+  if (!params.include_history) return CURRENT_TTL_MS;
+  const period = String(params.period || '').toLowerCase();
+  if (period.includes('month') || period.includes('mensual') || dateSpanDays(params.start_date, params.end_date) > 31) {
+    return MONTHLY_HISTORY_TTL_MS;
+  }
+  return HISTORY_TTL_MS;
+}
+
+function shouldCachePayload(data: unknown): boolean {
+  if (!data || typeof data !== 'object') return true;
+  const status = String((data as { source_status?: unknown }).source_status || '').toLowerCase();
+  return status !== 'sql_error';
+}
+
 export function clearWaterCache(): void {
   cache.clear();
 }
@@ -51,9 +77,11 @@ export async function fetchWaterDashboard(section = 'dashboard', options: WaterR
   const params = buildParams(options);
   const forceRefresh = Boolean(params.force_refresh);
   const cached = cache.get(key);
-  if (!forceRefresh && cached && now - cached.ts < TTL_MS) return cached.data;
+  if (!forceRefresh && cached && now - cached.ts < cached.ttl) return cached.data;
   const { data } = await api.get<unknown>(`/water/dashboard/${section}`, { params });
-  cache.set(key, { ts: now, data });
+  if (shouldCachePayload(data)) {
+    cache.set(key, { ts: now, data, ttl: requestTtlMs(params) });
+  }
   return data;
 }
 
