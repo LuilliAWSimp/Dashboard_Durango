@@ -92,8 +92,8 @@ function getLineDetail(lineId: string | undefined, sqlDashboard: DashboardData |
   const line = lines.find((item) => item.id === lineId) || lines[0] || {
     id: lineId || 'linea-1',
     numero: 1,
-    name: 'Sin datos SQL Server',
-    nombre: 'Sin datos SQL Server',
+    name: 'Sin datos operativos',
+    nombre: 'Sin datos operativos',
     ubicacion: 'Líneas de producción',
     status: 'Sin datos',
     statusType: 'idle',
@@ -129,7 +129,7 @@ export default function LineDetailSection({ lineId }: LineDetailSectionProps) {
     let mounted = true;
     fetchWaterDashboard('dashboard', { force_refresh: false, include_history: false, include_energy_water: false })
       .then((data) => { if (mounted) setSqlDashboard(data as DashboardData); })
-      .catch((error) => { if (mounted) setSqlError(errorMessage(error) || 'No se pudo leer SQL Server'); });
+      .catch((error) => { if (mounted) setSqlError(errorMessage(error) || 'No se pudo leer la información operativa'); });
     return () => { mounted = false; };
   }, []);
 

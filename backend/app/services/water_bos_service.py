@@ -196,8 +196,9 @@ def _sql_connection_error_payload() -> dict[str, Any]:
 
 
 # Durango expone solamente las ranuras de pozo presentes en dbo.SensorsBOS_Pozo.
-# Estos valores quedan como compatibilidad si alguna fila BOS antigua no trae sensor_id
-# explicito, pero no se usan para inventar pozos adicionales.
+# Estos valores quedan como compatibilidad si alguna fila operativa antigua no trae
+# sensor_id explicito, pero no se usan para inventar pozos adicionales.
+# Mapeo confirmado Durango: Pozo 1 = 1001, Pozo 2 = 1051.
 WELL_NAMES = [
     'Pozo 1',
     'Pozo 2',
@@ -205,8 +206,8 @@ WELL_NAMES = [
 
 WELL_IDS = [1, 2]
 ENERGY_SENSOR_IDS = [0, 0]
-FLOW_OUT_SENSOR_IDS = [1002, 1052]
-FLOW_IN_SENSOR_IDS = [1003, 1053]
+FLOW_OUT_SENSOR_IDS = [1001, 1051]
+FLOW_IN_SENSOR_IDS = [0, 0]
 
 DISTRIBUTION_NAMES = [
     'Lavadora Ciel',

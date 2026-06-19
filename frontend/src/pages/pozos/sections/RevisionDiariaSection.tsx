@@ -98,7 +98,7 @@ function buildPriorities(dashboard: DashboardData | null): PriorityRow[] {
     const flow = asNumber(well.flow ?? well.flujo_salida ?? well.flujo_entrada);
     const amps = well.amps === null || well.amps === undefined ? null : asNumber(well.amps);
     if (hasCommunicationIssue(well as unknown as FlexibleRecord)) {
-      priorities.push({ target: name, type: 'Pozo sin lectura reciente', description: 'Validar comunicación con BOS/SCADA.', metric: String(well.ultima_lectura || 'Sin lectura'), owner: 'Operación', priority: 'Alta', level: 'warning', category: 'pozos' });
+      priorities.push({ target: name, type: 'Pozo sin lectura reciente', description: 'Validar comunicación de monitoreo.', metric: String(well.ultima_lectura || 'Sin lectura'), owner: 'Operación', priority: 'Alta', level: 'warning', category: 'pozos' });
     } else if (amps && amps > 0 && flow <= 0) {
       priorities.push({ target: name, type: 'Pozo encendido sin flujo', description: 'Hay amperaje disponible y flujo instantáneo en 0 L/s.', metric: `${formatNumber(amps, 2)} A · ${formatNumber(flow)} L/s`, owner: 'Operación', priority: 'Crítica', level: 'critical', category: 'pozos' });
     } else if (flow <= 0) {
@@ -111,9 +111,9 @@ function buildPriorities(dashboard: DashboardData | null): PriorityRow[] {
     const flow = flowValue(line);
     const total = asNumber(line.totalizador_m3 ?? line.total_m3);
     if (!hasReading(line)) {
-      priorities.push({ target: name, type: 'Línea sin lectura', description: 'No hay flujo ni totalizador disponible.', metric: 'Sin lectura BOS', owner: 'Operación', priority: 'Alta', level: 'warning', category: 'lineas' });
+      priorities.push({ target: name, type: 'Línea sin lectura', description: 'No hay flujo ni totalizador disponible.', metric: 'Sin lectura operativa', owner: 'Operación', priority: 'Alta', level: 'warning', category: 'lineas' });
     } else if (hasCommunicationIssue(line)) {
-      priorities.push({ target: name, type: 'Línea con lectura no reciente', description: 'BOS reporta una última comunicación antigua para esta línea.', metric: String(line.ultima_lectura || line.updated || 'Fecha no disponible'), owner: 'Operación', priority: 'Media', level: 'warning', category: 'lineas' });
+      priorities.push({ target: name, type: 'Línea con lectura no reciente', description: 'La última comunicación de esta línea no es reciente.', metric: String(line.ultima_lectura || line.updated || 'Fecha no disponible'), owner: 'Operación', priority: 'Media', level: 'warning', category: 'lineas' });
     } else if (flow <= 0 && total > 0) {
       priorities.push({ target: name, type: 'Línea sin flujo', description: 'Totalizador disponible con flujo actual en 0 L/s.', metric: `${formatNumber(total, 0)} m³`, owner: 'Operación', priority: 'Media', level: 'warning', category: 'lineas' });
     }
@@ -127,7 +127,7 @@ function buildPriorities(dashboard: DashboardData | null): PriorityRow[] {
     if (!hasReading(flow)) {
       priorities.push({ target: name, type: 'Sensor sin comunicación', description: 'No hay lectura disponible para este punto.', metric: sensorId ? `Sensor ${sensorId}` : 'Sensor sin ID', owner: 'Operación', priority: 'Alta', level: 'warning', category: 'flujos' });
     } else if (hasCommunicationIssue(flow)) {
-      priorities.push({ target: name, type: 'Lectura no reciente', description: 'BOS reporta una última comunicación antigua para este punto.', metric: String(flow.ultima_lectura || flow.updated || 'Fecha no disponible'), owner: 'Operación', priority: 'Media', level: 'warning', category: 'flujos' });
+      priorities.push({ target: name, type: 'Lectura no reciente', description: 'La última comunicación de este punto no es reciente.', metric: String(flow.ultima_lectura || flow.updated || 'Fecha no disponible'), owner: 'Operación', priority: 'Media', level: 'warning', category: 'flujos' });
     } else if (value <= 0 && Boolean(flow.period_data_available) && periodVolume(flow) <= 0) {
       priorities.push({ target: name, type: 'Totalizador sin variación', description: 'Flujo instantáneo en 0 L/s y sin avance de totalizador en el periodo.', metric: `${formatNumber(total, 0)} m³`, owner: 'Operación', priority: 'Media', level: 'warning', category: 'flujos' });
     }
@@ -148,7 +148,7 @@ function buildPriorities(dashboard: DashboardData | null): PriorityRow[] {
   });
 
   if (!priorities.length) {
-    priorities.push({ target: 'Operación del día', type: 'Sin alertas críticas', description: 'No se detectaron incidencias básicas con los datos disponibles.', metric: 'Lecturas BOS disponibles', owner: 'Operación', priority: 'Normal', level: 'normal', category: 'general' });
+    priorities.push({ target: 'Operación del día', type: 'Sin alertas críticas', description: 'No se detectaron incidencias básicas con los datos disponibles.', metric: 'Lecturas operativas disponibles', owner: 'Operación', priority: 'Normal', level: 'normal', category: 'general' });
   }
   return priorities.slice(0, 8);
 }
@@ -175,13 +175,13 @@ function buildDiagnostics(dashboard: DashboardData | null): DiagnosticRow[] {
     const flow = asNumber(well.flow ?? well.flujo_salida ?? well.flujo_entrada);
     const amps = well.amps === null || well.amps === undefined ? null : asNumber(well.amps);
     if (hasCommunicationIssue(well as unknown as FlexibleRecord)) {
-      return { well: name, symptom: 'Sin lectura reciente.', cause: 'Fuente BOS/SCADA no entregó lectura válida en el payload actual.', action: 'Revisar comunicación o disponibilidad del sensor.', priority: 'Alta', level: 'warning' as PriorityLevel };
+      return { well: name, symptom: 'Sin lectura reciente.', cause: 'La fuente operativa no entregó lectura válida en la información actual.', action: 'Revisar comunicación o disponibilidad del sensor.', priority: 'Alta', level: 'warning' as PriorityLevel };
     }
     if (amps && amps > 0 && flow <= 0) {
       return { well: name, symptom: 'Pozo encendido sin flujo.', cause: 'Hay amperaje disponible, pero no flujo instantáneo.', action: 'Validar operación o lectura de flujo.', priority: 'Crítica', level: 'critical' as PriorityLevel };
     }
     if (flow <= 0) {
-      return { well: name, symptom: 'Flujo actual en 0 L/s.', cause: 'Dato operativo recibido desde BOS.', action: 'Confirmar si el pozo debe estar operando.', priority: 'Media', level: 'warning' as PriorityLevel };
+      return { well: name, symptom: 'Flujo actual en 0 L/s.', cause: 'Dato operativo recibido desde monitoreo.', action: 'Confirmar si el pozo debe estar operando.', priority: 'Media', level: 'warning' as PriorityLevel };
     }
     return { well: name, symptom: 'Operación normal dentro de datos disponibles.', cause: 'Flujo actual disponible.', action: 'Continuar monitoreo operativo.', priority: 'Normal', level: 'normal' as PriorityLevel };
   });
@@ -205,8 +205,8 @@ function RevisionDiariaSection() {
   const alertBreakdown = priorityBreakdown(priorities);
   const cards = [
     { label: 'Alertas operativas', value: String(priorities.filter((item) => item.level !== 'normal').length), unit: '', trend: alertBreakdown, accent: 'red' },
-    { label: 'Pozos revisados', value: String(toArray(dashboard?.wells).length), unit: 'pozos', trend: 'Datos reales BOS', accent: 'cyan' },
-    { label: 'Líneas revisadas', value: String(toArray(dashboard?.production_lines).length), unit: 'líneas', trend: 'Datos reales BOS', accent: 'teal' },
+    { label: 'Pozos revisados', value: String(toArray(dashboard?.wells).length), unit: 'pozos', trend: 'Datos operativos reales', accent: 'cyan' },
+    { label: 'Líneas revisadas', value: String(toArray(dashboard?.production_lines).length), unit: 'líneas', trend: 'Datos operativos reales', accent: 'teal' },
     { label: 'Lavadoras/Jarabes', value: String(flows.length), unit: 'puntos', trend: 'Jarabes pendiente si aparece sensor 3004', accent: 'blue' },
   ];
 
@@ -320,7 +320,7 @@ function RevisionDiariaSection() {
         <div className="panel summary-panel fade-up daily-export-panel">
           <PanelHeader title="Resumen diario preparado" subtitle="Checklist operativo sin simulación de validación manual" />
           <div className="daily-export-list">
-            <article><div className="export-check-icon"><ClipboardCheck size={15} /></div><div><strong>Datos BOS</strong><span>{reportReady ? 'Reporte disponible con fuente SQL Server/BOS.' : 'Pendiente: fuente BOS no disponible.'}</span></div></article>
+            <article><div className="export-check-icon"><ClipboardCheck size={15} /></div><div><strong>Datos operativos</strong><span>{reportReady ? 'Reporte disponible con fuente operativa de planta.' : 'Pendiente: información operativa no disponible.'}</span></div></article>
             <article><div className="export-check-icon"><ClipboardCheck size={15} /></div><div><strong>Concesión</strong><span>Sin fuente confirmada; no se calcula porcentaje usado.</span></div></article>
             <article><div className="export-check-icon"><ClipboardCheck size={15} /></div><div><strong>Eficiencia energética</strong><span>Pendiente de fuente confiable.</span></div></article>
           </div>

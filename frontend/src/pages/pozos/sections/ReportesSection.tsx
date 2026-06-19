@@ -100,7 +100,7 @@ function ReportesSection() {
       return report;
     } catch (error) {
       console.error('No fue posible cargar el reporte diario de agua', error);
-      setReportError('No fue posible cargar el reporte desde SQL Server.');
+      setReportError('No fue posible cargar el reporte desde monitoreo de planta.');
       return null;
     } finally {
       setReportLoading(false);
@@ -114,7 +114,7 @@ function ReportesSection() {
   const exportReport = async (format: ReportExportFormat) => {
     const report = dailyReport || await loadDailyReport();
     if (!report) {
-      window.alert('No fue posible generar el reporte. Revisa la conexión con SQL Server.');
+      window.alert('No fue posible generar el reporte. Revisa la disponibilidad de datos operativos.');
       return;
     }
     if (format === 'pdf') printDailyWaterReportPdf(report, arcaContinentalLogo);
@@ -177,11 +177,11 @@ function ReportesSection() {
           <div className="daily-report-code">
             <span>Reporte:</span>
             <strong>{dailyReport?.report_code || '—'}</strong>
-            <small>{dailyReport?.source_status || 'Cargando...'}</small>
+            <small>{dailyReport ? 'Información operativa' : 'Cargando...'}</small>
           </div>
         </div>
 
-        {reportLoading && <div className="status-pill report-status-pill">Cargando datos SQL Server...</div>}
+        {reportLoading && <div className="status-pill report-status-pill">Cargando datos operativos...</div>}
         {reportError && <div className="status-pill alert report-status-pill">{reportError}</div>}
 
         <div className="daily-report-kpis">
@@ -202,13 +202,13 @@ function ReportesSection() {
         />
         <ReportPreviewTable
           title="Líneas"
-          headers={['Línea', 'Sensor', 'Flujo L/s', 'Volumen periodo m³', 'Totalizador m³', 'Estado']}
-          rows={lineRows.map((item) => [item.linea, item.sensor_id, formatNumber(item.flujo_lps, 2), formatNumber(item.volumen_periodo_m3, 2), formatNumber(item.totalizador_m3, 2), item.estado])}
+          headers={['Línea', 'Flujo L/s', 'Volumen periodo m³', 'Totalizador m³', 'Estado']}
+          rows={lineRows.map((item) => [item.linea, formatNumber(item.flujo_lps, 2), formatNumber(item.volumen_periodo_m3, 2), formatNumber(item.totalizador_m3, 2), item.estado])}
         />
         <ReportPreviewTable
           title="Flujos"
-          headers={['Punto', 'Sensor', 'Tipo', 'Flujo L/s', 'Volumen periodo m³', 'Totalizador m³', 'Estado']}
-          rows={flowRows.map((item) => [item.equipo, item.sensor_id, item.tipo, formatNumber(item.flujo_lps, 2), formatNumber(item.volumen_periodo_m3, 2), formatNumber(item.totalizador_m3, 2), item.estado])}
+          headers={['Punto', 'Flujo L/s', 'Volumen periodo m³', 'Totalizador m³', 'Estado']}
+          rows={flowRows.map((item) => [item.equipo, formatNumber(item.flujo_lps, 2), formatNumber(item.volumen_periodo_m3, 2), formatNumber(item.totalizador_m3, 2), item.estado])}
         />
       </article>
 

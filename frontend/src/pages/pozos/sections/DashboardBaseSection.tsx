@@ -101,7 +101,7 @@ function buildOperationalAlerts(dashboard: DashboardOverview | null): Array<{ ti
     const flow = Number(well.flow ?? well.flujo_salida ?? well.flujo_entrada ?? 0);
     const amps = well.amps === null || well.amps === undefined ? null : Number(well.amps);
     if (hasCommunicationIssue(well as unknown as FlexibleRecord)) {
-      alerts.push({ title: well.name, type: 'Pozo sin lectura reciente', detail: 'Validar comunicación con BOS/SCADA.', priority: 'Alta', level: 'warning' });
+      alerts.push({ title: well.name, type: 'Pozo sin lectura reciente', detail: 'Validar comunicación de monitoreo.', priority: 'Alta', level: 'warning' });
     } else if ((amps && amps > 0) && flow <= 0) {
       alerts.push({ title: well.name, type: 'Pozo encendido sin flujo', detail: 'Hay amperaje disponible pero el flujo instantáneo es 0 L/s.', priority: 'Alta', level: 'critical' });
     } else if (flow <= 0) {
@@ -116,7 +116,7 @@ function buildOperationalAlerts(dashboard: DashboardOverview | null): Array<{ ti
     if (!hasReading(line)) {
       alerts.push({ title: label, type: 'Línea sin lectura', detail: 'No hay flujo ni totalizador disponible en el payload actual.', priority: 'Alta', level: 'warning' });
     } else if (hasCommunicationIssue(line)) {
-      alerts.push({ title: label, type: 'Línea con lectura no reciente', detail: 'BOS reporta una última comunicación antigua para esta línea.', priority: 'Media', level: 'warning' });
+      alerts.push({ title: label, type: 'Línea con lectura no reciente', detail: 'La última comunicación de esta línea no es reciente.', priority: 'Media', level: 'warning' });
     } else if (flow <= 0 && total > 0) {
       alerts.push({ title: label, type: 'Línea sin flujo actual', detail: 'Totalizador disponible, pero flujo instantáneo en 0 L/s.', priority: 'Media', level: 'warning' });
     }
@@ -130,7 +130,7 @@ function buildOperationalAlerts(dashboard: DashboardOverview | null): Array<{ ti
     if (!hasReading(flow)) {
       alerts.push({ title: label, type: 'Sensor sin comunicación', detail: `Sensor ${sensorId || 'sin ID'} sin lectura disponible.`, priority: 'Alta', level: 'warning' });
     } else if (hasCommunicationIssue(flow)) {
-      alerts.push({ title: label, type: 'Lectura no reciente', detail: 'BOS reporta una última comunicación antigua para este punto.', priority: 'Media', level: 'warning' });
+      alerts.push({ title: label, type: 'Lectura no reciente', detail: 'La última comunicación de este punto no es reciente.', priority: 'Media', level: 'warning' });
     } else if (value <= 0 && Boolean(flow.period_data_available) && periodVolume(flow) <= 0) {
       alerts.push({ title: label, type: 'Totalizador sin variación', detail: 'Flujo instantáneo en 0 L/s y sin avance de totalizador en el periodo.', priority: 'Media', level: 'warning' });
     }
@@ -174,7 +174,7 @@ export default function DashboardBaseSection() {
         setLastRefresh(new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }));
       })
       .catch((error) => {
-        setSqlError(error?.message || 'No se pudo leer SQL Server');
+        setSqlError(error?.message || 'No se pudo leer la información operativa');
       })
       .finally(() => setLoadingInitial(false));
   }, []);
@@ -200,7 +200,7 @@ export default function DashboardBaseSection() {
       .then((data) => { if (mounted) setChartDashboard(data as DashboardData); })
       .catch((error) => {
         if (mounted) {
-          setChartError(error?.message || 'No se pudo leer la gráfica desde SQL Server');
+          setChartError(error?.message || 'No se pudo leer la gráfica desde monitoreo de planta');
           setChartDashboard(null);
         }
       });
@@ -216,7 +216,7 @@ export default function DashboardBaseSection() {
   const sqlStatus = sqlError
     ? `Error al actualizar: ${sqlError}. Se conservan los últimos datos válidos.`
     : String(sqlDashboard?.source_status || '').startsWith('sqlserver')
-      ? 'Datos actuales de Durango desde BOS'
+      ? 'Datos actuales de Durango desde monitoreo'
       : (loadingInitial ? 'Cargando datos operativos...' : 'Sin datos disponibles');
   const chartStatus = chartError || formatDateRangeStatus(chartRange, 'Última lectura disponible');
 
@@ -240,7 +240,7 @@ export default function DashboardBaseSection() {
       <section className="cards-grid stagger-grid resumen-kpi-grid">
         {dashboardCards.length ? dashboardCards.map((card, index) => (
           <KpiCard key={card.label} {...card} style={{ animationDelay: `${index * 60}ms` }} />
-        )) : <div className="panel"><ChartEmptyState message={loadingInitial ? 'Cargando KPIs desde BOS...' : 'Sin KPIs operativos disponibles.'} /></div>}
+        )) : <div className="panel"><ChartEmptyState message={loadingInitial ? 'Cargando KPIs operativos...' : 'Sin KPIs operativos disponibles.'} /></div>}
       </section>
 
       <section className="content-grid resumen-top-grid">
@@ -265,7 +265,7 @@ export default function DashboardBaseSection() {
             }}
             status={chartStatus}
           />
-          <ChartPeriodNote range={chartRange} source="Volumen del periodo desde deltas BOS cuando el totalizador está disponible" />
+          <ChartPeriodNote range={chartRange} source="Volumen del periodo desde deltas de totalizador cuando está disponible" />
           {productionRows.length ? (
             <ResponsiveContainer width="100%" height={380}>
               <ComposedChart data={productionRows} margin={{ top: 10, right: 18, bottom: 8, left: 4 }}>
@@ -305,7 +305,7 @@ export default function DashboardBaseSection() {
       <section className="panel table-wrapper fade-up resumen-wells-panel">
         <PanelHeader
           title="Pozos reales de Durango"
-          subtitle="Flujo, totalizador, amperaje disponible y diagnóstico básico desde BOS"
+          subtitle="Flujo, totalizador, amperaje disponible y diagnóstico básico operativo"
         />
         <div className="resumen-table-scroll">
           <table className="resumen-wells-table">

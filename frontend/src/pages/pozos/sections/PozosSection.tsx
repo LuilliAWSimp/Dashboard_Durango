@@ -139,7 +139,7 @@ export default function PozosSection({ mode = 'pozos' }: PozosSectionProps = {})
       .catch((error) => {
         if (mounted) {
           setSqlDashboard(null);
-          setSqlError(errorMessage(error) || 'No se pudo leer SQL Server');
+          setSqlError(errorMessage(error) || 'No se pudo leer la información operativa');
         }
       })
       .finally(() => { if (mounted) setSqlLoading(false); });
@@ -227,20 +227,20 @@ export default function PozosSection({ mode = 'pozos' }: PozosSectionProps = {})
       .filter((row): row is FlowChartHistoryRow => row !== null);
   }, [activeDashboard, activePeriod, filteredWells, isLineasMode, itemSingular]);
   const showEnergyColumn = false;
-  const tableRangeStatus = tableController.error || (tableController.loading ? 'Cargando SQL Server...' : formatDateRangeStatus(tableController.range, 'Hoy'));
+  const tableRangeStatus = tableController.error || (tableController.loading ? 'Cargando datos operativos...' : formatDateRangeStatus(tableController.range, 'Hoy'));
   const cardSourceStatus = String(sqlDashboard?.source_status || '');
   const tableSourceStatus = String(activeDashboard?.source_status || '');
   const hasCardSqlConnectionError = Boolean(sqlError) || cardSourceStatus === 'sqlserver_error';
   const hasTableSqlConnectionError = Boolean(tableController.error) || tableSourceStatus === 'sqlserver_error';
   const cardStateMessage = sqlLoading
-    ? `Cargando ${itemPluralLower} desde SQL Server...`
+    ? `Cargando ${itemPluralLower} desde monitoreo de planta...`
     : hasCardSqlConnectionError
-      ? `Sin conexión a SQL Server. No fue posible leer ${itemPluralLower}.`
+      ? `Sin conexión a monitoreo de planta. No fue posible leer ${itemPluralLower}.`
       : `Sin registros de ${itemPluralLower} para el rango seleccionado.`;
   const tableStateMessage = tableController.loading && !activeDashboard
-    ? `Cargando ${itemPluralLower} desde SQL Server...`
+    ? `Cargando ${itemPluralLower} desde monitoreo de planta...`
     : hasTableSqlConnectionError
-      ? `Sin conexión a SQL Server. No fue posible leer ${itemPluralLower}.`
+      ? `Sin conexión a monitoreo de planta. No fue posible leer ${itemPluralLower}.`
       : `Sin registros de ${itemPluralLower} para el rango seleccionado.`;
 
   const summary = useMemo(() => {
@@ -322,7 +322,7 @@ export default function PozosSection({ mode = 'pozos' }: PozosSectionProps = {})
       ) : null}
 
       <section className="panel table-wrapper fade-up pozos-operacion-table-panel">
-        <PanelHeader title="Vista comparativa" subtitle={isLineasMode ? 'Flujo y volumen del periodo con datos BOS disponibles.' : 'Valores reales disponibles de BOS para la estructura confirmada de Durango.'} />
+        <PanelHeader title="Vista comparativa" subtitle={isLineasMode ? 'Flujo y volumen del periodo con datos operativos disponibles.' : 'Valores reales disponibles para la estructura confirmada de Durango.'} />
         {isLineasMode ? (
           <>
             <SqlChartDateControls

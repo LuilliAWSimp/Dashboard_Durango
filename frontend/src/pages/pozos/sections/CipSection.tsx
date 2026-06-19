@@ -26,7 +26,7 @@ function CipSection() {
   return (
     <section className="content-grid pozos-main-grid single-wide-grid">
       <div className="panel chart-panel fade-up">
-        <PanelHeader title="Consumo hora CIP" subtitle="Histórico filtrable; solo se muestra si está mapeado en SQL Server" />
+        <PanelHeader title="Consumo hora CIP" subtitle="Histórico filtrable; solo se muestra si está mapeado para monitoreo" />
         <SqlChartDateControls controller={cipChart} />
         {cipRows.length ? (
           <ResponsiveContainer width="100%" height={340}>

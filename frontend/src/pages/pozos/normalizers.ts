@@ -52,7 +52,7 @@ export function normalizeSqlWell(well: FlexibleRecord, index: number): Normalize
     loadFactor: well.loadFactor ?? null,
     updated,
     ultima_lectura: updated,
-    diagnosis: well.diagnosis || 'Lectura directa desde SQL Server ARCA.',
+    diagnosis: well.diagnosis || 'Lectura directa desde monitoreo de planta.',
   };
 }
 

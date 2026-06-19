@@ -55,7 +55,7 @@ export default function useSqlChartDashboard(
       .then((data) => { if (mounted) setDashboard(data); })
       .catch((fetchError: unknown) => {
         if (mounted) {
-          setError(errorMessage(fetchError) || 'No se pudo leer SQL Server');
+          setError(errorMessage(fetchError) || 'No se pudo leer la información operativa');
           setDashboard(null);
         }
       })

@@ -191,8 +191,8 @@ function getWellDetail(wellId: string | undefined, sqlDashboard: DashboardData |
   const well = sqlWells.find((item) => item.id === wellId) || sqlWells[0] || {
     id: wellId || 'pozo-1',
     numero: 1,
-    name: 'Sin datos SQL Server',
-    nombre: 'Sin datos SQL Server',
+    name: 'Sin datos operativos',
+    nombre: 'Sin datos operativos',
     ubicacion: 'ARCA',
     status: 'Sin datos',
     statusType: 'idle',
@@ -246,7 +246,7 @@ export default function WellDetailSection({ wellId, backPath = '/pozos/pozos', b
     let mounted = true;
     fetchWaterDashboard('dashboard', { force_refresh: false, include_history: false, include_energy_water: false })
       .then((data) => { if (mounted) setSqlDashboard(data as DashboardData); })
-      .catch((error) => { if (mounted) setSqlError((error as { message?: string })?.message || 'No se pudo leer SQL Server'); });
+      .catch((error) => { if (mounted) setSqlError((error as { message?: string })?.message || 'No se pudo leer la información operativa'); });
     return () => { mounted = false; };
   }, []);
 

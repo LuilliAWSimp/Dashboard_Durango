@@ -1,7 +1,7 @@
 import type { DashboardData, DateRange, FlexibleRecord, Period } from './types';
 
 export function formatSqlDate(value: unknown): string {
-  if (!value) return 'Dato SQL Server';
+  if (!value) return 'Dato operativo';
   const date = new Date(value as string | number | Date);
   if (Number.isNaN(date.getTime())) return String(value);
   return date.toLocaleString('es-MX', {
@@ -24,7 +24,7 @@ export function defaultTodayRange(): DateRange {
   return { startDate: today, endDate: today, refreshKey: 0 };
 }
 
-export function formatDateRangeStatus(range?: DateRange | null, fallback = 'Datos SQL Server ARCA'): string {
+export function formatDateRangeStatus(range?: DateRange | null, fallback = 'Datos operativos de planta'): string {
   if (!range?.startDate && !range?.endDate) return fallback;
   if (range.startDate && range.endDate && range.startDate === range.endDate) return range.startDate;
   return `${range?.startDate || 'inicio'} → ${range?.endDate || 'último'}`;

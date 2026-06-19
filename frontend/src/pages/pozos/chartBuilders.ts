@@ -80,7 +80,7 @@ export function buildTankLevelRows(dashboard?: DashboardData | null): ChartDataP
       label: item.label || item.display_name || item.name || `Tanque ${index + 1}`,
       displayName: item.display_name || item.label || item.name || `Tanque ${index + 1}`,
       shortName: item.short_name || item.source_column || item.level_key || '',
-      type: item.type || 'Nivel BOS',
+      type: item.type || 'Nivel operativo',
       kind: item.kind || 'tanque',
       nivel: Number(item.level_value ?? item.height_m ?? item.fill_pct ?? 0),
       metros: Number(item.height_m ?? item.level_value ?? 0),

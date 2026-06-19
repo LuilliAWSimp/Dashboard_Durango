@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useParams } from 'react-router-dom';
 import Header from './components/Header';
+import BrandLogo from './components/BrandLogo';
 import { DASHBOARD_TITLE, PLANT_NAME } from './config/plant';
 import Sidebar from './components/Sidebar';
 import LoginPage from './pages/LoginPage';
@@ -73,7 +74,14 @@ function InitialPlantLoader({ status, error, onRetry, onSkip }) {
   return (
     <div className="initial-loader-screen" role="status" aria-live="polite">
       <div className="initial-loader-card">
-        <div className="initial-loader-mark">ARCA</div>
+        <div className="initial-loader-brand" aria-hidden="true">
+          <div className="login-brand-frame initial-loader-logo-frame">
+            <div className="login-brand-glow" />
+            <div className="login-brand-inner initial-loader-logo-inner">
+              <BrandLogo className="brand-logo login-logo initial-loader-logo" />
+            </div>
+          </div>
+        </div>
         <div className="initial-loader-copy">
           <span>{PLANT_NAME}</span>
           <h1>Cargando Dashboard ARCA</h1>
@@ -81,7 +89,7 @@ function InitialPlantLoader({ status, error, onRetry, onSkip }) {
         </div>
         {hasError ? (
           <>
-            <div className="initial-loader-error">{error || 'Backend o SQL no respondió dentro del tiempo esperado.'}</div>
+            <div className="initial-loader-error">{error || 'La información operativa no respondió dentro del tiempo esperado.'}</div>
             <div className="initial-loader-actions">
               <button type="button" onClick={onRetry}>Reintentar</button>
               <button type="button" className="secondary" onClick={onSkip}>Abrir dashboard sin precarga</button>

@@ -201,7 +201,7 @@ function FlujoDetailSection({ flujo, dashboard, sqlError }: { flujo: FlujoItem; 
   const activeDashboard = (chartController.dashboard as DashboardData | null) || dashboard;
   const timeline = buildFlowTimeline(activeDashboard, flujo);
   const historicalRows = timeline.slice(-8).reverse();
-  const rangeStatus = chartController.error || (chartController.loading ? 'Cargando SQL Server...' : formatDateRangeStatus(chartController.range, 'Hoy'));
+  const rangeStatus = chartController.error || (chartController.loading ? 'Cargando datos operativos...' : formatDateRangeStatus(chartController.range, 'Hoy'));
 
   return (
     <>
@@ -334,7 +334,7 @@ export default function FlujosSection({ itemId }: FlujosSectionProps) {
       .then((data) => { if (mounted) setSqlDashboard(data as DashboardData); })
       .catch((error) => {
         if (mounted) {
-          setSqlError(errorMessage(error) || 'No se pudo leer SQL Server');
+          setSqlError(errorMessage(error) || 'No se pudo leer la información operativa');
           setSqlDashboard(null);
         }
       })

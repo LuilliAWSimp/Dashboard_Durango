@@ -5028,6 +5028,30 @@ th { color: #c1d0e8; font-weight: 700; position: sticky; top: 0; background: #0f
   border-radius: 28px;
   background: linear-gradient(180deg, rgba(15, 23, 42, .94), rgba(2, 6, 23, .9));
   box-shadow: 0 26px 70px rgba(0, 0, 0, .36), inset 0 1px 0 rgba(255, 255, 255, .06);
+  text-align: center;
+}
+
+.initial-loader-brand {
+  display: grid;
+  place-items: center;
+  margin-bottom: 22px;
+}
+
+.initial-loader-logo-frame {
+  width: min(280px, 100%);
+  padding: 14px;
+  border-radius: 24px;
+}
+
+.initial-loader-logo-inner {
+  min-height: 150px;
+  padding: 18px;
+  border-radius: 20px;
+}
+
+.initial-loader-logo {
+  width: min(220px, 100%);
+  max-height: 95px;
 }
 
 .initial-loader-mark {
@@ -5124,6 +5148,15 @@ th { color: #c1d0e8; font-weight: 700; position: sticky; top: 0; background: #0f
 @media (max-width: 560px) {
   .initial-loader-card {
     padding: 24px;
+  }
+
+  .initial-loader-logo-frame {
+    width: min(240px, 100%);
+    padding: 12px;
+  }
+
+  .initial-loader-logo-inner {
+    min-height: 130px;
   }
 
   .initial-loader-actions button {

@@ -19,7 +19,7 @@ interface SqlChartDateControlsProps {
 
 function SqlChartDateControls({ controller, title = 'Fechas de la gráfica', subtitle = 'Este rango solo afecta esta gráfica y no modifica los estados actuales.' }: SqlChartDateControlsProps) {
   const meta = rangeMeta(controller.range);
-  const status = controller.error || (controller.loading ? 'Cargando SQL Server...' : `${meta.periodTitle} · ${meta.rangeLabel}`);
+  const status = controller.error || (controller.loading ? 'Cargando datos operativos...' : `${meta.periodTitle} · ${meta.rangeLabel}`);
   return (
     <DateRangeControls
       className="chart-date-range-panel"

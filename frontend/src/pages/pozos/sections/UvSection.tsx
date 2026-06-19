@@ -38,7 +38,7 @@ function UvSection() {
 
       <section className="content-grid pozos-main-grid uv-main-grid">
         <div className="panel chart-panel fade-up">
-          <PanelHeader title="Tendencia de flujo asociado" subtitle="Filtrable por fecha cuando exista el tag UV mapeado en SQL Server" />
+          <PanelHeader title="Tendencia de flujo asociado" subtitle="Filtrable por fecha cuando exista el tag UV mapeado para monitoreo" />
           <SqlChartDateControls controller={uvChart} />
           <ChartEmptyState message="Aún no hay histórico UV disponible. No se muestran datos mock." />
         </div>

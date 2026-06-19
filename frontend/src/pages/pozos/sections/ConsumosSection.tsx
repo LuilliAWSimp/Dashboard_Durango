@@ -33,7 +33,7 @@ function ConsumosSection() {
   return (
     <section className="content-grid pozos-main-grid single-wide-grid">
       <div className="panel chart-panel fade-up">
-        <PanelHeader title="Consumo de agua y energía" subtitle="Histórico desde iot.sp_get_energy_water para el periodo seleccionado" />
+        <PanelHeader title="Consumo de agua y energía" subtitle="Histórico operativo para el periodo seleccionado" />
         <SqlChartDateControls controller={consumoChart} />
         <ChartPeriodNote range={consumoChart.range} source="Un día: consumo por hora · varios días: consumo por día" />
         {energyRows.length ? (

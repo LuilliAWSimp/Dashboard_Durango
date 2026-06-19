@@ -63,9 +63,9 @@ function BalanceSection() {
   const lineTotal = lines.reduce((sum, item) => sum + flowValue(item), 0);
   const cards = [
     { label: 'Entrada medida', value: formatNumber(totalEntrada, 2), unit: 'L/s', trend: 'Suma de entradas disponibles', accent: 'blue' },
-    { label: 'Salida medida', value: formatNumber(totalSalida, 2), unit: 'L/s', trend: 'Líneas y puntos BOS', accent: 'cyan' },
+    { label: 'Salida medida', value: formatNumber(totalSalida, 2), unit: 'L/s', trend: 'Líneas y puntos monitoreados', accent: 'cyan' },
     { label: 'Diferencia', value: `${difference >= 0 ? '+' : ''}${formatNumber(difference, 2)}`, unit: 'L/s', trend: 'No compara contra energía ni concesión', accent: Math.abs(differencePct) > 25 ? 'red' : 'teal' },
-    { label: 'Lavadoras/Jarabes', value: formatNumber(flowTotal, 2), unit: 'L/s', trend: 'Flujos independientes BOS', accent: 'indigo' },
+    { label: 'Lavadoras/Jarabes', value: formatNumber(flowTotal, 2), unit: 'L/s', trend: 'Flujos independientes monitoreados', accent: 'indigo' },
   ];
 
   return (
@@ -91,7 +91,7 @@ function BalanceSection() {
         <div className="panel chart-panel fade-up">
           <PanelHeader title="Volumen por pozo" subtitle="Volumen del periodo y flujo actual con fuente energética pendiente de confirmar." />
           <SqlChartDateControls controller={balanceChart} />
-          <ChartPeriodNote range={balanceChart.range} source="Volumen del periodo desde totalizadores BOS cuando existe lectura inicial/final" />
+          <ChartPeriodNote range={balanceChart.range} source="Volumen del periodo desde totalizadores disponibles cuando existe lectura inicial/final" />
           {wellRows.length ? (
             <ResponsiveContainer width="100%" height={400}>
               <ComposedChart data={wellRows} margin={{ top: 10, right: 18, bottom: 8, left: 4 }}>
@@ -111,9 +111,9 @@ function BalanceSection() {
         <div className="panel summary-panel fade-up water-balance-summary-panel">
           <PanelHeader title="Resumen del día" subtitle="Lectura ejecutiva sin datos mock" />
           <div className="water-balance-summary-stack">
-            <article><span>Estado del balance</span><strong>{entryExitRows.length ? 'Datos BOS disponibles' : 'Sin balance disponible'}</strong><p>El balance se calcula solo con campos presentes en el payload actual.</p></article>
+            <article><span>Estado del balance</span><strong>{entryExitRows.length ? 'Datos operativos disponibles' : 'Sin balance disponible'}</strong><p>El balance se calcula solo con campos presentes en el payload actual.</p></article>
             <article><span>Lavadoras/Jarabes</span><strong>{formatNumber(flowTotal, 2)} L/s</strong><p>Incluye Lavadora Ciel, Jarabes y Lavadora de Vidrio.</p></article>
-            <article><span>Líneas</span><strong>{formatNumber(lineTotal, 2)} L/s</strong><p>Solo se muestran líneas que BOS reporta como configuradas.</p></article>
+            <article><span>Líneas</span><strong>{formatNumber(lineTotal, 2)} L/s</strong><p>Solo se muestran líneas configuradas para esta planta.</p></article>
           </div>
         </div>
       </section>
@@ -134,7 +134,7 @@ function BalanceSection() {
                 <div className="water-type-foot">
                   <span>Flujo actual</span>
                   <strong>{formatNumber(flow, 2)} L/s</strong>
-                  <p>{sensorId === 3004 ? 'Jarabes pendiente de validación operativa.' : 'Dato real de flujo BOS.'}</p>
+                  <p>{sensorId === 3004 ? 'Jarabes pendiente de validación operativa.' : 'Dato real de flujo operativo.'}</p>
                 </div>
               </article>
             );
@@ -143,7 +143,7 @@ function BalanceSection() {
       </section>
 
       <section className="panel chart-panel fade-up">
-        <PanelHeader title="Entradas vs salidas" subtitle="Comparativo SQL del periodo seleccionado" />
+        <PanelHeader title="Entradas vs salidas" subtitle="Comparativo operativo del periodo seleccionado" />
         <SqlChartDateControls controller={balanceChart} title="Fechas de entradas/salidas" />
         {entryExitRows.length ? (
           <ResponsiveContainer width="100%" height={320}>
