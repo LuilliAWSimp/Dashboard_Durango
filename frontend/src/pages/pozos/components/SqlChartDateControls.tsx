@@ -11,6 +11,8 @@ interface SqlChartDateController {
   setAggregation?: (value: HistoryAggregation) => void;
   error?: string;
   loading?: boolean;
+  refreshing?: boolean;
+  lastRefreshAt?: number | null;
 }
 
 interface SqlChartDateControlsProps {
@@ -21,7 +23,7 @@ interface SqlChartDateControlsProps {
 
 function SqlChartDateControls({ controller, title = 'Fechas de la gráfica', subtitle = 'Este rango solo afecta esta gráfica y no modifica los estados actuales.' }: SqlChartDateControlsProps) {
   const meta = rangeMeta(controller.range, controller.aggregation);
-  const status = controller.error || (controller.loading ? 'Cargando datos...' : `${meta.periodTitle} · ${meta.rangeLabel}`);
+  const status = controller.error || (controller.loading ? 'Cargando datos...' : controller.refreshing ? 'Actualizando información…' : `${meta.periodTitle} · ${meta.rangeLabel}`);
   return (
     <DateRangeControls
       className="chart-date-range-panel"

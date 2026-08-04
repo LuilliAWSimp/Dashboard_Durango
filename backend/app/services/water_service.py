@@ -7,7 +7,7 @@ from app.schemas.dashboard import KpiCard
 from app.schemas.water import WaterDashboardPayload
 from app.services.durango_capabilities import capability_payload
 from app.services.water_bos_service import get_bos_water_dashboard_payload
-from app.services.water_period_service import WaterPeriodError, get_period_data
+from app.services.water_period_service import WaterPeriodError, get_period_data, summarize_period_items
 
 WATER_SECTION_META = {
     'dashboard': ('Resumen', 'Monitoreo hídrico operativo de Planta Durango'),
@@ -135,14 +135,15 @@ def _cards(payload: dict[str, Any]) -> list[KpiCard]:
 
     def trend(group: dict[str, Any], total: int) -> str:
         if int(group.get('coverage_available') or 0) == 0:
-            return 'Sin histórico del periodo'
-        return f"{group.get('active_count', 0)}/{total} con actividad"
+            return 'No disponible'
+        prefix = 'Volumen validado parcial · ' if group.get('has_partial_volume') else ''
+        return f"{prefix}{group.get('active_count', 0)}/{total} con actividad · {group.get('current_flow_count', 0)}/{total} con flujo actual"
 
     return [
-        KpiCard(label='Volumen confiable de pozos', value=value(wells), unit=unit(wells), trend=trend(wells, 2), accent='blue'),
-        KpiCard(label='Volumen confiable de líneas', value=value(lines), unit=unit(lines), trend=trend(lines, 5), accent='cyan'),
-        KpiCard(label='Volumen de flujos auxiliares', value=value(flows), unit=unit(flows), trend=trend(flows, 3), accent='indigo'),
-        KpiCard(label='Datos en revisión', value=str(int(wells.get('review_count', 0)) + int(lines.get('review_count', 0)) + int(flows.get('review_count', 0))), unit='elementos', trend='Excluidos de totales confiables', accent='brown'),
+        KpiCard(label='Volumen validado de pozos', value=value(wells), unit=unit(wells), trend=trend(wells, 2), accent='blue'),
+        KpiCard(label='Volumen validado de líneas', value=value(lines), unit=unit(lines), trend=trend(lines, 5), accent='cyan'),
+        KpiCard(label='Volumen validado de flujos auxiliares', value=value(flows), unit=unit(flows), trend=trend(flows, 3), accent='indigo'),
+        KpiCard(label='Datos en revisión', value=str(int(wells.get('review_count', 0)) + int(lines.get('review_count', 0)) + int(flows.get('review_count', 0))), unit='elementos', trend='Pueden conservar volumen validado parcial', accent='brown'),
     ]
 
 
@@ -173,13 +174,17 @@ def get_water_dashboard_payload(section: str = 'dashboard', start_date: Any = No
     # Los cálculos del periodo se solicitan de forma separada a la lectura actual.
     if start_date or end_date:
         try:
-            period_payload = get_period_data(start_date, end_date)
+            period_payload = get_period_data(start_date, end_date, force_refresh=force_refresh)
             payload['wells'] = _merge_period(list(payload.get('wells') or []), period_payload['wells'])
             payload['production_lines'] = _merge_period(list(payload.get('production_lines') or []), period_payload['lines'])
             payload['flows'] = _merge_period(list(payload.get('flows') or []), period_payload['flows'])
             payload['tank_inputs'] = payload['flows']
             payload['period_data'] = period_payload
-            payload['operational_summary'] = period_payload['summary']
+            payload['operational_summary'] = {
+                'wells': summarize_period_items(payload['wells']),
+                'lines': summarize_period_items(payload['production_lines']),
+                'flows': summarize_period_items(payload['flows']),
+            }
             payload['period_source_status'] = period_payload['source_status']
         except WaterPeriodError as exc:
             payload['period_data'] = None
@@ -187,10 +192,17 @@ def get_water_dashboard_payload(section: str = 'dashboard', start_date: Any = No
             payload['period_error'] = str(exc)
     else:
         payload['operational_summary'] = {
-            'wells': {'total_m3': 0, 'active_count': 0, 'inactive_count': 0, 'review_count': 0, 'coverage_available': 0, 'coverage_total': 2},
-            'lines': {'total_m3': 0, 'active_count': 0, 'inactive_count': 0, 'review_count': 0, 'coverage_available': 0, 'coverage_total': 5},
-            'flows': {'total_m3': 0, 'active_count': 0, 'inactive_count': 0, 'review_count': 0, 'coverage_available': 0, 'coverage_total': 3},
+            'wells': summarize_period_items(list(payload.get('wells') or [])),
+            'lines': summarize_period_items(list(payload.get('production_lines') or [])),
+            'flows': summarize_period_items(list(payload.get('flows') or [])),
         }
+    # Construir siempre el Resumen a partir de las mismas colecciones
+    # normalizadas que alimentan tarjetas, tablas y revisión diaria.
+    payload['operational_summary'] = {
+        'wells': summarize_period_items(list(payload.get('wells') or [])),
+        'lines': summarize_period_items(list(payload.get('production_lines') or [])),
+        'flows': summarize_period_items(list(payload.get('flows') or [])),
+    }
     payload['cards'] = _cards(payload)
     return WaterDashboardPayload(**payload)
 

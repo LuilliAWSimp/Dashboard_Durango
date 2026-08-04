@@ -1,50 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { fetchWaterHistory } from '../../../services/waterService';
-import { defaultTodayRange, recommendedHistoryAggregation } from '../dateUtils';
+import { defaultTodayRange, recommendedHistoryAggregation, todayInputDate } from '../dateUtils';
 import type { DateRange, HistoryAggregation, WaterHistoryResponse } from '../types';
 
-interface UseWaterHistoryOptions {
-  module: 'well' | 'line' | 'flow';
-  sensorId?: number | null;
-  initialRangeFactory?: () => DateRange;
-}
+const AUTO_REFRESH_MS = 60_000;
+interface UseWaterHistoryOptions { module: 'well' | 'line' | 'flow'; sensorId?: number | null; initialRangeFactory?: () => DateRange; }
+export interface UseWaterHistoryResult { draftRange: DateRange; setDraftRange: Dispatch<SetStateAction<DateRange>>; range: DateRange; aggregation: HistoryAggregation; setAggregation: (value: HistoryAggregation) => void; data: WaterHistoryResponse | null; error: string; loading: boolean; refreshing: boolean; apply: () => void; reset: () => void; }
+function includesToday(range: DateRange): boolean { const today = todayInputDate(); const start = String(range.startDate || range.endDate || ''); const end = String(range.endDate || range.startDate || ''); return Boolean(start && end && start <= today && today <= end); }
+function detailFromError(error: unknown): string { if (error && typeof error === 'object') { const candidate = error as { message?: unknown; code?: unknown; response?: { data?: { detail?: unknown }; status?: number } }; if (candidate.response?.status === 504 || candidate.code === 'ECONNABORTED' || String(candidate.message || '').toLowerCase().includes('timeout')) return 'La consulta tardó demasiado. Reduce el rango o utiliza agrupación diaria.'; const detail = candidate.response?.data?.detail; if (typeof detail === 'string' && detail.trim()) return detail; if (typeof candidate.message === 'string' && candidate.message.trim()) return candidate.message; } return 'No fue posible consultar el histórico de planta.'; }
 
-export interface UseWaterHistoryResult {
-  draftRange: DateRange;
-  setDraftRange: Dispatch<SetStateAction<DateRange>>;
-  range: DateRange;
-  aggregation: HistoryAggregation;
-  setAggregation: (value: HistoryAggregation) => void;
-  data: WaterHistoryResponse | null;
-  error: string;
-  loading: boolean;
-  apply: () => void;
-  reset: () => void;
-}
-
-function detailFromError(error: unknown): string {
-  if (error && typeof error === 'object') {
-    const candidate = error as {
-      message?: unknown;
-      code?: unknown;
-      response?: { data?: { detail?: unknown }; status?: number };
-    };
-    if (candidate.response?.status === 504 || candidate.code === 'ECONNABORTED' || String(candidate.message || '').toLowerCase().includes('timeout')) {
-      return 'La consulta tardó demasiado. Reduce el rango o utiliza agrupación diaria.';
-    }
-    const detail = candidate.response?.data?.detail;
-    if (typeof detail === 'string' && detail.trim()) return detail;
-    if (typeof candidate.message === 'string' && candidate.message.trim()) return candidate.message;
-  }
-  return 'No fue posible consultar el histórico de planta.';
-}
-
-export default function useWaterHistory({
-  module,
-  sensorId,
-  initialRangeFactory = defaultTodayRange,
-}: UseWaterHistoryOptions): UseWaterHistoryResult {
+export default function useWaterHistory({ module, sensorId, initialRangeFactory = defaultTodayRange }: UseWaterHistoryOptions): UseWaterHistoryResult {
   const initialRange = useMemo(() => initialRangeFactory(), [initialRangeFactory]);
   const [draftRange, setDraftRange] = useState<DateRange>(initialRange);
   const [range, setRange] = useState<DateRange>(initialRange);
@@ -52,86 +18,57 @@ export default function useWaterHistory({
   const [data, setData] = useState<WaterHistoryResponse | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const manualAggregation = useRef(false);
-  const lastRequestedRefresh = useRef(0);
-  const lastIdentity = useRef('');
+  const dataRef = useRef<WaterHistoryResponse | null>(null);
+  const requestIdRef = useRef(0);
+  const inFlightIdentityRef = useRef('');
+  const lastSensorIdentityRef = useRef('');
 
+  useEffect(() => { dataRef.current = data; }, [data]);
   useEffect(() => {
-    if (!manualAggregation.current) {
-      setAggregationState(recommendedHistoryAggregation(draftRange));
+    const identity = `${module}:${sensorId || ''}`;
+    if (lastSensorIdentityRef.current && lastSensorIdentityRef.current !== identity) {
+      setData(null);
+      dataRef.current = null;
     }
-  }, [draftRange.startDate, draftRange.endDate]);
+    lastSensorIdentityRef.current = identity;
+  }, [module, sensorId]);
+  useEffect(() => { if (!manualAggregation.current) setAggregationState(recommendedHistoryAggregation(draftRange)); }, [draftRange.startDate, draftRange.endDate]);
 
+  const load = useCallback(async (forceRefresh = false, background = false) => {
+    if (!sensorId || !range.startDate || !range.endDate) return;
+    const identity = `${module}:${sensorId}:${range.startDate}:${range.endDate}:${aggregation}`;
+    if (inFlightIdentityRef.current === identity) return;
+    inFlightIdentityRef.current = identity;
+    const requestId = ++requestIdRef.current;
+    if (!dataRef.current) setLoading(true); else if (background) setRefreshing(true);
+    if (!background) setError('');
+    try {
+      const response = await fetchWaterHistory({ module, sensorId, startDate: range.startDate, endDate: range.endDate, aggregation, forceRefresh });
+      if (requestId !== requestIdRef.current) return;
+      setData(response); setError('');
+    } catch (fetchError: unknown) {
+      if (requestId !== requestIdRef.current) return;
+      setError(detailFromError(fetchError));
+    } finally {
+      if (requestId === requestIdRef.current) { setLoading(false); setRefreshing(false); }
+      if (inFlightIdentityRef.current === identity) inFlightIdentityRef.current = '';
+    }
+  }, [module, sensorId, range.startDate, range.endDate, aggregation]);
+
+  useEffect(() => { load(Boolean(range.refreshKey), false); }, [load, range.refreshKey]);
   useEffect(() => {
-    if (!sensorId || !range.startDate || !range.endDate) return undefined;
-    let mounted = true;
-    const identity = `${module}:${sensorId}`;
-    if (lastIdentity.current && lastIdentity.current !== identity) setData(null);
-    lastIdentity.current = identity;
-    const refreshKey = Number(range.refreshKey || 0);
-    const forceRefresh = refreshKey > lastRequestedRefresh.current;
-    lastRequestedRefresh.current = Math.max(lastRequestedRefresh.current, refreshKey);
-    setLoading(true);
-    setError('');
-    fetchWaterHistory({
-      module,
-      sensorId,
-      startDate: range.startDate,
-      endDate: range.endDate,
-      aggregation,
-      forceRefresh,
-    })
-      .then((response) => {
-        if (!mounted) return;
-        setData(response);
-        setError('');
-      })
-      .catch((fetchError: unknown) => {
-        if (!mounted) return;
-        // Conservar la última gráfica válida frente a un error temporal.
-        setError(detailFromError(fetchError));
-      })
-      .finally(() => {
-        if (mounted) setLoading(false);
-      });
-    return () => {
-      mounted = false;
-    };
-  }, [module, sensorId, range.startDate, range.endDate, range.refreshKey, aggregation]);
+    if (!includesToday(range) || !sensorId) return undefined;
+    const refresh = () => { if (!document.hidden) load(false, true); };
+    const interval = window.setInterval(refresh, AUTO_REFRESH_MS);
+    const onVisibility = () => { if (!document.hidden) load(true, true); };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => { window.clearInterval(interval); document.removeEventListener('visibilitychange', onVisibility); };
+  }, [load, sensorId, range.startDate, range.endDate]);
 
-  const setAggregation = (value: HistoryAggregation) => {
-    manualAggregation.current = true;
-    setAggregationState(value);
-  };
-
-  const apply = () => {
-    setRange((previous) => ({
-      ...draftRange,
-      refreshKey: Number(previous.refreshKey || 0) + 1,
-    }));
-  };
-
-  const reset = () => {
-    const next = initialRangeFactory();
-    manualAggregation.current = false;
-    setDraftRange(next);
-    setAggregationState(recommendedHistoryAggregation(next));
-    setRange((previous) => ({
-      ...next,
-      refreshKey: Number(previous.refreshKey || 0) + 1,
-    }));
-  };
-
-  return {
-    draftRange,
-    setDraftRange,
-    range,
-    aggregation,
-    setAggregation,
-    data,
-    error,
-    loading,
-    apply,
-    reset,
-  };
+  const setAggregation = (value: HistoryAggregation) => { manualAggregation.current = true; setAggregationState(value); };
+  const apply = () => setRange((previous) => ({ ...draftRange, refreshKey: Number(previous.refreshKey || 0) + 1 }));
+  const reset = () => { const next = initialRangeFactory(); manualAggregation.current = false; setDraftRange(next); setAggregationState(recommendedHistoryAggregation(next)); setRange((previous) => ({ ...next, refreshKey: Number(previous.refreshKey || 0) + 1 })); };
+  return { draftRange, setDraftRange, range, aggregation, setAggregation, data, error, loading, refreshing, apply, reset };
 }

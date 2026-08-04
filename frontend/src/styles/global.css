@@ -5932,3 +5932,16 @@ th { color: #c1d0e8; font-weight: 700; position: sticky; top: 0; background: #0f
     width: 100%;
   }
 }
+
+/* Durango live summary refresh */
+.summary-operational-kpis {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.auto-refresh-status {
+  width: fit-content;
+  margin: 8px 0 4px;
+  opacity: .86;
+  font-size: 11px;
+  pointer-events: none;
+}

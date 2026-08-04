@@ -151,6 +151,7 @@ def _payload_cache_key(start_date: Any = None, end_date: Any = None, period: Any
     start_bound, end_bound = _date_bounds(start_date, end_date)
     normalized_period = _normalize_period(period, start_date, end_date)
     return '|'.join([
+        'durango',
         str(start_bound or ''),
         str(end_bound or ''),
         normalized_period,

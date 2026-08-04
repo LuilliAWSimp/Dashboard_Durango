@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from datetime import date, datetime, time, timedelta
 import logging
+from time import monotonic
 from typing import Any, Iterable
 from zoneinfo import ZoneInfo
 
@@ -9,7 +11,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import OperationalError, SQLAlchemyError
 
 from app.database import SessionLocal
-from app.services.durango_capabilities import ALL_ITEMS, LOCAL_TIMEZONE, WELLS, sensor_contract
+from app.services.durango_capabilities import ALL_ITEMS, LOCAL_TIMEZONE, WELLS, current_flow_threshold_for_sensor, sensor_contract
 from app.services.durango_well_history_fallback import query_bos_well_rows
 from app.services.plant_time import effective_local_end, local_now_naive, local_to_source_naive, source_to_local_naive
 from app.services.totalizer_quality import TotalizerAnalysis, analyze_totalizer_series
@@ -17,6 +19,9 @@ from app.services.totalizer_quality import TotalizerAnalysis, analyze_totalizer_
 logger = logging.getLogger(__name__)
 LOCAL_ZONE = ZoneInfo(LOCAL_TIMEZONE)
 MAX_ROWS = 200_000
+PERIOD_TTL_CURRENT_SECONDS = 60
+PERIOD_TTL_HISTORICAL_SECONDS = 10 * 60
+_PERIOD_CACHE: dict[str, dict[str, Any]] = {}
 
 
 class WaterPeriodError(RuntimeError):
@@ -282,12 +287,75 @@ def build_period_item(contract: dict[str, Any], rows: list[dict[str, Any]], prev
     }
 
 
-def get_period_data(start_date: Any = None, end_date: Any = None) -> dict[str, Any]:
+def _is_recent_communication(item: dict[str, Any]) -> bool:
+    status = str(item.get('communication_status') or '').lower()
+    label = str(item.get('communication') or item.get('estado_comunicacion') or '').lower()
+    if status in {'no_data', 'stale_data', 'offline', 'communication', 'warning'}:
+        return False
+    return any(token in label for token in ('actualizado', 'normal')) or status == 'operational'
+
+
+def summarize_period_items(group_items: list[dict[str, Any]]) -> dict[str, Any]:
+    calculable = [item for item in group_items if item.get('validated_volume_m3') is not None]
+    total = round(sum(float(item.get('validated_volume_m3') or 0.0) for item in calculable), 6) if calculable else None
+    active_count = sum(1 for item in calculable if float(item.get('validated_volume_m3') or 0.0) > 0.0)
+    inactive_count = sum(
+        1 for item in calculable
+        if float(item.get('validated_volume_m3') or 0.0) == 0.0 and not bool(item.get('has_discontinuities'))
+    )
+    review_count = sum(
+        1 for item in group_items
+        if bool(item.get('has_discontinuities'))
+        or str(item.get('data_status') or item.get('period_data_status') or '') in {'invalid_totalizer', 'no_totalizer'}
+    )
+    no_history_count = sum(
+        1 for item in group_items
+        if str(item.get('data_status') or item.get('period_data_status') or '') in {'no_history', 'no_data'}
+    )
+    current_flow_count = 0
+    for item in group_items:
+        flow = _num(item.get('current_flow') if item.get('current_flow') is not None else item.get('flow_lps'))
+        if flow is None or not _is_recent_communication(item):
+            continue
+        threshold = current_flow_threshold_for_sensor(item.get('sensor_id'))
+        if flow > threshold:
+            current_flow_count += 1
+    partial_count = sum(1 for item in calculable if bool(item.get('has_discontinuities')))
+    return {
+        'total_m3': total,
+        'validated_volume_m3': total,
+        'has_partial_volume': partial_count > 0,
+        'partial_count': partial_count,
+        'active_count': active_count,
+        'inactive_count': inactive_count,
+        'current_flow_count': current_flow_count,
+        'review_count': review_count,
+        'no_history_count': no_history_count,
+        'coverage_available': len(calculable),
+        'coverage_total': len(group_items),
+        'coverage_status': (
+            'No disponible' if not calculable
+            else 'Volumen validado parcial' if partial_count
+            else 'Completa' if len(calculable) == len(group_items)
+            else 'Cobertura parcial'
+        ),
+    }
+
+
+def _period_cache_ttl(start_day: date, end_day: date, now_day: date) -> int:
+    return PERIOD_TTL_CURRENT_SECONDS if start_day <= now_day <= end_day else PERIOD_TTL_HISTORICAL_SECONDS
+
+
+def get_period_data(start_date: Any = None, end_date: Any = None, *, force_refresh: bool = False) -> dict[str, Any]:
     start_day, end_day = date_range(start_date, end_date)
     requested_start_dt = datetime.combine(start_day, time.min)
     requested_end_dt = datetime.combine(end_day + timedelta(days=1), time.min)
     now_local = local_now_naive()
     effective_end_dt = effective_local_end(requested_end_dt, now=now_local)
+    cache_key = f"durango:period:{start_day.isoformat()}:{end_day.isoformat()}:{effective_end_dt.isoformat(timespec='minutes')}"
+    cached = _PERIOD_CACHE.get(cache_key)
+    if not force_refresh and cached and monotonic() < float(cached.get('expires_at') or 0):
+        return deepcopy(cached['value'])
     query_end_dt = max(requested_start_dt, effective_end_dt)
     sensor_ids = [int(item['sensor_id']) for item in ALL_ITEMS]
     period_query_status = 'operational'
@@ -324,21 +392,8 @@ def get_period_data(start_date: Any = None, end_date: Any = None) -> dict[str, A
     for item in items:
         groups.setdefault(str(item.get('module')), []).append(item)
 
-    def summary(group_items: list[dict[str, Any]]) -> dict[str, Any]:
-        reliable = [item for item in group_items if item.get('period_m3_reliable') and item.get('period_m3') is not None]
-        without_history = sum(1 for item in group_items if item.get('data_status') in {'no_history', 'no_data'})
-        return {
-            'total_m3': round(sum(float(item['period_m3']) for item in reliable), 6) if reliable else None,
-            'active_count': sum(1 for item in reliable if float(item.get('period_m3') or 0) > 0),
-            'inactive_count': sum(1 for item in reliable if float(item.get('period_m3') or 0) == 0),
-            'review_count': sum(1 for item in group_items if item.get('data_status') in {'invalid_totalizer', 'no_totalizer'}),
-            'no_history_count': without_history,
-            'coverage_available': len(reliable),
-            'coverage_total': len(group_items),
-            'coverage_status': 'Sin histórico del periodo' if not reliable and without_history else 'Cobertura parcial' if len(reliable) < len(group_items) else 'Completa',
-        }
 
-    return {
+    payload = {
         'plant': 'Planta Durango',
         'start_date': start_day.isoformat(),
         'end_date': end_day.isoformat(),
@@ -351,10 +406,13 @@ def get_period_data(start_date: Any = None, end_date: Any = None) -> dict[str, A
         'lines': groups['line'],
         'flows': groups['flow'],
         'summary': {
-            'wells': summary(groups['well']),
-            'lines': summary(groups['line']),
-            'flows': summary(groups['flow']),
+            'wells': summarize_period_items(groups['well']),
+            'lines': summarize_period_items(groups['line']),
+            'flows': summarize_period_items(groups['flow']),
         },
         'source_status': 'operational' if period_query_status == 'operational' else 'partial_bos_fallback',
     }
+    ttl = _period_cache_ttl(start_day, end_day, now_local.date())
+    _PERIOD_CACHE[cache_key] = {'expires_at': monotonic() + ttl, 'value': deepcopy(payload)}
+    return payload
 

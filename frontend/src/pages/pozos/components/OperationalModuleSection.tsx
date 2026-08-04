@@ -157,6 +157,7 @@ export default function OperationalModuleSection({
     forceRefresh: true,
     includeHistory: false,
     includeEnergyWater: false,
+    autoRefresh: true,
   });
   const dashboard = controller.dashboard as DashboardData | null;
   const rows = useMemo(
@@ -171,14 +172,18 @@ export default function OperationalModuleSection({
     }
   }, [module, rows, selectedSensor]);
 
-  const reliable = rows.filter((row) => Boolean(row.period_m3_reliable) && number(row.period_m3) !== null);
-  const total = reliable.length
-    ? reliable.reduce((sum, row) => sum + Number(row.period_m3 || 0), 0)
-    : null;
-  const active = reliable.filter((row) => Number(row.period_m3 || 0) > 0).length;
-  const inactive = reliable.filter((row) => Number(row.period_m3 || 0) === 0).length;
-  const review = rows.filter((row) => ['invalid_totalizer', 'no_totalizer'].includes(String(row.period_data_status || row.data_status || ''))).length;
-  const noHistory = rows.filter((row) => ['no_history', 'no_data'].includes(String(row.period_data_status || row.data_status || ''))).length;
+  const summaryKey = module === 'well' ? 'wells' : module === 'line' ? 'lines' : 'flows';
+  const rawSummary = dashboard?.operational_summary?.[summaryKey];
+  const moduleSummary = rawSummary && typeof rawSummary === 'object' && !Array.isArray(rawSummary)
+    ? rawSummary as FlexibleRecord
+    : {};
+  const total = number(moduleSummary.total_m3);
+  const active = Number(moduleSummary.active_count || 0);
+  const inactive = Number(moduleSummary.inactive_count || 0);
+  const currentFlow = Number(moduleSummary.current_flow_count || 0);
+  const review = Number(moduleSummary.review_count || 0);
+  const noHistory = Number(moduleSummary.no_history_count || 0);
+  const hasPartial = Boolean(moduleSummary.has_partial_volume);
   const selected = rows.find((row, index) => resolveSensorId(row, index, module) === selectedSensor);
 
   return (
@@ -190,13 +195,14 @@ export default function OperationalModuleSection({
 
       <section className="cards-grid stagger-grid">
         <KpiCard
-          label="Volumen confiable del periodo"
+          label="Volumen validado del periodo"
           value={total === null ? 'No disponible' : fmt(total)}
           unit={total === null ? '' : 'm³'}
-          trend={total === null ? 'Sin histórico del periodo' : 'Suma de diferencias confiables'}
+          trend={total === null ? 'No disponible' : hasPartial ? 'Volumen validado parcial' : 'Suma de incrementos validados'}
           accent="cyan"
         />
-        <KpiCard label="Con actividad" value={String(active)} unit="elementos" trend="Movimiento válido del totalizador" accent="teal" />
+        <KpiCard label="Con actividad en el periodo" value={String(active)} unit="elementos" trend="Movimiento validado del totalizador" accent="teal" />
+        <KpiCard label="Con flujo actual" value={String(currentFlow)} unit="elementos" trend="Lectura reciente por encima del umbral" accent="teal" />
         <KpiCard label="Sin actividad" value={String(inactive)} unit="elementos" trend="Muestras válidas sin movimiento" accent="blue" />
         <KpiCard label="Revisión o sin histórico" value={String(review + noHistory)} unit="elementos" trend="No incluidos como cero confiable" accent="brown" />
       </section>

@@ -20,7 +20,7 @@ function rows(dashboard: DashboardData | null, module: OperationalModule): Flexi
 
 export default function OperationalDetailSection({ module, sensorId, backPath }: Props) {
   const navigate=useNavigate();
-  const current=useSqlChartDashboard('dashboard', defaultTodayRange, { forceRefresh:true, includeHistory:false, includeEnergyWater:false });
+  const current=useSqlChartDashboard('dashboard', defaultTodayRange, { forceRefresh:true, includeHistory:false, includeEnergyWater:false, autoRefresh:true });
   const dashboard=current.dashboard as DashboardData|null;
   const item=rows(dashboard,module).find((row)=>Number(row.sensor_id||0)===sensorId);
   const history=useWaterHistory({module,sensorId});

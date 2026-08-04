@@ -58,6 +58,21 @@ ACTIVE_MODULES = ['Resumen', 'Pozos', 'Líneas', 'Flujos', 'Comparativo Operativ
 PENDING_MODULES = ['Tanques', 'Concesión']
 DISABLED_MODULES = ['Energía']
 
+
+
+# Umbral central para distinguir una lectura actual con flujo operativo. Puede
+# sobrescribirse por sensor en la configuración sin duplicar números en React.
+DEFAULT_CURRENT_FLOW_ACTIVE_THRESHOLD = 0.01
+CURRENT_FLOW_ACTIVE_THRESHOLD_BY_SENSOR: dict[int, float] = {}
+
+
+def current_flow_threshold_for_sensor(sensor_id: int | str | None) -> float:
+    try:
+        parsed = int(sensor_id)
+    except (TypeError, ValueError):
+        parsed = -1
+    return float(CURRENT_FLOW_ACTIVE_THRESHOLD_BY_SENSOR.get(parsed, DEFAULT_CURRENT_FLOW_ACTIVE_THRESHOLD))
+
 TANKS_DIAGNOSTIC = {
     'status': 'pending_validation',
     'message': 'Tanques pendiente de validación operativa.',
@@ -94,4 +109,5 @@ def capability_payload() -> dict[str, Any]:
         'lines': LINES,
         'flows': FLOWS,
         'tanks': TANKS_DIAGNOSTIC,
+        'current_flow_active_threshold': DEFAULT_CURRENT_FLOW_ACTIVE_THRESHOLD,
     }

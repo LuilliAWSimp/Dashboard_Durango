@@ -22,7 +22,8 @@ LOCAL_ZONE = ZoneInfo(LOCAL_TIMEZONE)
 Aggregation = Literal['quarter_hour', 'hourly', 'daily']
 Module = Literal['well', 'line', 'flow']
 _CACHE: dict[str, dict[str, Any]] = {}
-CACHE_TTL_SECONDS = 10 * 60
+CACHE_TTL_CURRENT_SECONDS = 60
+CACHE_TTL_HISTORICAL_SECONDS = 10 * 60
 MAX_PHYSICAL_VALIDATION_DAYS = 31
 MAX_PHYSICAL_VALIDATION_ROWS = 100_000
 
@@ -461,13 +462,25 @@ def _fallback_points(sensor_id: int, aggregation: Aggregation, start: date, end:
     return points
 
 
+
+
+def _history_cache_ttl(start: date, end: date, now_day: date | None = None) -> int:
+    today = now_day or local_now_naive().date()
+    return CACHE_TTL_CURRENT_SECONDS if start <= today <= end else CACHE_TTL_HISTORICAL_SECONDS
+
+
+def _store_cache(cache_key: str, value: dict[str, Any], ttl_seconds: int) -> dict[str, Any]:
+    _CACHE[cache_key] = {'expires_at': monotonic() + ttl_seconds, 'value': value}
+    return value
+
 def get_water_history(*, module: str, sensor_id: int, start_date: str, end_date: str, aggregation: str, force_refresh: bool = False) -> dict[str, Any]:
     module, aggregation, start, end = _validate(module, sensor_id, start_date, end_date, aggregation)
     now_local = local_now_naive()
     requested_start_dt = datetime.combine(start, time.min)
     requested_end_dt = datetime.combine(end + timedelta(days=1), time.min)
     effective_end_dt = effective_local_end(requested_end_dt, now=now_local)
-    cache_key = f'{module}:{sensor_id}:{start}:{end}:{aggregation}:{effective_end_dt.isoformat(timespec="minutes")}'
+    cache_ttl = _history_cache_ttl(start, end, now_local.date())
+    cache_key = f'durango:{module}:{sensor_id}:{start}:{end}:{aggregation}:{effective_end_dt.isoformat(timespec="minutes")}'
     cached = _CACHE.get(cache_key)
     if not force_refresh and cached and monotonic() < cached['expires_at']:
         return cached['value']
@@ -496,8 +509,7 @@ def get_water_history(*, module: str, sensor_id: int, start_date: str, end_date:
                     'points': fallback_points, 'source_status': 'bos_fallback',
                     'has_data': any(int(point.get('samples') or 0) > 0 for point in fallback_points),
                 }
-                _CACHE[cache_key] = {'expires_at': monotonic() + CACHE_TTL_SECONDS, 'value': payload}
-                return payload
+                return _store_cache(cache_key, payload, cache_ttl)
         fallback = _fallback_bos(module, sensor_id, start, end, aggregation)
         if fallback:
             fallback_points = _fallback_points(sensor_id, aggregation, start, end, fallback, effective_end_dt=effective_end_dt)
@@ -510,8 +522,7 @@ def get_water_history(*, module: str, sensor_id: int, start_date: str, end_date:
                 'points': fallback_points, 'source_status': 'bos_fallback',
                 'has_data': any(int(point.get('samples') or 0) > 0 for point in fallback_points),
             }
-            _CACHE[cache_key] = {'expires_at': monotonic() + CACHE_TTL_SECONDS, 'value': payload}
-            return payload
+            return _store_cache(cache_key, payload, cache_ttl)
         raise exc
 
     fallback_rows: list[dict[str, Any]] = []
@@ -542,8 +553,7 @@ def get_water_history(*, module: str, sensor_id: int, start_date: str, end_date:
         'source_status': source,
         'has_data': any(int(point.get('samples') or 0) > 0 for point in points),
     }
-    _CACHE[cache_key] = {'expires_at': monotonic() + CACHE_TTL_SECONDS, 'value': payload}
-    return payload
+    return _store_cache(cache_key, payload, cache_ttl)
 
 
 
@@ -647,7 +657,8 @@ def get_water_history_module(*, module: str, start_date: str, end_date: str, agg
     requested_start_dt = datetime.combine(start, time.min)
     requested_end_dt = datetime.combine(end + timedelta(days=1), time.min)
     effective_end_dt = effective_local_end(requested_end_dt, now=now_local)
-    cache_key = f'module:{module}:{start}:{end}:{aggregation}:{effective_end_dt.isoformat(timespec="minutes")}'
+    cache_ttl = _history_cache_ttl(start, end, now_local.date())
+    cache_key = f'durango:module:{module}:{start}:{end}:{aggregation}:{effective_end_dt.isoformat(timespec="minutes")}'
     cached = _CACHE.get(cache_key)
     if not force_refresh and cached and monotonic() < cached['expires_at']:
         return cached['value']
@@ -711,8 +722,7 @@ def get_water_history_module(*, module: str, start_date: str, end_date: str, agg
         'series': series,
         'source_status': 'operational' if any(item['has_data'] for item in series) else 'no_data',
     }
-    _CACHE[cache_key] = {'expires_at': monotonic() + CACHE_TTL_SECONDS, 'value': payload}
-    return payload
+    return _store_cache(cache_key, payload, cache_ttl)
 
 
 
@@ -758,7 +768,8 @@ def get_wells_minute_flow(*, start_datetime: str, end_datetime: str, force_refre
         raise ValueError('El rango máximo permitido es de 24 horas.')
     now_local = local_now_naive()
     effective_end_dt = effective_local_end(requested_end_dt, now=now_local)
-    cache_key = f'wells-minute:{start_dt.isoformat()}:{requested_end_dt.isoformat()}:{effective_end_dt.isoformat(timespec="minutes")}'
+    cache_ttl = CACHE_TTL_CURRENT_SECONDS if start_dt.date() <= now_local.date() <= requested_end_dt.date() else CACHE_TTL_HISTORICAL_SECONDS
+    cache_key = f'durango:wells-minute:{start_dt.isoformat()}:{requested_end_dt.isoformat()}:{effective_end_dt.isoformat(timespec="minutes")}'
     cached = _CACHE.get(cache_key)
     if not force_refresh and cached and monotonic() < cached['expires_at']:
         return cached['value']
@@ -824,5 +835,4 @@ def get_wells_minute_flow(*, start_datetime: str, end_datetime: str, force_refre
         'series': series,
         'source_status': 'operational' if any(item['has_data'] for item in series) else 'no_data',
     }
-    _CACHE[cache_key] = {'expires_at': monotonic() + CACHE_TTL_SECONDS, 'value': payload}
-    return payload
+    return _store_cache(cache_key, payload, cache_ttl)
