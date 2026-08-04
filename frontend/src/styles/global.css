@@ -5697,3 +5697,238 @@ th { color: #c1d0e8; font-weight: 700; position: sticky; top: 0; background: #0f
 
 /* Durango: historical overview and compact operational cards */
 .module-history-panel,.minute-flow-panel{overflow:visible}.module-history-toolbar,.minute-flow-controls,.minute-flow-selection,.module-history-sensors{display:flex;align-items:end;flex-wrap:wrap;gap:10px;margin:14px 0}.module-history-toolbar{justify-content:space-between}.module-history-tabs{display:flex;flex-wrap:wrap;gap:8px}.module-history-tab,.sensor-chip{border:1px solid rgba(56,189,248,.26);border-radius:999px;background:rgba(3,21,34,.84);color:#bfe8f8;min-height:36px;padding:8px 14px;font:inherit;font-weight:750;cursor:pointer;transition:border-color .18s ease,background .18s ease,color .18s ease,transform .18s ease}.module-history-tab:hover,.module-history-tab:focus-visible,.sensor-chip:hover,.sensor-chip:focus-visible{border-color:rgba(56,189,248,.72);color:#fff;outline:none;transform:translateY(-1px)}.module-history-tab.active,.sensor-chip.active{background:linear-gradient(135deg,rgba(14,116,144,.92),rgba(2,132,199,.9));border-color:rgba(125,211,252,.78);color:#fff;box-shadow:0 10px 24px rgba(2,132,199,.18)}.module-history-tab small{display:inline-flex;margin-left:8px;padding:2px 7px;border-radius:999px;background:rgba(245,158,11,.18);color:#fde68a;font-size:10px;text-transform:uppercase;letter-spacing:.06em}.module-history-aggregation,.minute-flow-controls label{display:grid;gap:5px;color:#8dd7f1;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.module-history-aggregation select,.minute-flow-controls input{min-width:150px;height:38px;border:1px solid rgba(56,189,248,.35);border-radius:11px;background:#061827;color:#effbff;padding:0 12px}.module-history-aggregation option{background:#071827;color:#effbff}.module-history-tooltip{min-width:310px;max-width:min(380px,calc(100vw - 32px));background:rgba(3,18,30,.97);border:1px solid rgba(125,211,252,.24);box-shadow:0 20px 50px rgba(0,0,0,.38)}.module-history-tooltip-group+.module-history-tooltip-group{margin-top:10px;padding-top:10px;border-top:1px solid rgba(125,211,252,.13)}.module-history-tooltip-title{display:flex;align-items:center;gap:8px;margin-bottom:7px;color:#fff;font-size:13px;font-weight:850}.module-history-tooltip-grid{display:grid;grid-template-columns:minmax(120px,1fr) auto;gap:5px 14px;font-size:12px}.module-history-tooltip-grid span{color:#a9d7e9}.module-history-tooltip-grid strong{color:#fff;text-align:right}.minute-well-tooltip{min-width:250px;background:rgba(3,18,30,.97);border:1px solid rgba(125,211,252,.24);box-shadow:0 20px 50px rgba(0,0,0,.38)}.operational-card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:16px}.operational-well-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.operational-element-card{min-width:0;min-height:300px;display:flex;flex-direction:column;border:1px solid rgba(56,189,248,.18);border-radius:20px;background:linear-gradient(145deg,rgba(4,22,36,.98),rgba(4,14,29,.98));overflow:hidden;transition:border-color .18s ease,transform .18s ease,box-shadow .18s ease}.operational-element-card:hover,.operational-element-card.selected{border-color:rgba(56,189,248,.55);transform:translateY(-2px);box-shadow:0 18px 36px rgba(0,0,0,.22)}.operational-card-main{appearance:none;width:100%;flex:1;display:block;border:0;background:transparent;color:inherit;padding:18px;text-align:left;cursor:pointer}.operational-card-head{display:grid;grid-template-columns:minmax(130px,1fr) minmax(120px,auto);align-items:start;gap:14px;min-height:62px}.operational-card-head>div{min-width:0}.operational-card-head span{display:block;color:#8fd8f2;font-size:11px;letter-spacing:.08em;text-transform:uppercase}.operational-card-head strong{display:block;margin-top:4px;color:#fff;font-size:18px;line-height:1.2;overflow-wrap:normal;word-break:normal}.operational-card-head .status-badge{justify-self:end;max-width:190px;white-space:normal;text-align:center}.operational-metric-grid{margin-top:14px;grid-template-columns:repeat(2,minmax(0,1fr))}.operational-card-footer{display:grid;grid-template-columns:minmax(110px,1fr) auto auto;align-items:center;gap:10px;padding:12px 18px;border-top:1px solid rgba(56,189,248,.12);background:rgba(1,12,24,.54);color:#a9d7e9;font-size:12px}.operational-card-footer>span{display:inline-flex;align-items:center;gap:7px}.operational-card-footer>span i{width:8px;height:8px;border-radius:50%;background:#f59e0b;box-shadow:0 0 12px rgba(245,158,11,.55)}.operational-card-footer>span.online i{background:#22c55e;box-shadow:0 0 12px rgba(34,197,94,.55)}.operational-card-footer strong{font-weight:650;white-space:nowrap}.open-detail-link{border:0;background:transparent;color:#7dd3fc;font:inherit;font-weight:800;cursor:pointer;white-space:nowrap}@media(max-width:900px){.operational-well-grid{grid-template-columns:1fr}.operational-card-footer{grid-template-columns:1fr auto}.open-detail-link{grid-column:1/-1;justify-self:start}}@media(max-width:640px){.module-history-toolbar{align-items:stretch}.module-history-aggregation{width:100%}.module-history-aggregation select{width:100%}.minute-flow-controls{align-items:stretch}.minute-flow-controls label{width:100%}.minute-flow-controls input{width:100%}.operational-card-head{grid-template-columns:1fr}.operational-card-head .status-badge{justify-self:start;max-width:100%}.operational-metric-grid{grid-template-columns:1fr}.operational-card-footer{grid-template-columns:1fr}.module-history-tooltip{min-width:230px}.module-history-tooltip-grid{grid-template-columns:1fr;gap:2px}.module-history-tooltip-grid strong{text-align:left;margin-bottom:4px}}
+
+/* Durango report page: institutional layout and validated-volume summary */
+.durango-report-page {
+  display: grid;
+  gap: 16px;
+}
+
+.durango-report-page .report-hero-panel {
+  display: grid;
+  gap: 16px;
+  padding-bottom: 20px;
+}
+
+.report-controls-panel {
+  display: grid;
+  grid-template-columns: minmax(220px, .7fr) minmax(560px, 2fr);
+  align-items: end;
+  gap: 24px;
+  padding: 16px 18px;
+  border: 1px solid rgba(56, 189, 248, .18);
+  border-radius: 16px;
+  background: rgba(3, 17, 29, .64);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .025);
+}
+
+.report-controls-copy {
+  display: grid;
+  gap: 4px;
+  align-self: center;
+}
+
+.report-controls-copy strong {
+  color: #f4fbff;
+  font-size: 14px;
+  font-weight: 850;
+}
+
+.report-controls-copy span {
+  color: #a9d5e8;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.report-period-fields {
+  display: flex;
+  align-items: end;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.report-period-fields > label {
+  min-width: 150px;
+}
+
+.report-period-buttons {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.durango-report-page .report-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0;
+}
+
+.durango-report-page .report-action-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 16px;
+  border: 1px solid rgba(56, 189, 248, .28);
+  border-radius: 12px;
+  background: #071827;
+  color: #effbff;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: border-color .18s ease, background .18s ease, transform .18s ease;
+}
+
+.durango-report-page .report-action-button:hover:not(:disabled) {
+  border-color: rgba(56, 189, 248, .68);
+  background: #0a2235;
+  transform: translateY(-1px);
+}
+
+.durango-report-page .report-action-button:focus-visible {
+  outline: 2px solid rgba(56, 189, 248, .9);
+  outline-offset: 2px;
+}
+
+.durango-report-page .report-action-button.primary-action {
+  border-color: rgba(34, 211, 238, .6);
+  background: linear-gradient(135deg, #0891b2, #0284c7);
+  color: #fff;
+  box-shadow: 0 10px 24px rgba(2, 132, 199, .18);
+}
+
+.durango-report-page .report-action-button:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+}
+
+.report-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.report-summary-card {
+  position: relative;
+  min-height: 132px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px;
+  overflow: hidden;
+  border: 1px solid rgba(56, 189, 248, .18);
+  border-radius: 18px;
+  background: linear-gradient(145deg, rgba(14, 28, 54, .98), rgba(5, 15, 31, .98));
+  box-shadow: 0 12px 26px rgba(0, 0, 0, .18);
+}
+
+.report-summary-card::after {
+  content: '';
+  position: absolute;
+  right: -24px;
+  bottom: -34px;
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(56, 189, 248, .17), transparent 68%);
+  pointer-events: none;
+}
+
+.report-summary-card span {
+  position: relative;
+  z-index: 1;
+  color: #9fdcf4;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .14em;
+  line-height: 1.35;
+  text-transform: uppercase;
+}
+
+.report-summary-card strong {
+  position: relative;
+  z-index: 1;
+  color: #f4fbff;
+  font-size: clamp(24px, 2vw, 34px);
+  line-height: 1.05;
+  word-break: normal;
+}
+
+.report-summary-card small {
+  position: relative;
+  z-index: 1;
+  color: #b7d7e6;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.report-summary-card.review {
+  border-top: 3px solid rgba(245, 158, 11, .75);
+}
+
+.report-summary-note {
+  margin: -4px 0 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(56, 189, 248, .16);
+  border-left: 4px solid #0ea5e9;
+  border-radius: 12px;
+  background: rgba(3, 17, 29, .62);
+  color: #b9dfef;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.report-data-panel {
+  overflow: hidden;
+}
+
+.report-data-table th,
+.report-data-table td {
+  vertical-align: middle;
+}
+
+.report-data-table td:nth-child(2),
+.report-data-table td:nth-child(3),
+.report-data-table td:nth-child(4),
+.report-data-table td:nth-child(5),
+.report-data-table td:nth-child(7),
+.report-data-table td:nth-child(8) {
+  white-space: normal;
+}
+
+@media (max-width: 1280px) {
+  .report-summary-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .report-controls-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .report-period-fields {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 760px) {
+  .report-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .report-period-fields,
+  .report-period-buttons,
+  .durango-report-page .report-actions {
+    width: 100%;
+  }
+
+  .report-period-fields > label,
+  .report-period-buttons > button,
+  .durango-report-page .report-action-button {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+}
