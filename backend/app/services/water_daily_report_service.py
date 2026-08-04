@@ -71,6 +71,11 @@ def _report_row(item: dict[str, Any]) -> dict[str, Any]:
         'closing_m3': closing_m3,
         'volume_m3': item.get('period_m3'),
         'volume_reliable': bool(item.get('period_m3_reliable')),
+        'validated_volume_m3': item.get('validated_volume_m3'),
+        'discarded_volume_m3': item.get('discarded_volume_m3') or 0,
+        'discarded_totalizer_events': item.get('discarded_totalizer_events') or 0,
+        'has_discontinuities': bool(item.get('has_discontinuities')),
+        'volume_display_label': item.get('volume_display_label') or 'Volumen del periodo',
         'activity': item.get('activity') or 'Sin registros guardados',
         'communication': item.get('communication') or 'Sin lectura',
         'last_update': item.get('last_update'),
@@ -78,6 +83,16 @@ def _report_row(item: dict[str, Any]) -> dict[str, Any]:
         'samples': item.get('samples') or 0,
     }
 
+
+
+
+def _report_volume_display(item: dict[str, Any]) -> str:
+    if item.get('has_discontinuities'):
+        value = item.get('validated_volume_m3')
+        return f"Volumen validado parcial: {_fmt_number(value)} m³"
+    if item.get('volume_m3') is None:
+        return str(item.get('activity') or 'Sin dato')
+    return f"{_fmt_number(item.get('volume_m3'))} m³"
 
 def get_daily_water_report(report_date: Any = None, start_date: Any = None, end_date: Any = None) -> dict[str, Any]:
     start_day = _parse_date(start_date or report_date)
@@ -194,7 +209,7 @@ def build_daily_water_report_pdf(report: dict[str, Any]) -> tuple[bytes, str]:
                 Paragraph('Sin dato' if item['flow'] is None else f"{_fmt_number(item['flow'])} {item['flow_unit']}", right),
                 Paragraph(_fmt_number(item['opening_m3']), right),
                 Paragraph(_fmt_number(item['closing_m3']), right),
-                Paragraph(str(item['activity']) if item['volume_m3'] is None else f"{_fmt_number(item['volume_m3'])} m³", right),
+                Paragraph(_report_volume_display(item), right),
                 Paragraph(str(item['activity']).replace(' en el periodo', ''), center),
                 Paragraph(str(item['communication']), center),
                 Paragraph(_fmt_date(item['last_update']), center),
@@ -263,7 +278,7 @@ def build_daily_water_report_excel(report: dict[str, Any]) -> tuple[bytes, str]:
         sheet.append([first_header, 'Flujo actual', 'Unidad', 'Totalizador apertura (m³)', 'Totalizador cierre (m³)', 'Volumen del periodo (m³)', 'Actividad', 'Comunicación', 'Última actualización'])
         for item in rows:
             last_update = datetime.fromisoformat(item['last_update']) if item.get('last_update') else None
-            sheet.append([item['name'], item['flow'], item['flow_unit'], item['opening_m3'], item['closing_m3'], item['volume_m3'] if item['volume_reliable'] else item['activity'], item['activity'], item['communication'], last_update])
+            sheet.append([item['name'], item['flow'], item['flow_unit'], item['opening_m3'], item['closing_m3'], item['volume_m3'] if item['volume_reliable'] else _report_volume_display(item), item['activity'], item['communication'], last_update])
         for row in range(2, sheet.max_row + 1):
             for column in (2, 4, 5, 6):
                 if isinstance(sheet.cell(row, column).value, (int, float)):
@@ -286,7 +301,7 @@ def build_daily_water_report_excel(report: dict[str, Any]) -> tuple[bytes, str]:
             shifts.append([shift.get('name'), shift.get('schedule'), (shift_summary.get('wells') or {}).get('total_m3'), (shift_summary.get('lines') or {}).get('total_m3'), (shift_summary.get('flows') or {}).get('total_m3'), shift_summary.get('total_operational_m3'), shift.get('cut_status')])
             for group_key, group_name in [('wells', 'Pozos'), ('lines', 'Líneas'), ('flows', 'Flujos auxiliares')]:
                 for item in shift.get(group_key) or []:
-                    detail.append([shift.get('name'), group_name, item.get('name'), item.get('period_open_m3'), item.get('period_close_m3'), item.get('period_m3') if item.get('period_m3_reliable') else item.get('activity'), item.get('flow_avg'), item.get('flow_min'), item.get('flow_max'), item.get('samples'), item.get('activity'), shift.get('cut_status')])
+                    detail.append([shift.get('name'), group_name, item.get('name'), item.get('period_open_m3'), item.get('period_close_m3'), item.get('period_m3') if item.get('period_m3_reliable') else (f"Volumen validado parcial: {_fmt_number(item.get('validated_volume_m3'))} m³" if item.get('has_discontinuities') else item.get('activity')), item.get('flow_avg'), item.get('flow_min'), item.get('flow_max'), item.get('samples'), item.get('activity'), shift.get('cut_status')])
         _style_sheet(shifts)
         _style_sheet(detail)
 

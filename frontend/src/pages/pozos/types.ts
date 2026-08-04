@@ -25,6 +25,11 @@ export interface WaterHistoryPoint extends FlexibleRecord {
   totalizer_open_m3: number | null;
   totalizer_close_m3: number | null;
   volume_m3: number | null;
+  validated_volume_m3?: number | null;
+  discarded_volume_m3?: number;
+  discarded_totalizer_events?: number;
+  discarded_totalizer_event_details?: FlexibleRecord[];
+  has_discontinuities?: boolean;
   volume_reliable: boolean;
   data_status: 'operational' | 'zero_consumption' | 'no_data' | 'invalid_totalizer' | 'stale_data' | 'no_history';
 }
@@ -78,6 +83,13 @@ export interface NormalizedWaterItem extends FlexibleRecord {
   period_m3?: number | null;
   period_delta_m3?: number | null;
   period_m3_reliable?: boolean;
+  validated_volume_m3?: number | null;
+  discarded_volume_m3?: number;
+  discarded_totalizer_events?: number;
+  discarded_totalizer_event_details?: FlexibleRecord[];
+  has_discontinuities?: boolean;
+  volume_reliable?: boolean;
+  volume_display_label?: string;
   today_accumulated_m3?: number | null;
   activity?: string;
   activity_status?: string;
@@ -106,6 +118,10 @@ export interface ShiftElement extends FlexibleRecord {
   period_close_m3: number | null;
   period_m3: number | null;
   period_m3_reliable: boolean;
+  validated_volume_m3?: number | null;
+  discarded_volume_m3?: number;
+  discarded_totalizer_events?: number;
+  has_discontinuities?: boolean;
   flow_avg: number | null;
   flow_min: number | null;
   flow_max: number | null;

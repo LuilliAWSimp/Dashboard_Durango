@@ -60,7 +60,7 @@ function DetailTable({ shift, group }: { shift: WaterShift; group: Exclude<Group
               <td>{item.name}</td>
               <td>{item.period_open_m3 == null ? '—' : `${fmt(item.period_open_m3)} m³`}</td>
               <td>{item.period_close_m3 == null ? '—' : `${fmt(item.period_close_m3)} m³`}</td>
-              <td>{item.period_m3 == null ? item.activity : `${fmt(item.period_m3)} m³`}</td>
+              <td>{item.period_m3 == null ? item.activity : item.has_discontinuities ? `Volumen validado parcial: ${fmt(item.period_m3)} m³` : `${fmt(item.period_m3)} m³`}</td>
               <td>{item.flow_avg == null ? '—' : `${fmt(item.flow_avg)} ${item.flow_unit || 'L/s'}`}</td>
               <td>{item.flow_min == null || item.flow_max == null ? '—' : `${fmt(item.flow_min)} / ${fmt(item.flow_max)} ${item.flow_unit || 'L/s'}`}</td>
               <td>{Number(item.samples || 0).toLocaleString('es-MX')}</td>

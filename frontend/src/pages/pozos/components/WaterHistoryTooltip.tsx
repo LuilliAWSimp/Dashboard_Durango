@@ -65,6 +65,13 @@ export default function WaterHistoryTooltip({ active, payload, aggregation, flow
         ? 'Sin datos'
         : `${formatNumber(row.flow)} ${flowUnit}`;
   const interval = intervalParts(row.bucketStart, row.bucketEnd, aggregation);
+  const discardedDetails = Array.isArray(row.discardedEventDetails) ? row.discardedEventDetails as Record<string, unknown>[] : [];
+  const firstDiscard = discardedDetails[0];
+  const discardReason = String(firstDiscard?.reason || '')
+    .replace('incremento_incompatible_con_flujo_cero', 'Incremento incompatible con flujo cero')
+    .replace('incremento_incompatible_con_flujo_y_tiempo', 'Incremento incompatible con flujo y tiempo')
+    .replace('reinicio_o_caida_de_totalizador', 'Reinicio o caída de totalizador')
+    .replace('flujo_insuficiente_para_validar_incremento', 'Flujo insuficiente para validar el incremento');
 
   return (
     <div className="chart-tooltip solid-tooltip pozos-tooltip water-history-tooltip">
@@ -84,9 +91,27 @@ export default function WaterHistoryTooltip({ active, payload, aggregation, flow
           </div>
         ) : null}
         <div className="chart-tooltip-row">
-          <span className="chart-tooltip-name">Volumen</span>
+          <span className="chart-tooltip-name">{row.hasDiscontinuities ? 'Volumen validado parcial' : 'Volumen'}</span>
           <span className="chart-tooltip-value">{row.volume === null ? 'Sin datos' : `${formatNumber(row.volume)} m³`}</span>
         </div>
+        {Number(row.discardedEvents || 0) > 0 ? (
+          <>
+            <div className="chart-tooltip-row">
+              <span className="chart-tooltip-name">Eventos descartados</span>
+              <span className="chart-tooltip-value">{Number(row.discardedEvents).toLocaleString('es-MX')}</span>
+            </div>
+            <div className="chart-tooltip-row">
+              <span className="chart-tooltip-name">Volumen descartado</span>
+              <span className="chart-tooltip-value">{formatNumber(row.discardedVolume)} m³</span>
+            </div>
+            {discardReason ? (
+              <div className="chart-tooltip-row">
+                <span className="chart-tooltip-name">Motivo</span>
+                <span className="chart-tooltip-value">{discardReason}</span>
+              </div>
+            ) : null}
+          </>
+        ) : null}
         <div className="chart-tooltip-row">
           <span className="chart-tooltip-name">Muestras</span>
           <span className="chart-tooltip-value">{samples.toLocaleString('es-MX')}</span>

@@ -1162,6 +1162,10 @@ def _build_wells(
         ]
         wells.append({
             'id': f'pozo-{numero}',
+            # Canonical operational identity used to merge the current BOS row
+            # with the period record. Without this field the current and period
+            # versions of the same well can be rendered as separate cards.
+            'sensor_id': flow_out_sensor_id,
             'well_id': str(well_id),
             'numero': numero,
             'name': name,

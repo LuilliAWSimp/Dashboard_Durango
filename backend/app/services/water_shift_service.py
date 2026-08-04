@@ -53,7 +53,7 @@ def _cut_status(day: date, start: datetime, end: datetime) -> tuple[str, datetim
 def _summary(items: list[dict[str, Any]]) -> dict[str, Any]:
     reliable = [item for item in items if item.get('period_m3_reliable') and item.get('period_m3') is not None]
     return {
-        'total_m3': round(sum(float(item['period_m3']) for item in reliable), 6),
+        'total_m3': round(sum(float(item['period_m3']) for item in reliable), 6) if reliable else None,
         'active_count': sum(1 for item in reliable if float(item.get('period_m3') or 0) > 0),
         'inactive_count': sum(1 for item in reliable if float(item.get('period_m3') or 0) == 0),
         'review_count': sum(1 for item in items if item.get('data_status') in {'invalid_totalizer', 'no_totalizer'}),
@@ -124,7 +124,7 @@ def get_shift_consumption_data(report_date: Any = None, *, force_refresh: bool =
                 'wells': well_summary,
                 'lines': line_summary,
                 'flows': flow_summary,
-                'total_operational_m3': round(well_summary['total_m3'] + line_summary['total_m3'] + flow_summary['total_m3'], 6),
+                'total_operational_m3': round(sum(value for value in (well_summary['total_m3'], line_summary['total_m3'], flow_summary['total_m3']) if value is not None), 6) if any(value is not None for value in (well_summary['total_m3'], line_summary['total_m3'], flow_summary['total_m3'])) else None,
             },
         })
 

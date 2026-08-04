@@ -30,6 +30,12 @@ interface ChartPoint {
   flowMin: number | null;
   flowMax: number | null;
   volume: number | null;
+  validatedVolume: number | null;
+  discardedVolume: number;
+  discardedEvents: number;
+  discardedEventDetails: Record<string, unknown>[];
+  hasDiscontinuities: boolean;
+  volumeReliable: boolean;
   samples: number;
   dataStatus: string;
   tooltipAnchor: number;
@@ -55,6 +61,12 @@ export default function WaterHistoryChart({ points, aggregation, height = 430, f
     flowMin: point.flow_min_lps,
     flowMax: point.flow_max_lps,
     volume: point.volume_m3,
+    validatedVolume: point.validated_volume_m3 ?? point.volume_m3,
+    discardedVolume: Number(point.discarded_volume_m3 || 0),
+    discardedEvents: Number(point.discarded_totalizer_events || 0),
+    discardedEventDetails: Array.isArray(point.discarded_totalizer_event_details) ? point.discarded_totalizer_event_details : [],
+    hasDiscontinuities: Boolean(point.has_discontinuities),
+    volumeReliable: Boolean(point.volume_reliable),
     samples: point.samples,
     dataStatus: point.data_status,
     tooltipAnchor: 0,

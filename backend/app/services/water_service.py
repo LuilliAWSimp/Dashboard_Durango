@@ -41,24 +41,52 @@ def _empty(section: str, status: str, message: str) -> WaterDashboardPayload:
     )
 
 
-def _sensor_id(item: dict[str, Any]) -> int:
-    try:
-        return int(item.get('sensor_id') or item.get('id') or 0)
-    except (TypeError, ValueError):
+def _integer_identity(value: Any) -> int:
+    if value in (None, ''):
         return 0
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        digits = ''.join(character for character in str(value) if character.isdigit())
+        return int(digits) if digits else 0
+
+
+def _sensor_id(item: dict[str, Any]) -> int:
+    """Resolve the canonical operational sensor for current and period rows.
+
+    Legacy well rows used ``id=pozo-1`` plus ``flow_out_sensor_id`` while the
+    period service uses ``sensor_id=1001``. Resolving all supported aliases
+    prevents the same well from being appended a second time during the merge.
+    """
+    for key in ('sensor_id', 'water_sensor_id', 'flow_out_sensor_id'):
+        candidate = _integer_identity(item.get(key))
+        if candidate:
+            return candidate
+    return _integer_identity(item.get('id'))
 
 
 def _merge_period(current_rows: list[dict[str, Any]], period_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    by_sensor = {_sensor_id(item): item for item in period_rows}
+    by_sensor = {_sensor_id(item): item for item in period_rows if _sensor_id(item)}
+    current_by_sensor: dict[int, dict[str, Any]] = {}
+    current_without_sensor: list[dict[str, Any]] = []
+    for current in current_rows:
+        current_sensor = _sensor_id(current)
+        if current_sensor:
+            # Keep the latest occurrence only. This is a defensive guard for
+            # inherited BOS payloads that expose the same position twice.
+            current_by_sensor[current_sensor] = current
+        else:
+            current_without_sensor.append(current)
+
     result: list[dict[str, Any]] = []
     seen: set[int] = set()
-    for current in current_rows:
+    for current_sensor, current in current_by_sensor.items():
         merged = dict(current)
-        current_sensor = _sensor_id(current)
-        seen.add(current_sensor)
         period = by_sensor.get(current_sensor)
+        seen.add(current_sensor)
         if period:
             merged.update(period)
+            merged['sensor_id'] = current_sensor
             merged['period_activity'] = period.get('activity')
             merged['period_data_status'] = period.get('data_status')
             current_flow = current.get('flow_lps') if current.get('flow_lps') is not None else current.get('flow')
@@ -80,9 +108,15 @@ def _merge_period(current_rows: list[dict[str, Any]], period_rows: list[dict[str
                 merged['ultima_lectura'] = current_stamp
             merged['current_reading_available'] = bool(current_flow is not None or current_totalizer is not None or current_stamp)
         result.append(merged)
+
     for sensor_id, period in by_sensor.items():
         if sensor_id not in seen:
             result.append(dict(period))
+
+    # Rows with no resolvable operational identity cannot be safely associated
+    # with a confirmed element, so they remain at the end without duplicating a
+    # confirmed sensor.
+    result.extend(current_without_sensor)
     return result
 
 

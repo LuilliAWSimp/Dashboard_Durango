@@ -173,11 +173,21 @@ def _communication(last_reading: datetime | None, end_day: date) -> tuple[str, s
     return 'Revisar comunicación', 'stale_data'
 
 
-def _analysis_rows(rows: list[dict[str, Any]], sensor_id: int) -> TotalizerAnalysis:
-    return analyze_totalizer_series([
-        {'timestamp': row.get('operational_ts'), 'total_value': row.get('total_value')}
-        for row in rows
-    ], sensor_id=sensor_id)
+def _analysis_rows(rows: list[dict[str, Any]], contract: dict[str, Any]) -> TotalizerAnalysis:
+    sensor_id = int(contract['sensor_id'])
+    return analyze_totalizer_series(
+        [
+            {
+                'timestamp': row.get('operational_ts'),
+                'total_value': row.get('total_value'),
+                'instant_value': row.get('instant_value'),
+            }
+            for row in rows
+        ],
+        sensor_id=sensor_id,
+        flow_unit=str(contract.get('flow_unit') or 'L/s'),
+        require_flow_validation=str(contract.get('group')) == 'well',
+    )
 
 
 def build_period_item(contract: dict[str, Any], rows: list[dict[str, Any]], previous_close: tuple[datetime | None, float | None] | None, end_day: date) -> dict[str, Any]:
@@ -185,7 +195,7 @@ def build_period_item(contract: dict[str, Any], rows: list[dict[str, Any]], prev
     ordered = sorted(rows, key=lambda row: _dt(row.get('operational_ts')) or datetime.min)
     flow_values = [_num(row.get('instant_value')) for row in ordered]
     flow_values = [value for value in flow_values if value is not None]
-    analysis = _analysis_rows(ordered, sensor_id)
+    analysis = _analysis_rows(ordered, contract)
     latest = ordered[-1] if ordered else None
     latest_time = _dt(latest.get('operational_ts')) if latest else None
     communication, communication_status = _communication(latest_time, end_day)
@@ -194,7 +204,7 @@ def build_period_item(contract: dict[str, Any], rows: list[dict[str, Any]], prev
     totalizer_values = [_num(row.get('total_value')) for row in ordered]
     totalizer_values = [value for value in totalizer_values if value is not None and value > 0]
     current_totalizer = totalizer_values[-1] if totalizer_values else None
-    period_volume = analysis.volume_m3 if analysis.reliable else None
+    period_volume = analysis.validated_volume_m3
     period_source = str((ordered[-1].get('period_source') or ordered[-1].get('source') or 'readings_minute')) if ordered else 'no_history'
     if not ordered:
         activity = 'Sin histórico para el periodo'
@@ -202,6 +212,9 @@ def build_period_item(contract: dict[str, Any], rows: list[dict[str, Any]], prev
     elif not totalizer_values:
         activity = 'Sin totalizador disponible'
         data_status = 'no_totalizer'
+    elif analysis.has_discontinuities:
+        activity = 'Dato en revisión'
+        data_status = 'invalid_totalizer'
     elif not analysis.reliable:
         activity = 'Dato en revisión'
         data_status = 'invalid_totalizer'
@@ -212,13 +225,11 @@ def build_period_item(contract: dict[str, Any], rows: list[dict[str, Any]], prev
         activity = 'Sin actividad en el periodo'
         data_status = 'zero_consumption'
 
-    today_accumulated: float | None = None
-    today_reliable = False
-    if previous_value is not None and current_totalizer is not None:
-        difference = current_totalizer - previous_value
-        if difference >= 0:
-            today_accumulated = round(difference, 6)
-            today_reliable = True
+    # The accumulated value comes from the same validated increments used by
+    # period views, shifts and reports. It must never be recalculated as current
+    # totalizer minus previous close because that would reintroduce discarded jumps.
+    today_accumulated = analysis.validated_volume_m3
+    today_reliable = bool(analysis.reliable and totalizer_values)
 
     return {
         'sensor_id': sensor_id,
@@ -243,6 +254,12 @@ def build_period_item(contract: dict[str, Any], rows: list[dict[str, Any]], prev
         'period_m3': period_volume,
         'period_delta_m3': period_volume,
         'period_m3_reliable': bool(analysis.reliable and totalizer_values),
+        'validated_volume_m3': analysis.validated_volume_m3,
+        'discarded_volume_m3': analysis.discarded_volume_m3,
+        'discarded_totalizer_events': analysis.discarded_totalizer_events,
+        'has_discontinuities': analysis.has_discontinuities,
+        'volume_reliable': analysis.volume_reliable,
+        'volume_display_label': 'Volumen validado parcial' if analysis.has_discontinuities else 'Volumen del periodo',
         'today_accumulated_m3': today_accumulated,
         'today_accumulated_reliable': today_reliable,
         'activity': activity,
@@ -256,7 +273,7 @@ def build_period_item(contract: dict[str, Any], rows: list[dict[str, Any]], prev
         'communication_status': communication_status,
         'last_update': latest_time.isoformat(timespec='seconds') if latest_time else None,
         'ultima_lectura': latest_time.isoformat(timespec='seconds') if latest_time else None,
-        'discarded_totalizer_events': list(analysis.discarded_events),
+        'discarded_totalizer_event_details': list(analysis.discarded_events),
         'period_source': period_source,
     }
 

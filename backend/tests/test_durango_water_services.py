@@ -41,7 +41,9 @@ def test_totalizer_restart_is_review_not_negative_volume():
         ('2026-08-01T02:00:00', 3.0),
     ], sensor_id=2002)
     assert result.reliable is False
-    assert result.volume_m3 is None
+    assert result.volume_m3 == 10.0
+    assert result.validated_volume_m3 == 10.0
+    assert result.has_discontinuities is True
     assert result.status == 'invalid_totalizer'
 
 

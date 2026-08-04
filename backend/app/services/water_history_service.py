@@ -22,6 +22,8 @@ Aggregation = Literal['quarter_hour', 'hourly', 'daily']
 Module = Literal['well', 'line', 'flow']
 _CACHE: dict[str, dict[str, Any]] = {}
 CACHE_TTL_SECONDS = 10 * 60
+MAX_PHYSICAL_VALIDATION_DAYS = 31
+MAX_PHYSICAL_VALIDATION_ROWS = 100_000
 
 
 class WaterHistoryError(RuntimeError):
@@ -168,14 +170,82 @@ def _query_15m(sensor_id: int, start_dt: datetime, end_dt: datetime) -> list[dic
         raise WaterHistoryError('No fue posible consultar el histórico de planta.', status='sql_error') from exc
 
 
-def _aggregate(sensor_id: int, rows: list[dict[str, Any]], aggregation: Aggregation) -> dict[datetime, dict[str, Any]]:
+
+def _query_physical_validation_rows(sensor_ids: list[int], start_dt: datetime, end_dt: datetime) -> list[dict[str, Any]]:
+    """Return bounded minute readings used only for physical well validation.
+
+    The historical chart still obtains its flow statistics from the aggregated
+    SQL query. Minute rows are requested only for confirmed wells and ranges of
+    up to 31 days so the totalizer analyzer can inspect every update without
+    reintroducing unbounded table downloads.
+    """
+    if not sensor_ids or end_dt <= start_dt or end_dt - start_dt > timedelta(days=MAX_PHYSICAL_VALIDATION_DAYS):
+        return []
+    params: dict[str, Any] = {
+        'start_dt': start_dt,
+        'end_dt': end_dt,
+        'max_rows': MAX_PHYSICAL_VALIDATION_ROWS,
+    }
+    placeholders: list[str] = []
+    for index, sensor_id in enumerate(sensor_ids):
+        key = f'validation_sensor_{index}'
+        placeholders.append(f':{key}')
+        params[key] = int(sensor_id)
+    sql = text(f"""
+        SELECT TOP (:max_rows)
+            reading.sensor_id,
+            COALESCE(reading.ts_local, reading.ts_minute) AS operational_ts,
+            TRY_CONVERT(float, reading.instant_value) AS instant_value,
+            TRY_CONVERT(float, reading.total_value) AS total_value
+        FROM iot.readings_minute AS reading
+        WHERE reading.sensor_id IN ({', '.join(placeholders)})
+          AND COALESCE(reading.ts_local, reading.ts_minute) >= :start_dt
+          AND COALESCE(reading.ts_local, reading.ts_minute) < :end_dt
+        ORDER BY reading.sensor_id, COALESCE(reading.ts_local, reading.ts_minute)
+    """)
+    try:
+        with SessionLocal() as session:
+            exists = session.execute(text("SELECT CASE WHEN OBJECT_ID('iot.readings_minute','U') IS NULL THEN 0 ELSE 1 END")).scalar()
+            if not exists:
+                return []
+            return [dict(row._mapping) for row in session.execute(sql, params).fetchall()]
+    except SQLAlchemyError:
+        logger.exception('physical totalizer validation query failed sensors=%s start=%s end=%s', sensor_ids, start_dt, end_dt)
+        return []
+
+
+def _validation_rows_by_bucket(rows: list[dict[str, Any]], aggregation: Aggregation) -> dict[datetime, list[dict[str, Any]]]:
+    grouped: dict[datetime, list[dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        stamp = _dt(row.get('operational_ts') or row.get('reading_ts') or row.get('timestamp'))
+        if stamp is not None:
+            grouped[_floor(stamp, aggregation)].append({
+                'timestamp': stamp,
+                'total_value': row.get('total_value'),
+                'instant_value': row.get('instant_value') if row.get('instant_value') is not None else row.get('flow_value'),
+            })
+    for bucket_rows in grouped.values():
+        bucket_rows.sort(key=lambda item: _dt(item.get('timestamp')) or datetime.min)
+    return grouped
+
+def _aggregate(
+    sensor_id: int,
+    rows: list[dict[str, Any]],
+    aggregation: Aggregation,
+    validation_rows: list[dict[str, Any]] | None = None,
+) -> dict[datetime, dict[str, Any]]:
     grouped: dict[datetime, list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
         stamp = _dt(row.get('bucket_start'))
         if stamp is not None:
             grouped[_floor(stamp, aggregation)].append(row)
     result: dict[datetime, dict[str, Any]] = {}
+    validation_by_bucket = _validation_rows_by_bucket(validation_rows or [], aggregation)
+    contract = sensor_contract(sensor_id)
+    flow_unit = flow_unit_for_sensor(sensor_id)
+    require_flow_validation = str(contract.get('group')) == 'well'
     for bucket, bucket_rows in grouped.items():
+        bucket_rows = sorted(bucket_rows, key=lambda row: _dt(row.get('bucket_start')) or datetime.min)
         samples = sum(int(row.get('samples') or 0) for row in bucket_rows)
         weighted = [(_num(row.get('flow_avg')), int(row.get('samples') or 0)) for row in bucket_rows]
         weighted = [(value, count) for value, count in weighted if value is not None and count > 0]
@@ -184,12 +254,28 @@ def _aggregate(sensor_id: int, rows: list[dict[str, Any]], aggregation: Aggregat
         maxs = [_num(row.get('flow_max')) for row in bucket_rows]
         mins = [value for value in mins if value is not None]
         maxs = [value for value in maxs if value is not None]
-        total_points: list[dict[str, Any]] = []
-        for row in bucket_rows:
-            stamp = _dt(row.get('bucket_start')) or bucket
-            total_points.append({'timestamp': stamp, 'total_value': row.get('total_open')})
-            total_points.append({'timestamp': stamp + timedelta(minutes=14, seconds=59), 'total_value': row.get('total_close')})
-        analysis = analyze_totalizer_series(total_points, sensor_id=sensor_id)
+        total_points = list(validation_by_bucket.get(bucket) or [])
+        if not total_points:
+            # For ranges longer than the bounded physical-validation window, or
+            # when the minute source is unavailable, preserve the existing
+            # aggregated contract. The synthetic checkpoints still validate the
+            # bucket against elapsed time and average flow without a fixed jump
+            # threshold.
+            for row in bucket_rows:
+                stamp = _dt(row.get('bucket_start')) or bucket
+                row_flow = _num(row.get('flow_avg'))
+                total_points.extend([
+                    {'timestamp': stamp, 'total_value': row.get('total_open'), 'instant_value': row_flow},
+                    {'timestamp': stamp + timedelta(minutes=5), 'total_value': row.get('total_open'), 'instant_value': row_flow},
+                    {'timestamp': stamp + timedelta(minutes=10), 'total_value': row.get('total_open'), 'instant_value': row_flow},
+                    {'timestamp': stamp + timedelta(minutes=15), 'total_value': row.get('total_close'), 'instant_value': row_flow},
+                ])
+        analysis = analyze_totalizer_series(
+            total_points,
+            sensor_id=sensor_id,
+            flow_unit=flow_unit,
+            require_flow_validation=require_flow_validation,
+        )
         result[bucket] = {
             'samples': samples,
             'flow_avg': flow_avg,
@@ -197,9 +283,14 @@ def _aggregate(sensor_id: int, rows: list[dict[str, Any]], aggregation: Aggregat
             'flow_max': max(maxs) if maxs else None,
             'total_open': analysis.opening_m3,
             'total_close': analysis.closing_m3,
-            'volume': analysis.volume_m3 if analysis.reliable else None,
+            'volume': analysis.validated_volume_m3,
             'reliable': analysis.reliable,
             'status': analysis.status,
+            'validated_volume_m3': analysis.validated_volume_m3,
+            'discarded_volume_m3': analysis.discarded_volume_m3,
+            'discarded_totalizer_events': analysis.discarded_totalizer_events,
+            'discarded_totalizer_event_details': list(analysis.discarded_events),
+            'has_discontinuities': analysis.has_discontinuities,
         }
     return result
 
@@ -217,13 +308,25 @@ def _empty(sensor_id: int, aggregation: Aggregation, start: datetime, end: datet
         'totalizer_open_m3': None,
         'totalizer_close_m3': None,
         'volume_m3': None,
+        'validated_volume_m3': None,
+        'discarded_volume_m3': 0.0,
+        'discarded_totalizer_events': 0,
+        'discarded_totalizer_event_details': [],
+        'has_discontinuities': False,
         'volume_reliable': False,
         'data_status': 'no_data',
     }
 
 
-def _build_points(sensor_id: int, aggregation: Aggregation, start_dt: datetime, end_dt: datetime, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    aggregates = _aggregate(sensor_id, rows, aggregation)
+def _build_points(
+    sensor_id: int,
+    aggregation: Aggregation,
+    start_dt: datetime,
+    end_dt: datetime,
+    rows: list[dict[str, Any]],
+    validation_rows: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    aggregates = _aggregate(sensor_id, rows, aggregation, validation_rows)
     result: list[dict[str, Any]] = []
     cursor = _floor(start_dt, aggregation)
     step = _step(aggregation)
@@ -256,6 +359,11 @@ def _build_points(sensor_id: int, aggregation: Aggregation, start_dt: datetime, 
                 'totalizer_open_m3': item['total_open'],
                 'totalizer_close_m3': item['total_close'],
                 'volume_m3': volume,
+                'validated_volume_m3': item.get('validated_volume_m3'),
+                'discarded_volume_m3': item.get('discarded_volume_m3', 0.0),
+                'discarded_totalizer_events': item.get('discarded_totalizer_events', 0),
+                'discarded_totalizer_event_details': item.get('discarded_totalizer_event_details', []),
+                'has_discontinuities': bool(item.get('has_discontinuities')),
                 'volume_reliable': bool(item['reliable']),
                 'data_status': status,
             })
@@ -303,6 +411,11 @@ def _fallback_points(sensor_id: int, aggregation: Aggregation, start: date, end:
             'totalizer_open_m3': None,
             'totalizer_close_m3': _num(row.get('total_m3') if row.get('total_m3') is not None else row.get('totalizador_m3')),
             'volume_m3': volume if samples > 0 else None,
+            'validated_volume_m3': volume if samples > 0 else None,
+            'discarded_volume_m3': 0.0,
+            'discarded_totalizer_events': 0,
+            'discarded_totalizer_event_details': [],
+            'has_discontinuities': False,
             'volume_reliable': bool(samples > 0 and volume is not None),
             'data_status': ('operational' if volume is not None and volume > 0 else 'zero_consumption') if samples > 0 else 'no_data',
         }
@@ -328,6 +441,20 @@ def get_water_history(*, module: str, sensor_id: int, start_date: str, end_date:
     try:
         rows = _query_15m(sensor_id, start_dt, end_dt)
     except WaterHistoryError as exc:
+        if module == 'well' and start == end:
+            raw_well_rows = query_bos_well_rows(sensor_id, start_dt, end_dt)
+            if raw_well_rows:
+                normalized_rows = _bos_rows_to_15m(sensor_id, raw_well_rows)
+                fallback_points = _build_points(sensor_id, aggregation, start_dt, end_dt, normalized_rows)
+                payload = {
+                    'plant': 'Planta Durango', 'module': module, 'sensor_id': sensor_id,
+                    'name': sensor_contract(sensor_id).get('display_name'), 'flow_unit': flow_unit_for_sensor(sensor_id),
+                    'start_date': start.isoformat(), 'end_date': end.isoformat(), 'aggregation': aggregation,
+                    'points': fallback_points, 'source_status': 'bos_fallback',
+                    'has_data': any(int(point.get('samples') or 0) > 0 for point in fallback_points),
+                }
+                _CACHE[cache_key] = {'expires_at': monotonic() + CACHE_TTL_SECONDS, 'value': payload}
+                return payload
         fallback = _fallback_bos(module, sensor_id, start, end, aggregation)
         if fallback:
             fallback_points = _fallback_points(sensor_id, aggregation, start, end, fallback)
@@ -346,7 +473,13 @@ def get_water_history(*, module: str, sensor_id: int, start_date: str, end_date:
         if fallback_rows:
             rows = _bos_rows_to_15m(sensor_id, fallback_rows)
             source = 'bos_fallback'
-    points = _build_points(sensor_id, aggregation, start_dt, end_dt, rows)
+    validation_rows: list[dict[str, Any]] = []
+    if module == 'well':
+        if source == 'bos_fallback':
+            validation_rows = fallback_rows if 'fallback_rows' in locals() else []
+        else:
+            validation_rows = _query_physical_validation_rows([sensor_id], start_dt, end_dt)
+    points = _build_points(sensor_id, aggregation, start_dt, end_dt, rows, validation_rows)
     payload = {
         'plant': 'Planta Durango',
         'module': module,
@@ -440,17 +573,20 @@ def _bos_rows_to_15m(sensor_id: int, rows: list[dict[str, Any]]) -> list[dict[st
             grouped[_floor(stamp, 'quarter_hour')].append(row)
     result = []
     for bucket, bucket_rows in sorted(grouped.items()):
+        bucket_rows = sorted(bucket_rows, key=lambda row: _dt(row.get('operational_ts')) or datetime.min)
         flows = [_num(row.get('instant_value')) for row in bucket_rows]
         flows = [value for value in flows if value is not None]
-        analysis = analyze_totalizer_series([
-            {'timestamp': row.get('operational_ts'), 'total_value': row.get('total_value')}
-            for row in bucket_rows
-        ], sensor_id=sensor_id)
+        totals = [_num(row.get('total_value')) for row in bucket_rows]
+        totals = [value for value in totals if value is not None and value > 0]
         result.append({
-            'sensor_id': sensor_id, 'bucket_start': bucket, 'samples': len(bucket_rows),
+            'sensor_id': sensor_id,
+            'bucket_start': bucket,
+            'samples': len(bucket_rows),
             'flow_avg': sum(flows) / len(flows) if flows else None,
-            'flow_min': min(flows) if flows else None, 'flow_max': max(flows) if flows else None,
-            'total_open': analysis.opening_m3, 'total_close': analysis.closing_m3,
+            'flow_min': min(flows) if flows else None,
+            'flow_max': max(flows) if flows else None,
+            'total_open': totals[0] if totals else None,
+            'total_close': totals[-1] if totals else None,
         })
     return result
 
@@ -470,6 +606,13 @@ def get_water_history_module(*, module: str, start_date: str, end_date: str, agg
     except WaterHistoryError as exc:
         rows = []
         query_error = exc
+    validation_grouped: dict[int, list[dict[str, Any]]] = {sensor_id: [] for sensor_id in sensor_ids}
+    if module == 'well':
+        for row in _query_physical_validation_rows(sensor_ids, start_dt, end_dt):
+            validation_sensor = int(row.get('sensor_id') or 0)
+            if validation_sensor in validation_grouped:
+                validation_grouped[validation_sensor].append(row)
+
     grouped: dict[int, list[dict[str, Any]]] = {sensor_id: [] for sensor_id in sensor_ids}
     for row in rows:
         sensor_id = int(row.get('sensor_id') or 0)
@@ -479,12 +622,14 @@ def get_water_history_module(*, module: str, start_date: str, end_date: str, agg
     for sensor_id in sensor_ids:
         sensor_rows = grouped[sensor_id]
         source_status = 'readings_minute'
+        sensor_validation_rows = validation_grouped.get(sensor_id, [])
         if not sensor_rows and module == 'well' and start == end:
             bos_rows = query_bos_well_rows(sensor_id, start_dt, end_dt)
             if bos_rows:
                 sensor_rows = _bos_rows_to_15m(sensor_id, bos_rows)
+                sensor_validation_rows = bos_rows
                 source_status = 'bos_fallback'
-        points = _build_points(sensor_id, aggregation, start_dt, end_dt, sensor_rows)
+        points = _build_points(sensor_id, aggregation, start_dt, end_dt, sensor_rows, sensor_validation_rows)
         contract = sensor_contract(sensor_id)
         series.append({
             'sensor_id': sensor_id, 'name': contract.get('display_name'), 'flow_unit': flow_unit_for_sensor(sensor_id),
