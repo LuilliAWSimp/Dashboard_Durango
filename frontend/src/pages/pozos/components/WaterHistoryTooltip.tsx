@@ -49,6 +49,7 @@ const STATUS_LABELS: Record<string, string> = {
   stale_data: 'Lectura atrasada',
   frozen_flow: 'Lectura de flujo congelada',
   mapping_pending: 'Pendiente de confirmación de sensor',
+  future_interval: 'Intervalo futuro',
 };
 
 export default function WaterHistoryTooltip({ active, payload, aggregation, flowUnit = 'Unidad por confirmar' }: WaterHistoryTooltipProps) {
@@ -57,6 +58,23 @@ export default function WaterHistoryTooltip({ active, payload, aggregation, flow
   if (!row) return null;
   const samples = Number(row.samples || 0);
   const dataStatus = String(row.dataStatus || '');
+  const interval = intervalParts(row.bucketStart, row.bucketEnd, aggregation);
+  if (dataStatus === 'future_interval') {
+    return (
+      <div className="chart-tooltip solid-tooltip pozos-tooltip water-history-tooltip">
+        <div className="chart-tooltip-label water-history-tooltip-heading">
+          <span className="water-history-tooltip-date">{interval.date}</span>
+          {interval.interval ? <span className="water-history-tooltip-interval">{interval.interval}</span> : null}
+        </div>
+        <div className="chart-tooltip-list">
+          <div className="chart-tooltip-row">
+            <span className="chart-tooltip-name">Estado</span>
+            <span className="chart-tooltip-value">Intervalo futuro</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
   const flowDisplay = dataStatus === 'frozen_flow'
     ? 'Lectura de flujo congelada'
     : dataStatus === 'mapping_pending'
@@ -64,7 +82,6 @@ export default function WaterHistoryTooltip({ active, payload, aggregation, flow
       : row.flow === null
         ? 'Sin datos'
         : `${formatNumber(row.flow)} ${flowUnit}`;
-  const interval = intervalParts(row.bucketStart, row.bucketEnd, aggregation);
   const discardedDetails = Array.isArray(row.discardedEventDetails) ? row.discardedEventDetails as Record<string, unknown>[] : [];
   const firstDiscard = discardedDetails[0];
   const discardReason = String(firstDiscard?.reason || '')

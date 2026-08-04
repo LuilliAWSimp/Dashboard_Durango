@@ -11,6 +11,7 @@ from sqlalchemy.exc import OperationalError, SQLAlchemyError
 from app.database import SessionLocal
 from app.services.durango_capabilities import ALL_ITEMS, LOCAL_TIMEZONE, WELLS, sensor_contract
 from app.services.durango_well_history_fallback import query_bos_well_rows
+from app.services.plant_time import effective_local_end, local_now_naive, local_to_source_naive, source_to_local_naive
 from app.services.totalizer_quality import TotalizerAnalysis, analyze_totalizer_series
 
 logger = logging.getLogger(__name__)
@@ -91,7 +92,7 @@ def _sensor_params(sensor_ids: Iterable[int]) -> tuple[str, dict[str, Any]]:
 
 def query_readings_window(sensor_ids: list[int], start_dt: datetime, end_dt: datetime) -> list[dict[str, Any]]:
     placeholders, params = _sensor_params(sensor_ids)
-    params.update({'start_dt': start_dt, 'end_dt': end_dt, 'max_rows': MAX_ROWS})
+    params.update({'start_dt': local_to_source_naive(start_dt), 'end_dt': local_to_source_naive(end_dt), 'max_rows': MAX_ROWS})
     sql = text(f"""
         SELECT TOP (:max_rows)
             reading.sensor_id,
@@ -110,7 +111,10 @@ def query_readings_window(sensor_ids: list[int], start_dt: datetime, end_dt: dat
         with SessionLocal() as session:
             if not _object_exists(session, 'iot.readings_minute'):
                 raise WaterPeriodError('La fuente histórica no está disponible.', status='no_history_source')
-            return [dict(row._mapping) for row in session.execute(sql, params).fetchall()]
+            rows = [dict(row._mapping) for row in session.execute(sql, params).fetchall()]
+            for row in rows:
+                row['operational_ts'] = source_to_local_naive(row.get('operational_ts'))
+            return rows
     except WaterPeriodError:
         raise
     except OperationalError as exc:
@@ -124,7 +128,7 @@ def query_readings_window(sensor_ids: list[int], start_dt: datetime, end_dt: dat
 
 def query_previous_closes(sensor_ids: list[int], before_dt: datetime) -> dict[int, tuple[datetime | None, float | None]]:
     placeholders, params = _sensor_params(sensor_ids)
-    params['before_dt'] = before_dt
+    params['before_dt'] = local_to_source_naive(before_dt)
     sql = text(f"""
         WITH ranked AS (
             SELECT
@@ -151,7 +155,7 @@ def query_previous_closes(sensor_ids: list[int], before_dt: datetime) -> dict[in
                 return {}
             rows = session.execute(sql, params).fetchall()
         return {
-            int(row._mapping['sensor_id']): (_dt(row._mapping.get('operational_ts')), _num(row._mapping.get('total_value')))
+            int(row._mapping['sensor_id']): (source_to_local_naive(row._mapping.get('operational_ts')), _num(row._mapping.get('total_value')))
             for row in rows
         }
     except SQLAlchemyError:
@@ -162,10 +166,10 @@ def query_previous_closes(sensor_ids: list[int], before_dt: datetime) -> dict[in
 def _communication(last_reading: datetime | None, end_day: date) -> tuple[str, str]:
     if last_reading is None:
         return 'Sin lectura', 'no_data'
-    today = datetime.now(LOCAL_ZONE).date()
+    today = local_now_naive().date()
     if end_day < today:
         return 'Actualizado', 'operational'
-    age = max((datetime.now(LOCAL_ZONE).replace(tzinfo=None) - last_reading).total_seconds() / 60, 0)
+    age = max((local_now_naive() - last_reading).total_seconds() / 60, 0)
     if age <= 5:
         return 'Actualizado', 'operational'
     if age <= 30:
@@ -280,18 +284,21 @@ def build_period_item(contract: dict[str, Any], rows: list[dict[str, Any]], prev
 
 def get_period_data(start_date: Any = None, end_date: Any = None) -> dict[str, Any]:
     start_day, end_day = date_range(start_date, end_date)
-    start_dt = datetime.combine(start_day, time.min)
-    end_dt = datetime.combine(end_day + timedelta(days=1), time.min)
+    requested_start_dt = datetime.combine(start_day, time.min)
+    requested_end_dt = datetime.combine(end_day + timedelta(days=1), time.min)
+    now_local = local_now_naive()
+    effective_end_dt = effective_local_end(requested_end_dt, now=now_local)
+    query_end_dt = max(requested_start_dt, effective_end_dt)
     sensor_ids = [int(item['sensor_id']) for item in ALL_ITEMS]
     period_query_status = 'operational'
     try:
-        rows = query_readings_window(sensor_ids, start_dt, end_dt)
+        rows = query_readings_window(sensor_ids, requested_start_dt, query_end_dt) if query_end_dt > requested_start_dt else []
     except WaterPeriodError as exc:
         if start_day != end_day:
             raise
         rows = []
         period_query_status = exc.status
-    previous = query_previous_closes(sensor_ids, start_dt) if period_query_status == 'operational' else {}
+    previous = query_previous_closes(sensor_ids, requested_start_dt) if period_query_status == 'operational' else {}
     grouped: dict[int, list[dict[str, Any]]] = {sensor_id: [] for sensor_id in sensor_ids}
     for row in rows:
         sensor_id = int(row.get('sensor_id') or 0)
@@ -300,12 +307,12 @@ def get_period_data(start_date: Any = None, end_date: Any = None) -> dict[str, A
             row.setdefault('period_source', 'readings_minute')
             grouped[sensor_id].append(row)
 
-    if start_day == end_day:
+    if start_day == end_day and query_end_dt > requested_start_dt:
         for contract in WELLS:
             sensor_id = int(contract['sensor_id'])
             if grouped.get(sensor_id):
                 continue
-            fallback_rows = query_bos_well_rows(sensor_id, start_dt, end_dt)
+            fallback_rows = query_bos_well_rows(sensor_id, requested_start_dt, query_end_dt)
             if fallback_rows:
                 grouped[sensor_id] = fallback_rows
     items = [
@@ -335,7 +342,10 @@ def get_period_data(start_date: Any = None, end_date: Any = None) -> dict[str, A
         'plant': 'Planta Durango',
         'start_date': start_day.isoformat(),
         'end_date': end_day.isoformat(),
-        'generated_at': datetime.now(LOCAL_ZONE).isoformat(timespec='seconds'),
+        'requested_end_at': requested_end_dt.isoformat(timespec='seconds'),
+        'effective_end_at': effective_end_dt.isoformat(timespec='seconds'),
+        'has_future_intervals': effective_end_dt < requested_end_dt,
+        'generated_at': now_local.isoformat(timespec='seconds'),
         'items': items,
         'wells': groups['well'],
         'lines': groups['line'],
@@ -347,3 +357,4 @@ def get_period_data(start_date: Any = None, end_date: Any = None) -> dict[str, A
         },
         'source_status': 'operational' if period_query_status == 'operational' else 'partial_bos_fallback',
     }
+

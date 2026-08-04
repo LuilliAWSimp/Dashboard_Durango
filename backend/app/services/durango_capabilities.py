@@ -11,6 +11,9 @@ PLANT_KEY = 'durango'
 PLANT_NAME = 'Planta Durango'
 PLANT_TITLE = 'Durango'
 LOCAL_TIMEZONE = 'America/Mexico_City'
+# Durango operational timestamps are interpreted as UTC and normalized to the
+# plant clock before filtering, bucketing, display and freshness labels.
+SOURCE_TIMESTAMP_TIMEZONE = 'UTC'
 
 CAPABILITIES: dict[str, str | bool] = {
     'wells': True,

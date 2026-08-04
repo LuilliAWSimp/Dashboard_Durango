@@ -31,7 +31,7 @@ export interface WaterHistoryPoint extends FlexibleRecord {
   discarded_totalizer_event_details?: FlexibleRecord[];
   has_discontinuities?: boolean;
   volume_reliable: boolean;
-  data_status: 'operational' | 'zero_consumption' | 'no_data' | 'invalid_totalizer' | 'stale_data' | 'no_history';
+  data_status: 'operational' | 'zero_consumption' | 'no_data' | 'invalid_totalizer' | 'stale_data' | 'no_history' | 'future_interval';
 }
 
 export interface WaterHistoryResponse extends FlexibleRecord {
@@ -44,6 +44,7 @@ export interface WaterHistoryResponse extends FlexibleRecord {
   aggregation: HistoryAggregation;
   source_status: string;
   has_data: boolean;
+  has_future_intervals?: boolean;
   points: WaterHistoryPoint[];
 }
 
@@ -184,6 +185,8 @@ export interface WaterModuleHistoryResponse extends FlexibleRecord {
   start_date: string;
   end_date: string;
   aggregation: HistoryAggregation;
+  effective_end_at?: string;
+  has_future_intervals?: boolean;
   source_status: string;
   series: WaterModuleHistorySeries[];
 }
@@ -192,7 +195,7 @@ export interface WellMinuteFlowPoint extends FlexibleRecord {
   timestamp: string;
   flow_value: number | null;
   samples: number;
-  data_status: 'operational' | 'no_data';
+  data_status: 'operational' | 'no_data' | 'future_interval';
 }
 
 export interface WellMinuteFlowSeries extends FlexibleRecord {
@@ -207,6 +210,8 @@ export interface WellMinuteFlowSeries extends FlexibleRecord {
 export interface WellsMinuteFlowResponse extends FlexibleRecord {
   start_datetime: string;
   end_datetime: string;
+  effective_end_at?: string;
+  has_future_intervals?: boolean;
   source_status: string;
   series: WellMinuteFlowSeries[];
 }

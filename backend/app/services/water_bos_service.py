@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, time, timedelta
 import logging
 from time import monotonic
 from typing import Any
@@ -11,6 +11,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.database import SessionLocal
 from app.services.durango_capabilities import WELLS as DURANGO_WELLS, LINES as DURANGO_LINES, FLOWS as DURANGO_FLOWS, flow_unit_for_sensor
+from app.services.plant_time import local_now_naive, local_to_source_naive, source_iso_local, source_to_local_naive
 
 
 logger = logging.getLogger(__name__)
@@ -307,11 +308,12 @@ def _amps_from_quality(value: Any) -> float | None:
 
 
 def _iso(value: Any) -> str | None:
-    if isinstance(value, datetime):
+    if isinstance(value, date) and not isinstance(value, datetime):
         return value.isoformat()
-    if value:
-        return str(value)
-    return None
+    if value in (None, ''):
+        return None
+    localized = source_iso_local(value)
+    return localized or str(value)
 
 
 def _coerce_date(value: Any) -> date | None:
@@ -341,10 +343,10 @@ def _where_for_dates(start_date: Any = None, end_date: Any = None) -> tuple[str,
     params: dict[str, Any] = {}
     if start:
         clauses.append('Time_Stamp >= :start_date')
-        params['start_date'] = start.isoformat()
+        params['start_date'] = local_to_source_naive(datetime.combine(start, time.min))
     if end:
-        clauses.append('Time_Stamp < DATEADD(day, 1, CAST(:end_date AS date))')
-        params['end_date'] = end.isoformat()
+        clauses.append('Time_Stamp < :end_date_exclusive')
+        params['end_date_exclusive'] = local_to_source_naive(datetime.combine(end + timedelta(days=1), time.min))
     where_sql = f" WHERE {' AND '.join(clauses)}" if clauses else ''
     return where_sql, params
 
@@ -372,7 +374,7 @@ def _sql_now(session) -> datetime:
         logger.warning('water_bos could not read SQL Server GETDATE(), using app clock: %s', _short_sql_error(exc))
     except Exception as exc:
         logger.warning('water_bos could not parse SQL Server GETDATE(), using app clock: %s', exc)
-    return datetime.now()
+    return datetime.utcnow()
 
 
 def _range_rows(session, table_name: str, start_date: Any = None, end_date: Any = None, max_rows: int = 240) -> list[dict[str, Any]]:
@@ -387,10 +389,10 @@ def _range_rows(session, table_name: str, start_date: Any = None, end_date: Any 
         clauses = []
         if start:
             clauses.append('Time_Stamp >= :start_date')
-            params['start_date'] = start.isoformat()
+            params['start_date'] = local_to_source_naive(datetime.combine(start, time.min))
         if end:
-            clauses.append('Time_Stamp < DATEADD(day, 1, CAST(:end_date AS date))')
-            params['end_date'] = end.isoformat()
+            clauses.append('Time_Stamp < :end_date_exclusive')
+            params['end_date_exclusive'] = local_to_source_naive(datetime.combine(end + timedelta(days=1), time.min))
         where_sql = f" WHERE {' AND '.join(clauses)}"
         sql = f"""
             SELECT TOP ({max_rows}) *
@@ -870,13 +872,13 @@ def _reading_freshness(value: Any, stale_minutes: int = 60, now_value: Any = Non
     current. Freshness is compared against SQL Server ``GETDATE()`` when
     available, because BOS timestamps are produced in SQL Server time.
     """
-    dt_value = _parse_datetime(value)
+    dt_value = source_to_local_naive(value)
     if not dt_value:
         return False, 'Sin timestamp BOS', 'communication', None
     try:
-        now = _parse_datetime(now_value) if now_value is not None else None
+        now = source_to_local_naive(now_value) if now_value is not None else None
         if not now:
-            now = datetime.now(dt_value.tzinfo) if dt_value.tzinfo else datetime.now()
+            now = local_now_naive()
         if dt_value.tzinfo and not now.tzinfo:
             now = now.replace(tzinfo=dt_value.tzinfo)
         elif now.tzinfo and not dt_value.tzinfo:
@@ -914,7 +916,7 @@ def _source_freshness(timestamp_value: Any, sql_now: Any = None, stale_minutes: 
 def _latest_timestamp_value(*values: Any) -> Any:
     parsed: list[tuple[datetime, Any]] = []
     for value in values:
-        dt_value = _parse_datetime(value)
+        dt_value = source_to_local_naive(value)
         if dt_value:
             parsed.append((dt_value, value))
     if not parsed:
@@ -1510,7 +1512,7 @@ def _parse_datetime(value: Any) -> datetime | None:
 
 
 def _bucket_datetime(value: Any, period: str = 'hourly') -> datetime | None:
-    dt_value = _parse_datetime(value)
+    dt_value = source_to_local_naive(value)
     if not dt_value:
         return None
     period = str(period or 'hourly').lower()
@@ -1889,8 +1891,8 @@ def get_bos_water_dashboard_payload(start_date: Any = None, end_date: Any = None
         'source_mode': 'sp_get_energy_water' if energy_water_rows else 'bos_operational',
         'source_notes': 'SP iot.sp_get_energy_water con datos' if energy_water_rows else 'Lecturas operativas desde tablas BOS; energia no confirmada para Durango',
         'source': None,
-        'updated_at': updated or sql_now,
-        'sql_server_time': sql_now,
+        'updated_at': _iso(updated or sql_now),
+        'sql_server_time': _iso(sql_now),
         'date_range': {'start_date': str(start_bound or ''), 'end_date': str(end_bound or ''), 'period': normalized_period},
         'aggregation': normalized_period,
     }

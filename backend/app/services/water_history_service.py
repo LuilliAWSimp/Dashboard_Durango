@@ -13,6 +13,7 @@ from sqlalchemy.exc import OperationalError, SQLAlchemyError
 from app.database import SessionLocal
 from app.services.durango_capabilities import LOCAL_TIMEZONE, SENSORS_BY_MODULE, flow_unit_for_sensor, sensor_contract
 from app.services.durango_well_history_fallback import query_bos_well_rows
+from app.services.plant_time import effective_local_end, is_future_interval, local_now_naive, local_to_source_naive, source_to_local_naive
 from app.services.totalizer_quality import analyze_totalizer_series
 from app.services.water_bos_service import get_bos_water_dashboard_payload
 
@@ -101,6 +102,17 @@ def _dt(value: Any) -> datetime | None:
             return None
 
 
+def _localized_rows(rows: list[dict[str, Any]], *timestamp_keys: str) -> list[dict[str, Any]]:
+    normalized: list[dict[str, Any]] = []
+    for row in rows:
+        item = dict(row)
+        for key in timestamp_keys:
+            if item.get(key) is not None:
+                item[key] = source_to_local_naive(item[key])
+        normalized.append(item)
+    return normalized
+
+
 def _query_15m(sensor_id: int, start_dt: datetime, end_dt: datetime) -> list[dict[str, Any]]:
     sql = text("""
         WITH source_rows AS (
@@ -157,7 +169,12 @@ def _query_15m(sensor_id: int, start_dt: datetime, end_dt: datetime) -> list[dic
             exists = session.execute(text("SELECT CASE WHEN OBJECT_ID('iot.readings_minute','U') IS NULL THEN 0 ELSE 1 END")).scalar()
             if not exists:
                 raise WaterHistoryError('La fuente histórica no está disponible.', status='no_history_source')
-            return [dict(row._mapping) for row in session.execute(sql, {'sensor_id': sensor_id, 'start_dt': start_dt, 'end_dt': end_dt}).fetchall()]
+            rows = [dict(row._mapping) for row in session.execute(sql, {
+                'sensor_id': sensor_id,
+                'start_dt': local_to_source_naive(start_dt),
+                'end_dt': local_to_source_naive(end_dt),
+            }).fetchall()]
+            return _localized_rows(rows, 'bucket_start')
     except WaterHistoryError:
         raise
     except OperationalError as exc:
@@ -182,8 +199,8 @@ def _query_physical_validation_rows(sensor_ids: list[int], start_dt: datetime, e
     if not sensor_ids or end_dt <= start_dt or end_dt - start_dt > timedelta(days=MAX_PHYSICAL_VALIDATION_DAYS):
         return []
     params: dict[str, Any] = {
-        'start_dt': start_dt,
-        'end_dt': end_dt,
+        'start_dt': local_to_source_naive(start_dt),
+        'end_dt': local_to_source_naive(end_dt),
         'max_rows': MAX_PHYSICAL_VALIDATION_ROWS,
     }
     placeholders: list[str] = []
@@ -208,7 +225,8 @@ def _query_physical_validation_rows(sensor_ids: list[int], start_dt: datetime, e
             exists = session.execute(text("SELECT CASE WHEN OBJECT_ID('iot.readings_minute','U') IS NULL THEN 0 ELSE 1 END")).scalar()
             if not exists:
                 return []
-            return [dict(row._mapping) for row in session.execute(sql, params).fetchall()]
+            rows = [dict(row._mapping) for row in session.execute(sql, params).fetchall()]
+            return _localized_rows(rows, 'operational_ts')
     except SQLAlchemyError:
         logger.exception('physical totalizer validation query failed sensors=%s start=%s end=%s', sensor_ids, start_dt, end_dt)
         return []
@@ -295,7 +313,7 @@ def _aggregate(
     return result
 
 
-def _empty(sensor_id: int, aggregation: Aggregation, start: datetime, end: datetime) -> dict[str, Any]:
+def _empty(sensor_id: int, aggregation: Aggregation, start: datetime, end: datetime, *, status: str = 'no_data') -> dict[str, Any]:
     return {
         'sensor_id': sensor_id,
         'bucket_start': start.isoformat(timespec='seconds'),
@@ -314,7 +332,7 @@ def _empty(sensor_id: int, aggregation: Aggregation, start: datetime, end: datet
         'discarded_totalizer_event_details': [],
         'has_discontinuities': False,
         'volume_reliable': False,
-        'data_status': 'no_data',
+        'data_status': status,
     }
 
 
@@ -325,13 +343,20 @@ def _build_points(
     end_dt: datetime,
     rows: list[dict[str, Any]],
     validation_rows: list[dict[str, Any]] | None = None,
+    *,
+    effective_end_dt: datetime | None = None,
 ) -> list[dict[str, Any]]:
     aggregates = _aggregate(sensor_id, rows, aggregation, validation_rows)
     result: list[dict[str, Any]] = []
     cursor = _floor(start_dt, aggregation)
     step = _step(aggregation)
+    effective_end = effective_end_dt or end_dt
     while cursor < end_dt:
         bucket_end = min(cursor + step, end_dt)
+        if is_future_interval(cursor, effective_end):
+            result.append(_empty(sensor_id, aggregation, cursor, bucket_end, status='future_interval'))
+            cursor += step
+            continue
         item = aggregates.get(cursor)
         if not item:
             result.append(_empty(sensor_id, aggregation, cursor, bucket_end))
@@ -388,12 +413,14 @@ def _fallback_bos(module: Module, sensor_id: int, start: date, end: date, aggreg
         return []
 
 
-def _fallback_points(sensor_id: int, aggregation: Aggregation, start: date, end: date, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _fallback_points(sensor_id: int, aggregation: Aggregation, start: date, end: date, rows: list[dict[str, Any]], *, effective_end_dt: datetime | None = None) -> list[dict[str, Any]]:
     """Normalize the strictly limited one-day BOS fallback to the history contract."""
     by_bucket: dict[datetime, dict[str, Any]] = {}
     for row in rows:
         stamp = _dt(row.get('timestamp') or row.get('bucket'))
         if stamp is None:
+            continue
+        if effective_end_dt is not None and stamp >= effective_end_dt:
             continue
         bucket = _floor(stamp, aggregation)
         flow = _num(row.get('flow_lps') if row.get('flow_lps') is not None else row.get('flujo_lps'))
@@ -423,33 +450,49 @@ def _fallback_points(sensor_id: int, aggregation: Aggregation, start: date, end:
     end_dt = datetime.combine(end + timedelta(days=1), time.min)
     points: list[dict[str, Any]] = []
     cursor = _floor(start_dt, aggregation)
+    effective_end = effective_end_dt or end_dt
     while cursor < end_dt:
-        points.append(by_bucket.get(cursor) or _empty(sensor_id, aggregation, cursor, min(cursor + _step(aggregation), end_dt)))
+        bucket_end = min(cursor + _step(aggregation), end_dt)
+        if is_future_interval(cursor, effective_end):
+            points.append(_empty(sensor_id, aggregation, cursor, bucket_end, status='future_interval'))
+        else:
+            points.append(by_bucket.get(cursor) or _empty(sensor_id, aggregation, cursor, bucket_end))
         cursor += _step(aggregation)
     return points
 
 
 def get_water_history(*, module: str, sensor_id: int, start_date: str, end_date: str, aggregation: str, force_refresh: bool = False) -> dict[str, Any]:
     module, aggregation, start, end = _validate(module, sensor_id, start_date, end_date, aggregation)
-    cache_key = f'{module}:{sensor_id}:{start}:{end}:{aggregation}'
+    now_local = local_now_naive()
+    requested_start_dt = datetime.combine(start, time.min)
+    requested_end_dt = datetime.combine(end + timedelta(days=1), time.min)
+    effective_end_dt = effective_local_end(requested_end_dt, now=now_local)
+    cache_key = f'{module}:{sensor_id}:{start}:{end}:{aggregation}:{effective_end_dt.isoformat(timespec="minutes")}'
     cached = _CACHE.get(cache_key)
     if not force_refresh and cached and monotonic() < cached['expires_at']:
         return cached['value']
-    start_dt = datetime.combine(start, time.min)
-    end_dt = datetime.combine(end + timedelta(days=1), time.min)
+
     source = 'readings_minute'
+    rows: list[dict[str, Any]] = []
+    query_end_dt = max(requested_start_dt, effective_end_dt)
     try:
-        rows = _query_15m(sensor_id, start_dt, end_dt)
+        if query_end_dt > requested_start_dt:
+            rows = _query_15m(sensor_id, requested_start_dt, query_end_dt)
     except WaterHistoryError as exc:
-        if module == 'well' and start == end:
-            raw_well_rows = query_bos_well_rows(sensor_id, start_dt, end_dt)
+        if module == 'well' and start == end and query_end_dt > requested_start_dt:
+            raw_well_rows = query_bos_well_rows(sensor_id, requested_start_dt, query_end_dt)
             if raw_well_rows:
                 normalized_rows = _bos_rows_to_15m(sensor_id, raw_well_rows)
-                fallback_points = _build_points(sensor_id, aggregation, start_dt, end_dt, normalized_rows)
+                fallback_points = _build_points(
+                    sensor_id, aggregation, requested_start_dt, requested_end_dt, normalized_rows,
+                    raw_well_rows, effective_end_dt=effective_end_dt,
+                )
                 payload = {
                     'plant': 'Planta Durango', 'module': module, 'sensor_id': sensor_id,
                     'name': sensor_contract(sensor_id).get('display_name'), 'flow_unit': flow_unit_for_sensor(sensor_id),
                     'start_date': start.isoformat(), 'end_date': end.isoformat(), 'aggregation': aggregation,
+                    'effective_end_at': effective_end_dt.isoformat(timespec='seconds'),
+                    'has_future_intervals': effective_end_dt < requested_end_dt,
                     'points': fallback_points, 'source_status': 'bos_fallback',
                     'has_data': any(int(point.get('samples') or 0) > 0 for point in fallback_points),
                 }
@@ -457,29 +500,33 @@ def get_water_history(*, module: str, sensor_id: int, start_date: str, end_date:
                 return payload
         fallback = _fallback_bos(module, sensor_id, start, end, aggregation)
         if fallback:
-            fallback_points = _fallback_points(sensor_id, aggregation, start, end, fallback)
+            fallback_points = _fallback_points(sensor_id, aggregation, start, end, fallback, effective_end_dt=effective_end_dt)
             payload = {
                 'plant': 'Planta Durango', 'module': module, 'sensor_id': sensor_id,
                 'name': sensor_contract(sensor_id).get('display_name'), 'flow_unit': flow_unit_for_sensor(sensor_id),
                 'start_date': start.isoformat(), 'end_date': end.isoformat(), 'aggregation': aggregation,
+                'effective_end_at': effective_end_dt.isoformat(timespec='seconds'),
+                'has_future_intervals': effective_end_dt < requested_end_dt,
                 'points': fallback_points, 'source_status': 'bos_fallback',
                 'has_data': any(int(point.get('samples') or 0) > 0 for point in fallback_points),
             }
             _CACHE[cache_key] = {'expires_at': monotonic() + CACHE_TTL_SECONDS, 'value': payload}
             return payload
         raise exc
-    if not rows and module == 'well' and start == end:
-        fallback_rows = query_bos_well_rows(sensor_id, start_dt, end_dt)
+
+    fallback_rows: list[dict[str, Any]] = []
+    if not rows and module == 'well' and start == end and query_end_dt > requested_start_dt:
+        fallback_rows = query_bos_well_rows(sensor_id, requested_start_dt, query_end_dt)
         if fallback_rows:
             rows = _bos_rows_to_15m(sensor_id, fallback_rows)
             source = 'bos_fallback'
     validation_rows: list[dict[str, Any]] = []
-    if module == 'well':
-        if source == 'bos_fallback':
-            validation_rows = fallback_rows if 'fallback_rows' in locals() else []
-        else:
-            validation_rows = _query_physical_validation_rows([sensor_id], start_dt, end_dt)
-    points = _build_points(sensor_id, aggregation, start_dt, end_dt, rows, validation_rows)
+    if module == 'well' and query_end_dt > requested_start_dt:
+        validation_rows = fallback_rows if source == 'bos_fallback' else _query_physical_validation_rows([sensor_id], requested_start_dt, query_end_dt)
+    points = _build_points(
+        sensor_id, aggregation, requested_start_dt, requested_end_dt, rows, validation_rows,
+        effective_end_dt=effective_end_dt,
+    )
     payload = {
         'plant': 'Planta Durango',
         'module': module,
@@ -489,6 +536,8 @@ def get_water_history(*, module: str, sensor_id: int, start_date: str, end_date:
         'start_date': start.isoformat(),
         'end_date': end.isoformat(),
         'aggregation': aggregation,
+        'effective_end_at': effective_end_dt.isoformat(timespec='seconds'),
+        'has_future_intervals': effective_end_dt < requested_end_dt,
         'points': points,
         'source_status': source,
         'has_data': any(int(point.get('samples') or 0) > 0 for point in points),
@@ -506,7 +555,7 @@ def _validate_module_request(module: str, start_date: str, end_date: str, aggreg
 
 
 def _query_15m_multi(sensor_ids: list[int], start_dt: datetime, end_dt: datetime) -> list[dict[str, Any]]:
-    params: dict[str, Any] = {'start_dt': start_dt, 'end_dt': end_dt}
+    params: dict[str, Any] = {'start_dt': local_to_source_naive(start_dt), 'end_dt': local_to_source_naive(end_dt)}
     placeholders = []
     for index, sensor_id in enumerate(sensor_ids):
         key = f'sensor_{index}'
@@ -554,7 +603,8 @@ def _query_15m_multi(sensor_ids: list[int], start_dt: datetime, end_dt: datetime
             exists = session.execute(text("SELECT CASE WHEN OBJECT_ID('iot.readings_minute','U') IS NULL THEN 0 ELSE 1 END")).scalar()
             if not exists:
                 raise WaterHistoryError('La fuente histórica no está disponible.', status='no_history_source')
-            return [dict(row._mapping) for row in session.execute(sql, params).fetchall()]
+            rows = [dict(row._mapping) for row in session.execute(sql, params).fetchall()]
+            return _localized_rows(rows, 'bucket_start')
     except WaterHistoryError:
         raise
     except OperationalError as exc:
@@ -593,22 +643,27 @@ def _bos_rows_to_15m(sensor_id: int, rows: list[dict[str, Any]]) -> list[dict[st
 
 def get_water_history_module(*, module: str, start_date: str, end_date: str, aggregation: str, force_refresh: bool = False) -> dict[str, Any]:
     module, aggregation, start, end = _validate_module_request(module, start_date, end_date, aggregation)
-    cache_key = f'module:{module}:{start}:{end}:{aggregation}'
+    now_local = local_now_naive()
+    requested_start_dt = datetime.combine(start, time.min)
+    requested_end_dt = datetime.combine(end + timedelta(days=1), time.min)
+    effective_end_dt = effective_local_end(requested_end_dt, now=now_local)
+    cache_key = f'module:{module}:{start}:{end}:{aggregation}:{effective_end_dt.isoformat(timespec="minutes")}'
     cached = _CACHE.get(cache_key)
     if not force_refresh and cached and monotonic() < cached['expires_at']:
         return cached['value']
     sensor_ids = list(SENSORS_BY_MODULE[module])
-    start_dt = datetime.combine(start, time.min)
-    end_dt = datetime.combine(end + timedelta(days=1), time.min)
+    query_end_dt = max(requested_start_dt, effective_end_dt)
     query_error: WaterHistoryError | None = None
+    rows: list[dict[str, Any]] = []
     try:
-        rows = _query_15m_multi(sensor_ids, start_dt, end_dt)
+        if query_end_dt > requested_start_dt:
+            rows = _query_15m_multi(sensor_ids, requested_start_dt, query_end_dt)
     except WaterHistoryError as exc:
-        rows = []
         query_error = exc
+
     validation_grouped: dict[int, list[dict[str, Any]]] = {sensor_id: [] for sensor_id in sensor_ids}
-    if module == 'well':
-        for row in _query_physical_validation_rows(sensor_ids, start_dt, end_dt):
+    if module == 'well' and query_end_dt > requested_start_dt:
+        for row in _query_physical_validation_rows(sensor_ids, requested_start_dt, query_end_dt):
             validation_sensor = int(row.get('sensor_id') or 0)
             if validation_sensor in validation_grouped:
                 validation_grouped[validation_sensor].append(row)
@@ -623,28 +678,42 @@ def get_water_history_module(*, module: str, start_date: str, end_date: str, agg
         sensor_rows = grouped[sensor_id]
         source_status = 'readings_minute'
         sensor_validation_rows = validation_grouped.get(sensor_id, [])
-        if not sensor_rows and module == 'well' and start == end:
-            bos_rows = query_bos_well_rows(sensor_id, start_dt, end_dt)
+        if not sensor_rows and module == 'well' and start == end and query_end_dt > requested_start_dt:
+            bos_rows = query_bos_well_rows(sensor_id, requested_start_dt, query_end_dt)
             if bos_rows:
                 sensor_rows = _bos_rows_to_15m(sensor_id, bos_rows)
                 sensor_validation_rows = bos_rows
                 source_status = 'bos_fallback'
-        points = _build_points(sensor_id, aggregation, start_dt, end_dt, sensor_rows, sensor_validation_rows)
+        points = _build_points(
+            sensor_id, aggregation, requested_start_dt, requested_end_dt, sensor_rows, sensor_validation_rows,
+            effective_end_dt=effective_end_dt,
+        )
         contract = sensor_contract(sensor_id)
         series.append({
-            'sensor_id': sensor_id, 'name': contract.get('display_name'), 'flow_unit': flow_unit_for_sensor(sensor_id),
+            'sensor_id': sensor_id,
+            'name': contract.get('display_name'),
+            'flow_unit': flow_unit_for_sensor(sensor_id),
             'source_status': source_status if sensor_rows else 'no_data',
-            'has_data': any(int(point.get('samples') or 0) > 0 for point in points), 'points': points,
+            'has_data': any(int(point.get('samples') or 0) > 0 for point in points),
+            'has_future_intervals': any(point.get('data_status') == 'future_interval' for point in points),
+            'points': points,
         })
     if query_error is not None and query_error.status not in {'no_history_source'} and not any(item['has_data'] for item in series):
         raise query_error
     payload = {
-        'plant': 'Planta Durango', 'module': module, 'start_date': start.isoformat(), 'end_date': end.isoformat(),
-        'aggregation': aggregation, 'series': series,
+        'plant': 'Planta Durango',
+        'module': module,
+        'start_date': start.isoformat(),
+        'end_date': end.isoformat(),
+        'aggregation': aggregation,
+        'effective_end_at': effective_end_dt.isoformat(timespec='seconds'),
+        'has_future_intervals': effective_end_dt < requested_end_dt,
+        'series': series,
         'source_status': 'operational' if any(item['has_data'] for item in series) else 'no_data',
     }
     _CACHE[cache_key] = {'expires_at': monotonic() + CACHE_TTL_SECONDS, 'value': payload}
     return payload
+
 
 
 def _parse_local_datetime(value: str) -> datetime:
@@ -656,7 +725,7 @@ def _parse_local_datetime(value: str) -> datetime:
 
 
 def _query_minute_rows(sensor_ids: list[int], start_dt: datetime, end_dt: datetime) -> list[dict[str, Any]]:
-    params: dict[str, Any] = {'start_dt': start_dt, 'end_dt': end_dt}
+    params: dict[str, Any] = {'start_dt': local_to_source_naive(start_dt), 'end_dt': local_to_source_naive(end_dt)}
     placeholders = []
     for index, sensor_id in enumerate(sensor_ids):
         key = f'sensor_{index}'; params[key] = sensor_id; placeholders.append(f':{key}')
@@ -673,43 +742,87 @@ def _query_minute_rows(sensor_ids: list[int], start_dt: datetime, end_dt: dateti
         with SessionLocal() as session:
             exists = session.execute(text("SELECT CASE WHEN OBJECT_ID('iot.readings_minute','U') IS NULL THEN 0 ELSE 1 END")).scalar()
             if not exists: return []
-            return [dict(row._mapping) for row in session.execute(sql, params).fetchall()]
+            rows = [dict(row._mapping) for row in session.execute(sql, params).fetchall()]
+            return _localized_rows(rows, 'reading_ts')
     except SQLAlchemyError:
         logger.exception('minute well flow query failed')
         return []
 
 
 def get_wells_minute_flow(*, start_datetime: str, end_datetime: str, force_refresh: bool = False) -> dict[str, Any]:
-    start_dt = _parse_local_datetime(start_datetime); end_dt = _parse_local_datetime(end_datetime)
-    if end_dt <= start_dt: raise ValueError('La hora final debe ser mayor a la hora inicial.')
-    if end_dt - start_dt > timedelta(hours=24): raise ValueError('El rango máximo permitido es de 24 horas.')
-    cache_key = f'wells-minute:{start_dt.isoformat()}:{end_dt.isoformat()}'
+    start_dt = _parse_local_datetime(start_datetime)
+    requested_end_dt = _parse_local_datetime(end_datetime)
+    if requested_end_dt <= start_dt:
+        raise ValueError('La hora final debe ser mayor a la hora inicial.')
+    if requested_end_dt - start_dt > timedelta(hours=24):
+        raise ValueError('El rango máximo permitido es de 24 horas.')
+    now_local = local_now_naive()
+    effective_end_dt = effective_local_end(requested_end_dt, now=now_local)
+    cache_key = f'wells-minute:{start_dt.isoformat()}:{requested_end_dt.isoformat()}:{effective_end_dt.isoformat(timespec="minutes")}'
     cached = _CACHE.get(cache_key)
-    if not force_refresh and cached and monotonic() < cached['expires_at']: return cached['value']
-    sensor_ids = list(SENSORS_BY_MODULE['well']); rows = _query_minute_rows(sensor_ids, start_dt, end_dt)
+    if not force_refresh and cached and monotonic() < cached['expires_at']:
+        return cached['value']
+
+    sensor_ids = list(SENSORS_BY_MODULE['well'])
+    query_end_dt = max(start_dt, effective_end_dt)
+    rows = _query_minute_rows(sensor_ids, start_dt, query_end_dt) if query_end_dt > start_dt else []
     grouped: dict[int, list[dict[str, Any]]] = {sensor_id: [] for sensor_id in sensor_ids}
     for row in rows:
         sensor_id = int(row.get('sensor_id') or 0)
-        if sensor_id in grouped: grouped[sensor_id].append(row)
+        if sensor_id in grouped:
+            grouped[sensor_id].append(row)
     series = []
     for sensor_id in sensor_ids:
-        sensor_rows = grouped[sensor_id]; source_status = 'readings_minute'
-        if not sensor_rows:
-            bos_rows = query_bos_well_rows(sensor_id, start_dt, end_dt)
+        sensor_rows = grouped[sensor_id]
+        source_status = 'readings_minute'
+        if not sensor_rows and query_end_dt > start_dt:
+            bos_rows = query_bos_well_rows(sensor_id, start_dt, query_end_dt)
             sensor_rows = [{'reading_ts': row.get('operational_ts'), 'flow_value': row.get('instant_value')} for row in bos_rows]
-            if sensor_rows: source_status = 'bos_fallback'
+            if sensor_rows:
+                source_status = 'bos_fallback'
         minute_values: dict[datetime, list[float]] = defaultdict(list)
         for row in sensor_rows:
             stamp = _dt(row.get('reading_ts') or row.get('operational_ts'))
             value = _num(row.get('flow_value') if 'flow_value' in row else row.get('instant_value'))
-            if stamp is not None and value is not None: minute_values[stamp.replace(second=0, microsecond=0)].append(value)
-        points = []; cursor = start_dt.replace(second=0, microsecond=0)
-        while cursor < end_dt:
-            values = minute_values.get(cursor, [])
-            points.append({'timestamp': cursor.isoformat(timespec='seconds'), 'flow_value': sum(values)/len(values) if values else None, 'samples': len(values), 'data_status': 'operational' if values else 'no_data'})
+            if stamp is not None and value is not None and stamp < effective_end_dt:
+                minute_values[stamp.replace(second=0, microsecond=0)].append(value)
+        points = []
+        cursor = start_dt.replace(second=0, microsecond=0)
+        while cursor < requested_end_dt:
+            if is_future_interval(cursor, effective_end_dt):
+                points.append({
+                    'timestamp': cursor.isoformat(timespec='seconds'),
+                    'flow_value': None,
+                    'samples': 0,
+                    'data_status': 'future_interval',
+                })
+            else:
+                values = minute_values.get(cursor, [])
+                points.append({
+                    'timestamp': cursor.isoformat(timespec='seconds'),
+                    'flow_value': sum(values) / len(values) if values else None,
+                    'samples': len(values),
+                    'data_status': 'operational' if values else 'no_data',
+                })
             cursor += timedelta(minutes=1)
         contract = sensor_contract(sensor_id)
-        series.append({'sensor_id': sensor_id, 'name': contract.get('display_name'), 'flow_unit': flow_unit_for_sensor(sensor_id), 'source_status': source_status if any(point['samples'] for point in points) else 'no_data', 'has_data': any(point['samples'] for point in points), 'points': points})
-    payload = {'plant':'Planta Durango','start_datetime':start_dt.isoformat(timespec='seconds'),'end_datetime':end_dt.isoformat(timespec='seconds'),'series':series,'source_status':'operational' if any(item['has_data'] for item in series) else 'no_data'}
-    _CACHE[cache_key] = {'expires_at': monotonic()+CACHE_TTL_SECONDS,'value':payload}
+        series.append({
+            'sensor_id': sensor_id,
+            'name': contract.get('display_name'),
+            'flow_unit': flow_unit_for_sensor(sensor_id),
+            'source_status': source_status if any(point['samples'] for point in points) else 'no_data',
+            'has_data': any(point['samples'] for point in points),
+            'has_future_intervals': any(point['data_status'] == 'future_interval' for point in points),
+            'points': points,
+        })
+    payload = {
+        'plant': 'Planta Durango',
+        'start_datetime': start_dt.isoformat(timespec='seconds'),
+        'end_datetime': requested_end_dt.isoformat(timespec='seconds'),
+        'effective_end_at': effective_end_dt.isoformat(timespec='seconds'),
+        'has_future_intervals': effective_end_dt < requested_end_dt,
+        'series': series,
+        'source_status': 'operational' if any(item['has_data'] for item in series) else 'no_data',
+    }
+    _CACHE[cache_key] = {'expires_at': monotonic() + CACHE_TTL_SECONDS, 'value': payload}
     return payload

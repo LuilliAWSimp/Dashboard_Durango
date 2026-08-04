@@ -10,6 +10,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.database import SessionLocal
 from app.services.durango_capabilities import WELLS
+from app.services.plant_time import local_to_source_naive, source_to_local_naive
 from app.services.water_bos_service import _bos_value, _row_to_dict
 
 logger = logging.getLogger(__name__)
@@ -48,7 +49,7 @@ def _well_index(sensor_id: int) -> int | None:
 
 
 def _extract_row(row: dict[str, Any], sensor_id: int, index: int) -> dict[str, Any] | None:
-    stamp = _dt(row.get('time_stamp') or row.get('timestamp'))
+    stamp = source_to_local_naive(row.get('time_stamp') or row.get('timestamp'))
     if stamp is None:
         return None
     flow_out = _num(_bos_value(row, 'POZO_FLOW_OUT', index, 'instant_value', None))
@@ -89,7 +90,10 @@ def query_bos_well_rows(sensor_id: int, start_dt: datetime, end_dt: datetime, *,
     """)
     try:
         with SessionLocal() as session:
-            rows = [_row_to_dict(row) for row in session.execute(sql, {'start_dt': start_dt, 'end_dt': end_dt}).fetchall()]
+            rows = [_row_to_dict(row) for row in session.execute(sql, {
+                'start_dt': local_to_source_naive(start_dt),
+                'end_dt': local_to_source_naive(end_dt),
+            }).fetchall()]
     except SQLAlchemyError as exc:
         logger.exception('Durango well BOS fallback failed sensor=%s: %s', sensor_id, exc)
         return []

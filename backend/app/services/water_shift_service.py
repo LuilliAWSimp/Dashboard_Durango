@@ -6,6 +6,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from app.services.durango_capabilities import ALL_ITEMS, LOCAL_TIMEZONE
+from app.services.plant_time import local_now_naive
 from app.services.water_period_service import build_period_item, query_previous_closes, query_readings_window
 
 LOCAL_ZONE = ZoneInfo(LOCAL_TIMEZONE)
@@ -29,7 +30,7 @@ def _as_date(value: Any) -> date:
             return datetime.fromisoformat(str(value)[:10]).date()
         except ValueError:
             pass
-    return datetime.now(LOCAL_ZONE).date()
+    return local_now_naive().date()
 
 
 def _window(day: date, definition: dict[str, Any]) -> tuple[datetime, datetime]:
@@ -42,7 +43,7 @@ def _window(day: date, definition: dict[str, Any]) -> tuple[datetime, datetime]:
 
 
 def _cut_status(day: date, start: datetime, end: datetime) -> tuple[str, datetime | None]:
-    now = datetime.now(LOCAL_ZONE).replace(tzinfo=None)
+    now = local_now_naive()
     if day < now.date() or end <= now:
         return 'Cierre definitivo', end
     if start <= now < end:
@@ -131,7 +132,7 @@ def get_shift_consumption_data(report_date: Any = None, *, force_refresh: bool =
     payload = {
         'plant': 'Planta Durango',
         'date': day.isoformat(),
-        'generated_at': datetime.now(LOCAL_ZONE).isoformat(timespec='seconds'),
+        'generated_at': local_now_naive().isoformat(timespec='seconds'),
         'shifts': shifts,
         'source_status': 'operational',
     }
