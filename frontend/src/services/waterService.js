@@ -89,6 +89,29 @@ export async function fetchWaterHistory(options) {
   return data;
 }
 
+
+export async function fetchWaterModuleHistory(options) {
+  const key = ['history-module', options.module, options.startDate, options.endDate, options.aggregation].join(':');
+  const now = Date.now();
+  const cached = cache.get(key);
+  if (!options.forceRefresh && cached && now - cached.ts < HISTORY_TTL_MS) return cached.data;
+  const params = { module: options.module, start_date: options.startDate, end_date: options.endDate, aggregation: options.aggregation, force_refresh: Boolean(options.forceRefresh) };
+  const { data } = await api.get('/water/history/module', { params, timeout: 30000 });
+  cache.set(key, { ts: now, ttl: HISTORY_TTL_MS, data });
+  return data;
+}
+
+export async function fetchWellsMinuteFlow(options) {
+  const key = ['wells-minute', options.startDateTime, options.endDateTime].join(':');
+  const now = Date.now();
+  const cached = cache.get(key);
+  if (!options.forceRefresh && cached && now - cached.ts < HISTORY_TTL_MS) return cached.data;
+  const params = { start_datetime: options.startDateTime, end_datetime: options.endDateTime, force_refresh: Boolean(options.forceRefresh) };
+  const { data } = await api.get('/water/wells/minute-flow', { params, timeout: 30000 });
+  cache.set(key, { ts: now, ttl: HISTORY_TTL_MS, data });
+  return data;
+}
+
 export async function fetchWaterShifts(options) {
   const key = ['shifts', options.date, options.shift || 'all'].join(':');
   const now = Date.now();

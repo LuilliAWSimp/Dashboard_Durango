@@ -51,20 +51,38 @@ def _sensor_id(item: dict[str, Any]) -> int:
 def _merge_period(current_rows: list[dict[str, Any]], period_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     by_sensor = {_sensor_id(item): item for item in period_rows}
     result: list[dict[str, Any]] = []
+    seen: set[int] = set()
     for current in current_rows:
         merged = dict(current)
-        period = by_sensor.get(_sensor_id(current))
+        current_sensor = _sensor_id(current)
+        seen.add(current_sensor)
+        period = by_sensor.get(current_sensor)
         if period:
             merged.update(period)
-            # Mantener la lectura instantánea BOS cuando exista; el periodo no debe reemplazarla.
-            if current.get('flow_lps') is not None:
-                merged['current_flow'] = current.get('flow_lps')
-                merged['flow_lps'] = current.get('flow_lps')
-            elif current.get('flow') is not None:
-                merged['current_flow'] = current.get('flow')
-            if current.get('totalizador_m3') is not None:
-                merged['current_totalizer_m3'] = current.get('totalizador_m3')
+            merged['period_activity'] = period.get('activity')
+            merged['period_data_status'] = period.get('data_status')
+            current_flow = current.get('flow_lps') if current.get('flow_lps') is not None else current.get('flow')
+            current_totalizer = current.get('totalizador_m3')
+            current_stamp = current.get('last_update') or current.get('ultima_lectura') or current.get('updated')
+            if current_flow is not None:
+                merged['current_flow'] = current_flow
+                merged['flow_lps'] = current_flow
+            if current_totalizer is not None:
+                merged['current_totalizer_m3'] = current_totalizer
+                merged['totalizador_m3'] = current_totalizer
+            if current.get('estado_comunicacion') is not None:
+                merged['communication'] = current.get('estado_comunicacion')
+                merged['estado_comunicacion'] = current.get('estado_comunicacion')
+            if current.get('communicationType') is not None:
+                merged['communication_status'] = current.get('communicationType')
+            if current_stamp:
+                merged['last_update'] = current_stamp
+                merged['ultima_lectura'] = current_stamp
+            merged['current_reading_available'] = bool(current_flow is not None or current_totalizer is not None or current_stamp)
         result.append(merged)
+    for sensor_id, period in by_sensor.items():
+        if sensor_id not in seen:
+            result.append(dict(period))
     return result
 
 
@@ -73,10 +91,23 @@ def _cards(payload: dict[str, Any]) -> list[KpiCard]:
     wells = summary.get('wells') or {}
     lines = summary.get('lines') or {}
     flows = summary.get('flows') or {}
+
+    def value(group: dict[str, Any]) -> str:
+        total = group.get('total_m3')
+        return 'No disponible' if total is None else f"{float(total):,.2f}"
+
+    def unit(group: dict[str, Any]) -> str:
+        return '' if group.get('total_m3') is None else 'm³'
+
+    def trend(group: dict[str, Any], total: int) -> str:
+        if int(group.get('coverage_available') or 0) == 0:
+            return 'Sin histórico del periodo'
+        return f"{group.get('active_count', 0)}/{total} con actividad"
+
     return [
-        KpiCard(label='Volumen confiable de pozos', value=f"{float(wells.get('total_m3') or 0):,.2f}", unit='m³', trend=f"{wells.get('active_count', 0)}/2 con actividad", accent='blue'),
-        KpiCard(label='Volumen confiable de líneas', value=f"{float(lines.get('total_m3') or 0):,.2f}", unit='m³', trend=f"{lines.get('active_count', 0)}/5 con actividad", accent='cyan'),
-        KpiCard(label='Volumen de flujos auxiliares', value=f"{float(flows.get('total_m3') or 0):,.2f}", unit='m³', trend=f"{flows.get('active_count', 0)}/3 con actividad", accent='indigo'),
+        KpiCard(label='Volumen confiable de pozos', value=value(wells), unit=unit(wells), trend=trend(wells, 2), accent='blue'),
+        KpiCard(label='Volumen confiable de líneas', value=value(lines), unit=unit(lines), trend=trend(lines, 5), accent='cyan'),
+        KpiCard(label='Volumen de flujos auxiliares', value=value(flows), unit=unit(flows), trend=trend(flows, 3), accent='indigo'),
         KpiCard(label='Datos en revisión', value=str(int(wells.get('review_count', 0)) + int(lines.get('review_count', 0)) + int(flows.get('review_count', 0))), unit='elementos', trend='Excluidos de totales confiables', accent='brown'),
     ]
 

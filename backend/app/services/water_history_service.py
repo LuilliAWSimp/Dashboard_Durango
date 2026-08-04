@@ -12,6 +12,7 @@ from sqlalchemy.exc import OperationalError, SQLAlchemyError
 
 from app.database import SessionLocal
 from app.services.durango_capabilities import LOCAL_TIMEZONE, SENSORS_BY_MODULE, flow_unit_for_sensor, sensor_contract
+from app.services.durango_well_history_fallback import query_bos_well_rows
 from app.services.totalizer_quality import analyze_totalizer_series
 from app.services.water_bos_service import get_bos_water_dashboard_payload
 
@@ -340,6 +341,11 @@ def get_water_history(*, module: str, sensor_id: int, start_date: str, end_date:
             _CACHE[cache_key] = {'expires_at': monotonic() + CACHE_TTL_SECONDS, 'value': payload}
             return payload
         raise exc
+    if not rows and module == 'well' and start == end:
+        fallback_rows = query_bos_well_rows(sensor_id, start_dt, end_dt)
+        if fallback_rows:
+            rows = _bos_rows_to_15m(sensor_id, fallback_rows)
+            source = 'bos_fallback'
     points = _build_points(sensor_id, aggregation, start_dt, end_dt, rows)
     payload = {
         'plant': 'Planta Durango',
@@ -355,4 +361,210 @@ def get_water_history(*, module: str, sensor_id: int, start_date: str, end_date:
         'has_data': any(int(point.get('samples') or 0) > 0 for point in points),
     }
     _CACHE[cache_key] = {'expires_at': monotonic() + CACHE_TTL_SECONDS, 'value': payload}
+    return payload
+
+
+
+def _validate_module_request(module: str, start_date: str, end_date: str, aggregation: str) -> tuple[Module, Aggregation, date, date]:
+    sensor_ids = SENSORS_BY_MODULE.get(module)
+    if not sensor_ids:
+        raise ValueError('Módulo histórico no permitido.')
+    return _validate(module, int(sensor_ids[0]), start_date, end_date, aggregation)
+
+
+def _query_15m_multi(sensor_ids: list[int], start_dt: datetime, end_dt: datetime) -> list[dict[str, Any]]:
+    params: dict[str, Any] = {'start_dt': start_dt, 'end_dt': end_dt}
+    placeholders = []
+    for index, sensor_id in enumerate(sensor_ids):
+        key = f'sensor_{index}'
+        placeholders.append(f':{key}')
+        params[key] = int(sensor_id)
+    sql = text(f"""
+        WITH source_rows AS (
+            SELECT reading.sensor_id, COALESCE(reading.ts_local, reading.ts_minute) AS reading_ts,
+                   TRY_CONVERT(float, reading.instant_value) AS flow_value,
+                   TRY_CONVERT(float, reading.total_value) AS total_value
+            FROM iot.readings_minute AS reading
+            WHERE reading.sensor_id IN ({', '.join(placeholders)})
+              AND COALESCE(reading.ts_local, reading.ts_minute) >= :start_dt
+              AND COALESCE(reading.ts_local, reading.ts_minute) < :end_dt
+        ), bucketed AS (
+            SELECT sensor_id, reading_ts, flow_value, total_value,
+                   DATEADD(minute, (DATEDIFF(minute, CONVERT(datetime2, '20000101'), reading_ts) / 15) * 15, CONVERT(datetime2, '20000101')) AS bucket_start
+            FROM source_rows
+        ), aggregates AS (
+            SELECT sensor_id, bucket_start, COUNT_BIG(1) AS samples,
+                   AVG(flow_value) AS flow_avg, MIN(flow_value) AS flow_min, MAX(flow_value) AS flow_max
+            FROM bucketed
+            GROUP BY sensor_id, bucket_start
+        )
+        SELECT aggregate.sensor_id, aggregate.bucket_start, aggregate.samples,
+               aggregate.flow_avg, aggregate.flow_min, aggregate.flow_max,
+               opening.total_value AS total_open, closing.total_value AS total_close
+        FROM aggregates AS aggregate
+        OUTER APPLY (
+            SELECT TOP (1) candidate.total_value FROM bucketed AS candidate
+            WHERE candidate.sensor_id = aggregate.sensor_id AND candidate.bucket_start = aggregate.bucket_start
+              AND candidate.total_value IS NOT NULL
+            ORDER BY CASE WHEN candidate.total_value > 0 THEN 0 ELSE 1 END, candidate.reading_ts ASC
+        ) AS opening
+        OUTER APPLY (
+            SELECT TOP (1) candidate.total_value FROM bucketed AS candidate
+            WHERE candidate.sensor_id = aggregate.sensor_id AND candidate.bucket_start = aggregate.bucket_start
+              AND candidate.total_value IS NOT NULL
+            ORDER BY CASE WHEN candidate.total_value > 0 THEN 0 ELSE 1 END, candidate.reading_ts DESC
+        ) AS closing
+        ORDER BY aggregate.sensor_id, aggregate.bucket_start
+    """)
+    try:
+        with SessionLocal() as session:
+            exists = session.execute(text("SELECT CASE WHEN OBJECT_ID('iot.readings_minute','U') IS NULL THEN 0 ELSE 1 END")).scalar()
+            if not exists:
+                raise WaterHistoryError('La fuente histórica no está disponible.', status='no_history_source')
+            return [dict(row._mapping) for row in session.execute(sql, params).fetchall()]
+    except WaterHistoryError:
+        raise
+    except OperationalError as exc:
+        message = str(exc).lower()
+        status = 'timeout' if any(token in message for token in ('timeout', 'hyt00', 'hyt01')) else 'sql_error'
+        raise WaterHistoryError('La consulta histórica tardó demasiado.' if status == 'timeout' else 'No fue posible consultar el histórico de planta.', status=status) from exc
+    except SQLAlchemyError as exc:
+        raise WaterHistoryError('No fue posible consultar el histórico de planta.', status='sql_error') from exc
+
+
+def _bos_rows_to_15m(sensor_id: int, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    grouped: dict[datetime, list[dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        stamp = _dt(row.get('operational_ts'))
+        if stamp is not None:
+            grouped[_floor(stamp, 'quarter_hour')].append(row)
+    result = []
+    for bucket, bucket_rows in sorted(grouped.items()):
+        flows = [_num(row.get('instant_value')) for row in bucket_rows]
+        flows = [value for value in flows if value is not None]
+        analysis = analyze_totalizer_series([
+            {'timestamp': row.get('operational_ts'), 'total_value': row.get('total_value')}
+            for row in bucket_rows
+        ], sensor_id=sensor_id)
+        result.append({
+            'sensor_id': sensor_id, 'bucket_start': bucket, 'samples': len(bucket_rows),
+            'flow_avg': sum(flows) / len(flows) if flows else None,
+            'flow_min': min(flows) if flows else None, 'flow_max': max(flows) if flows else None,
+            'total_open': analysis.opening_m3, 'total_close': analysis.closing_m3,
+        })
+    return result
+
+
+def get_water_history_module(*, module: str, start_date: str, end_date: str, aggregation: str, force_refresh: bool = False) -> dict[str, Any]:
+    module, aggregation, start, end = _validate_module_request(module, start_date, end_date, aggregation)
+    cache_key = f'module:{module}:{start}:{end}:{aggregation}'
+    cached = _CACHE.get(cache_key)
+    if not force_refresh and cached and monotonic() < cached['expires_at']:
+        return cached['value']
+    sensor_ids = list(SENSORS_BY_MODULE[module])
+    start_dt = datetime.combine(start, time.min)
+    end_dt = datetime.combine(end + timedelta(days=1), time.min)
+    query_error: WaterHistoryError | None = None
+    try:
+        rows = _query_15m_multi(sensor_ids, start_dt, end_dt)
+    except WaterHistoryError as exc:
+        rows = []
+        query_error = exc
+    grouped: dict[int, list[dict[str, Any]]] = {sensor_id: [] for sensor_id in sensor_ids}
+    for row in rows:
+        sensor_id = int(row.get('sensor_id') or 0)
+        if sensor_id in grouped:
+            grouped[sensor_id].append(row)
+    series = []
+    for sensor_id in sensor_ids:
+        sensor_rows = grouped[sensor_id]
+        source_status = 'readings_minute'
+        if not sensor_rows and module == 'well' and start == end:
+            bos_rows = query_bos_well_rows(sensor_id, start_dt, end_dt)
+            if bos_rows:
+                sensor_rows = _bos_rows_to_15m(sensor_id, bos_rows)
+                source_status = 'bos_fallback'
+        points = _build_points(sensor_id, aggregation, start_dt, end_dt, sensor_rows)
+        contract = sensor_contract(sensor_id)
+        series.append({
+            'sensor_id': sensor_id, 'name': contract.get('display_name'), 'flow_unit': flow_unit_for_sensor(sensor_id),
+            'source_status': source_status if sensor_rows else 'no_data',
+            'has_data': any(int(point.get('samples') or 0) > 0 for point in points), 'points': points,
+        })
+    if query_error is not None and query_error.status not in {'no_history_source'} and not any(item['has_data'] for item in series):
+        raise query_error
+    payload = {
+        'plant': 'Planta Durango', 'module': module, 'start_date': start.isoformat(), 'end_date': end.isoformat(),
+        'aggregation': aggregation, 'series': series,
+        'source_status': 'operational' if any(item['has_data'] for item in series) else 'no_data',
+    }
+    _CACHE[cache_key] = {'expires_at': monotonic() + CACHE_TTL_SECONDS, 'value': payload}
+    return payload
+
+
+def _parse_local_datetime(value: str) -> datetime:
+    try:
+        parsed = datetime.fromisoformat(str(value).replace('Z', ''))
+    except ValueError as exc:
+        raise ValueError('Fecha y hora inválidas.') from exc
+    return parsed.replace(tzinfo=None)
+
+
+def _query_minute_rows(sensor_ids: list[int], start_dt: datetime, end_dt: datetime) -> list[dict[str, Any]]:
+    params: dict[str, Any] = {'start_dt': start_dt, 'end_dt': end_dt}
+    placeholders = []
+    for index, sensor_id in enumerate(sensor_ids):
+        key = f'sensor_{index}'; params[key] = sensor_id; placeholders.append(f':{key}')
+    sql = text(f"""
+        SELECT reading.sensor_id, COALESCE(reading.ts_local, reading.ts_minute) AS reading_ts,
+               TRY_CONVERT(float, reading.instant_value) AS flow_value
+        FROM iot.readings_minute AS reading
+        WHERE reading.sensor_id IN ({', '.join(placeholders)})
+          AND COALESCE(reading.ts_local, reading.ts_minute) >= :start_dt
+          AND COALESCE(reading.ts_local, reading.ts_minute) < :end_dt
+        ORDER BY reading.sensor_id, COALESCE(reading.ts_local, reading.ts_minute)
+    """)
+    try:
+        with SessionLocal() as session:
+            exists = session.execute(text("SELECT CASE WHEN OBJECT_ID('iot.readings_minute','U') IS NULL THEN 0 ELSE 1 END")).scalar()
+            if not exists: return []
+            return [dict(row._mapping) for row in session.execute(sql, params).fetchall()]
+    except SQLAlchemyError:
+        logger.exception('minute well flow query failed')
+        return []
+
+
+def get_wells_minute_flow(*, start_datetime: str, end_datetime: str, force_refresh: bool = False) -> dict[str, Any]:
+    start_dt = _parse_local_datetime(start_datetime); end_dt = _parse_local_datetime(end_datetime)
+    if end_dt <= start_dt: raise ValueError('La hora final debe ser mayor a la hora inicial.')
+    if end_dt - start_dt > timedelta(hours=24): raise ValueError('El rango máximo permitido es de 24 horas.')
+    cache_key = f'wells-minute:{start_dt.isoformat()}:{end_dt.isoformat()}'
+    cached = _CACHE.get(cache_key)
+    if not force_refresh and cached and monotonic() < cached['expires_at']: return cached['value']
+    sensor_ids = list(SENSORS_BY_MODULE['well']); rows = _query_minute_rows(sensor_ids, start_dt, end_dt)
+    grouped: dict[int, list[dict[str, Any]]] = {sensor_id: [] for sensor_id in sensor_ids}
+    for row in rows:
+        sensor_id = int(row.get('sensor_id') or 0)
+        if sensor_id in grouped: grouped[sensor_id].append(row)
+    series = []
+    for sensor_id in sensor_ids:
+        sensor_rows = grouped[sensor_id]; source_status = 'readings_minute'
+        if not sensor_rows:
+            bos_rows = query_bos_well_rows(sensor_id, start_dt, end_dt)
+            sensor_rows = [{'reading_ts': row.get('operational_ts'), 'flow_value': row.get('instant_value')} for row in bos_rows]
+            if sensor_rows: source_status = 'bos_fallback'
+        minute_values: dict[datetime, list[float]] = defaultdict(list)
+        for row in sensor_rows:
+            stamp = _dt(row.get('reading_ts') or row.get('operational_ts'))
+            value = _num(row.get('flow_value') if 'flow_value' in row else row.get('instant_value'))
+            if stamp is not None and value is not None: minute_values[stamp.replace(second=0, microsecond=0)].append(value)
+        points = []; cursor = start_dt.replace(second=0, microsecond=0)
+        while cursor < end_dt:
+            values = minute_values.get(cursor, [])
+            points.append({'timestamp': cursor.isoformat(timespec='seconds'), 'flow_value': sum(values)/len(values) if values else None, 'samples': len(values), 'data_status': 'operational' if values else 'no_data'})
+            cursor += timedelta(minutes=1)
+        contract = sensor_contract(sensor_id)
+        series.append({'sensor_id': sensor_id, 'name': contract.get('display_name'), 'flow_unit': flow_unit_for_sensor(sensor_id), 'source_status': source_status if any(point['samples'] for point in points) else 'no_data', 'has_data': any(point['samples'] for point in points), 'points': points})
+    payload = {'plant':'Planta Durango','start_datetime':start_dt.isoformat(timespec='seconds'),'end_datetime':end_dt.isoformat(timespec='seconds'),'series':series,'source_status':'operational' if any(item['has_data'] for item in series) else 'no_data'}
+    _CACHE[cache_key] = {'expires_at': monotonic()+CACHE_TTL_SECONDS,'value':payload}
     return payload

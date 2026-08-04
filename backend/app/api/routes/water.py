@@ -9,7 +9,7 @@ from app.schemas.export import DailyWaterReportEmailRequest
 from app.schemas.water import WaterDashboardPayload, WaterSourceActivateResponse, WaterSourceInfo, WaterSourceValidation
 from app.services.email_service import EmailDeliveryError, EmailNotConfiguredError, ensure_smtp_configured, send_email_with_bytes_attachment
 from app.services.water_daily_report_service import ReportDataUnavailableError, build_daily_water_report_excel, build_daily_water_report_pdf, get_daily_water_report
-from app.services.water_history_service import WaterHistoryError, get_water_history
+from app.services.water_history_service import WaterHistoryError, get_water_history, get_water_history_module, get_wells_minute_flow
 from app.services.water_service import WATER_SECTION_META, get_water_dashboard_payload, get_water_report_catalog
 from app.services.water_shift_service import get_shift_consumption_data
 from app.services.water_source_service import activate_source, list_sources, read_upload_json, register_upload, validate_source_data
@@ -51,6 +51,30 @@ def read_water_history(
     except Exception as exc:
         logger.exception('No fue posible construir el histórico hídrico: %s', exc)
         raise HTTPException(status_code=500, detail='No fue posible consultar el histórico de planta.') from exc
+
+
+@router.get('/history/module')
+def read_water_history_module(module: str = Query(..., pattern='^(well|line|flow)$'), start_date: str = Query(...), end_date: str = Query(...), aggregation: str = Query(..., pattern='^(quarter_hour|hourly|daily)$'), force_refresh: bool = Query(False)):
+    try:
+        return get_water_history_module(module=module, start_date=start_date, end_date=end_date, aggregation=aggregation, force_refresh=force_refresh)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except WaterHistoryError as exc:
+        raise HTTPException(status_code=504 if exc.status == 'timeout' else 503, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception('No fue posible construir el histórico por módulo: %s', exc)
+        raise HTTPException(status_code=500, detail='No fue posible consultar el histórico por módulo.') from exc
+
+
+@router.get('/wells/minute-flow')
+def read_wells_minute_flow(start_datetime: str = Query(...), end_datetime: str = Query(...), force_refresh: bool = Query(False)):
+    try:
+        return get_wells_minute_flow(start_datetime=start_datetime, end_datetime=end_datetime, force_refresh=force_refresh)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception('No fue posible consultar el flujo minuto a minuto de pozos: %s', exc)
+        raise HTTPException(status_code=500, detail='No fue posible consultar el flujo minuto a minuto de pozos.') from exc
 
 
 @router.get('/shifts')

@@ -43,6 +43,7 @@ const STATUS_LABELS: Record<string, string> = {
   operational: 'Con actividad',
   zero_consumption: 'Sin consumo',
   no_data: 'Sin registros guardados',
+  no_history: 'Sin histórico para el periodo',
   invalid_totalizer: 'Dato en revisión',
   missing_totalizer: 'Sin totalizador disponible',
   stale_data: 'Lectura atrasada',

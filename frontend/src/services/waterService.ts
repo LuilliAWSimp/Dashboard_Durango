@@ -1,6 +1,6 @@
 import api from './api';
 import type { ID } from '../types';
-import type { HistoryAggregation, WaterHistoryResponse, WaterShiftsResponse } from '../pages/pozos/types';
+import type { HistoryAggregation, WaterHistoryResponse, WaterModuleHistoryResponse, WellsMinuteFlowResponse, WaterShiftsResponse } from '../pages/pozos/types';
 
 const cache = new Map<string, { ts: number; ttl: number; data: unknown }>();
 
@@ -122,6 +122,38 @@ export async function fetchWaterHistory(options: WaterHistoryRequestOptions): Pr
     force_refresh: Boolean(options.forceRefresh),
   };
   const { data } = await api.get<WaterHistoryResponse>('/water/history', { params, timeout: 30_000 });
+  cache.set(key, { ts: now, ttl: HISTORY_TTL_MS, data });
+  return data;
+}
+
+
+export interface WaterModuleHistoryRequestOptions {
+  module: 'well' | 'line' | 'flow';
+  startDate: string;
+  endDate: string;
+  aggregation: HistoryAggregation;
+  forceRefresh?: boolean;
+}
+
+export async function fetchWaterModuleHistory(options: WaterModuleHistoryRequestOptions): Promise<WaterModuleHistoryResponse> {
+  const key = ['history-module', options.module, options.startDate, options.endDate, options.aggregation].join(':');
+  const now = Date.now();
+  const cached = cache.get(key);
+  if (!options.forceRefresh && cached && now - cached.ts < HISTORY_TTL_MS) return cached.data as WaterModuleHistoryResponse;
+  const params = { module: options.module, start_date: options.startDate, end_date: options.endDate, aggregation: options.aggregation, force_refresh: Boolean(options.forceRefresh) };
+  const { data } = await api.get<WaterModuleHistoryResponse>('/water/history/module', { params, timeout: 30_000 });
+  cache.set(key, { ts: now, ttl: HISTORY_TTL_MS, data });
+  return data;
+}
+
+export interface WellsMinuteFlowRequestOptions { startDateTime: string; endDateTime: string; forceRefresh?: boolean; }
+export async function fetchWellsMinuteFlow(options: WellsMinuteFlowRequestOptions): Promise<WellsMinuteFlowResponse> {
+  const key = ['wells-minute', options.startDateTime, options.endDateTime].join(':');
+  const now = Date.now();
+  const cached = cache.get(key);
+  if (!options.forceRefresh && cached && now - cached.ts < HISTORY_TTL_MS) return cached.data as WellsMinuteFlowResponse;
+  const params = { start_datetime: options.startDateTime, end_datetime: options.endDateTime, force_refresh: Boolean(options.forceRefresh) };
+  const { data } = await api.get<WellsMinuteFlowResponse>('/water/wells/minute-flow', { params, timeout: 30_000 });
   cache.set(key, { ts: now, ttl: HISTORY_TTL_MS, data });
   return data;
 }

@@ -9,7 +9,8 @@ from sqlalchemy import text
 from sqlalchemy.exc import OperationalError, SQLAlchemyError
 
 from app.database import SessionLocal
-from app.services.durango_capabilities import ALL_ITEMS, LOCAL_TIMEZONE, sensor_contract
+from app.services.durango_capabilities import ALL_ITEMS, LOCAL_TIMEZONE, WELLS, sensor_contract
+from app.services.durango_well_history_fallback import query_bos_well_rows
 from app.services.totalizer_quality import TotalizerAnalysis, analyze_totalizer_series
 
 logger = logging.getLogger(__name__)
@@ -194,10 +195,10 @@ def build_period_item(contract: dict[str, Any], rows: list[dict[str, Any]], prev
     totalizer_values = [value for value in totalizer_values if value is not None and value > 0]
     current_totalizer = totalizer_values[-1] if totalizer_values else None
     period_volume = analysis.volume_m3 if analysis.reliable else None
-    period_status = analysis.status
+    period_source = str((ordered[-1].get('period_source') or ordered[-1].get('source') or 'readings_minute')) if ordered else 'no_history'
     if not ordered:
-        activity = 'Sin registros guardados'
-        data_status = 'no_data'
+        activity = 'Sin histórico para el periodo'
+        data_status = 'no_history'
     elif not totalizer_values:
         activity = 'Sin totalizador disponible'
         data_status = 'no_totalizer'
@@ -221,6 +222,7 @@ def build_period_item(contract: dict[str, Any], rows: list[dict[str, Any]], prev
 
     return {
         'sensor_id': sensor_id,
+        'id': f"{contract.get('group')}-{sensor_id}",
         'name': contract.get('display_name') or contract.get('name'),
         'nombre': contract.get('display_name') or contract.get('name'),
         'module': contract.get('group'),
@@ -246,13 +248,16 @@ def build_period_item(contract: dict[str, Any], rows: list[dict[str, Any]], prev
         'activity': activity,
         'activity_status': activity,
         'data_status': data_status,
+        'period_activity': activity,
+        'period_data_status': data_status,
+        'current_reading_available': bool(latest_time is not None),
         'communication': communication,
         'estado_comunicacion': communication,
         'communication_status': communication_status,
         'last_update': latest_time.isoformat(timespec='seconds') if latest_time else None,
         'ultima_lectura': latest_time.isoformat(timespec='seconds') if latest_time else None,
         'discarded_totalizer_events': list(analysis.discarded_events),
-        'period_source': 'readings_minute',
+        'period_source': period_source,
     }
 
 
@@ -261,13 +266,31 @@ def get_period_data(start_date: Any = None, end_date: Any = None) -> dict[str, A
     start_dt = datetime.combine(start_day, time.min)
     end_dt = datetime.combine(end_day + timedelta(days=1), time.min)
     sensor_ids = [int(item['sensor_id']) for item in ALL_ITEMS]
-    rows = query_readings_window(sensor_ids, start_dt, end_dt)
-    previous = query_previous_closes(sensor_ids, start_dt)
+    period_query_status = 'operational'
+    try:
+        rows = query_readings_window(sensor_ids, start_dt, end_dt)
+    except WaterPeriodError as exc:
+        if start_day != end_day:
+            raise
+        rows = []
+        period_query_status = exc.status
+    previous = query_previous_closes(sensor_ids, start_dt) if period_query_status == 'operational' else {}
     grouped: dict[int, list[dict[str, Any]]] = {sensor_id: [] for sensor_id in sensor_ids}
     for row in rows:
         sensor_id = int(row.get('sensor_id') or 0)
         if sensor_id in grouped:
+            row = dict(row)
+            row.setdefault('period_source', 'readings_minute')
             grouped[sensor_id].append(row)
+
+    if start_day == end_day:
+        for contract in WELLS:
+            sensor_id = int(contract['sensor_id'])
+            if grouped.get(sensor_id):
+                continue
+            fallback_rows = query_bos_well_rows(sensor_id, start_dt, end_dt)
+            if fallback_rows:
+                grouped[sensor_id] = fallback_rows
     items = [
         build_period_item(contract, grouped[int(contract['sensor_id'])], previous.get(int(contract['sensor_id'])), end_day)
         for contract in ALL_ITEMS
@@ -279,13 +302,16 @@ def get_period_data(start_date: Any = None, end_date: Any = None) -> dict[str, A
 
     def summary(group_items: list[dict[str, Any]]) -> dict[str, Any]:
         reliable = [item for item in group_items if item.get('period_m3_reliable') and item.get('period_m3') is not None]
+        without_history = sum(1 for item in group_items if item.get('data_status') in {'no_history', 'no_data'})
         return {
-            'total_m3': round(sum(float(item['period_m3']) for item in reliable), 6),
+            'total_m3': round(sum(float(item['period_m3']) for item in reliable), 6) if reliable else None,
             'active_count': sum(1 for item in reliable if float(item.get('period_m3') or 0) > 0),
             'inactive_count': sum(1 for item in reliable if float(item.get('period_m3') or 0) == 0),
             'review_count': sum(1 for item in group_items if item.get('data_status') in {'invalid_totalizer', 'no_totalizer'}),
+            'no_history_count': without_history,
             'coverage_available': len(reliable),
             'coverage_total': len(group_items),
+            'coverage_status': 'Sin histórico del periodo' if not reliable and without_history else 'Cobertura parcial' if len(reliable) < len(group_items) else 'Completa',
         }
 
     return {
@@ -302,5 +328,5 @@ def get_period_data(start_date: Any = None, end_date: Any = None) -> dict[str, A
             'lines': summary(groups['line']),
             'flows': summary(groups['flow']),
         },
-        'source_status': 'operational',
+        'source_status': 'operational' if period_query_status == 'operational' else 'partial_bos_fallback',
     }
