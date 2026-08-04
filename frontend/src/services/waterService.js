@@ -4,48 +4,42 @@ const cache = new Map();
 
 const CURRENT_TTL_MS = 25 * 1000;
 const HISTORY_TTL_MS = 10 * 60 * 1000;
-const MONTHLY_HISTORY_TTL_MS = 30 * 60 * 1000;
+const MONTHLY_TTL_MS = 30 * 60 * 1000;
+
+function optionBoolean(primary, fallback, defaultValue) {
+  if (typeof primary === 'boolean') return primary;
+  if (typeof fallback === 'boolean') return fallback;
+  return defaultValue;
+}
 
 function buildParams(options = {}) {
   const params = {};
-  if (options.startDate || options.start_date) params.start_date = options.startDate || options.start_date;
-  if (options.endDate || options.end_date) params.end_date = options.endDate || options.end_date;
+  if (options.startDate || options.start_date) params.start_date = String(options.startDate || options.start_date);
+  if (options.endDate || options.end_date) params.end_date = String(options.endDate || options.end_date);
   if (options.period) params.period = String(options.period);
-  if (options.include_history !== undefined) params.include_history = Boolean(options.include_history);
-  if (options.includeHistory !== undefined) params.include_history = Boolean(options.includeHistory);
-  if (options.include_energy_water !== undefined) params.include_energy_water = Boolean(options.include_energy_water);
-  if (options.includeEnergyWater !== undefined) params.include_energy_water = Boolean(options.includeEnergyWater);
-  if (options.force_refresh !== undefined) params.force_refresh = Boolean(options.force_refresh);
-  if (options.forceRefresh !== undefined) params.force_refresh = Boolean(options.forceRefresh);
+  params.include_history = optionBoolean(options.includeHistory, options.include_history, true);
+  params.include_energy_water = optionBoolean(options.includeEnergyWater, options.include_energy_water, false);
+  const force = optionBoolean(options.forceRefresh, options.force_refresh, false);
+  if (force) params.force_refresh = true;
   return params;
+}
+
+function cacheTtl(params) {
+  if (params.include_history === false) return CURRENT_TTL_MS;
+  if (String(params.period || '').toLowerCase() === 'monthly') return MONTHLY_TTL_MS;
+  return HISTORY_TTL_MS;
 }
 
 function cacheKey(section, options = {}) {
   const params = buildParams(options);
-  return `${section}:${params.start_date || ''}:${params.end_date || ''}:${params.period || ''}:${params.include_history ? 'history' : 'current'}:${params.include_energy_water ? 'energy' : 'noenergy'}`;
-}
-
-function dateSpanDays(startDate, endDate) {
-  if (!startDate || !endDate) return 0;
-  const start = new Date(`${startDate}T00:00:00`);
-  const end = new Date(`${endDate}T00:00:00`);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0;
-  return Math.abs(end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000) + 1;
-}
-
-function requestTtlMs(params) {
-  if (!params.include_history) return CURRENT_TTL_MS;
-  const period = String(params.period || '').toLowerCase();
-  if (period.includes('month') || period.includes('mensual') || dateSpanDays(params.start_date, params.end_date) > 31) {
-    return MONTHLY_HISTORY_TTL_MS;
-  }
-  return HISTORY_TTL_MS;
-}
-
-function shouldCachePayload(data) {
-  if (!data || typeof data !== 'object') return true;
-  const status = String(data.source_status || '').toLowerCase();
-  return status !== 'sql_error';
+  return [
+    section,
+    params.start_date || '',
+    params.end_date || '',
+    params.period || '',
+    params.include_history === false ? 'current' : 'history',
+    params.include_energy_water ? 'energy' : 'no-energy',
+  ].join(':');
 }
 
 export function clearWaterCache() {
@@ -53,18 +47,65 @@ export function clearWaterCache() {
 }
 
 export async function fetchWaterDashboard(section = 'dashboard', options = {}) {
+  const params = buildParams(options);
   const key = cacheKey(section, options);
   const now = Date.now();
-  const params = buildParams(options);
-  const forceRefresh = Boolean(params.force_refresh);
+  const ttl = cacheTtl(params);
+  const force = params.force_refresh === true;
   const cached = cache.get(key);
-  if (!forceRefresh && cached && now - cached.ts < cached.ttl) return cached.data;
-  const { data } = await api.get(`/water/dashboard/${section}`, { params });
-  if (shouldCachePayload(data)) {
-    cache.set(key, { ts: now, data, ttl: requestTtlMs(params) });
-  }
+  if (!force && cached && now - cached.ts < cached.ttl) return cached.data;
+  const { data } = await api.get(`/water/dashboard/${section}`, { params, timeout: 12000 });
+  cache.set(key, { ts: now, ttl, data });
   return data;
 }
+
+
+function historyCacheKey(options) {
+  return [
+    'history',
+    options.module,
+    String(options.sensorId),
+    options.startDate,
+    options.endDate,
+    options.aggregation,
+  ].join(':');
+}
+
+export async function fetchWaterHistory(options) {
+  const key = historyCacheKey(options);
+  const now = Date.now();
+  const cached = cache.get(key);
+  if (!options.forceRefresh && cached && now - cached.ts < HISTORY_TTL_MS) return cached.data;
+  const params = {
+    module: options.module,
+    sensor_id: options.sensorId,
+    start_date: options.startDate,
+    end_date: options.endDate,
+    aggregation: options.aggregation,
+    force_refresh: Boolean(options.forceRefresh),
+  };
+  const { data } = await api.get('/water/history', { params, timeout: 30000 });
+  cache.set(key, { ts: now, ttl: HISTORY_TTL_MS, data });
+  return data;
+}
+
+export async function fetchWaterShifts(options) {
+  const key = ['shifts', options.date, options.shift || 'all'].join(':');
+  const now = Date.now();
+  const cached = cache.get(key);
+  const today = new Date().toLocaleDateString('en-CA');
+  const ttl = options.date === today ? CURRENT_TTL_MS : HISTORY_TTL_MS;
+  if (!options.forceRefresh && cached && now - cached.ts < ttl) return cached.data;
+  const params = {
+    date: options.date,
+    shift: options.shift || 'all',
+    force_refresh: Boolean(options.forceRefresh),
+  };
+  const { data } = await api.get('/water/shifts', { params, timeout: 30000 });
+  cache.set(key, { ts: now, ttl, data });
+  return data;
+}
+
 
 export async function fetchWaterReportCatalog(options = {}) {
   const { data } = await api.get('/water/reports/catalog', { params: buildParams(options) });

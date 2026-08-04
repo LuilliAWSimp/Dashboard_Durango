@@ -23,7 +23,7 @@ function emptyChartRange() {
 
 const sectionMap = {
   dashboard: {
-    title: 'Resumen de Pozos',
+    title: 'Resumen hídrico',
     render: () => <DashboardBaseSection />,
   },
   pozos: {
@@ -43,7 +43,7 @@ const sectionMap = {
     render: () => <TanquesSection />,
   },
   balance: {
-    title: 'Balance de Agua',
+    title: 'Comparativo Operativo de Agua',
     render: () => <BalanceSection />,
   },
   concesion: {

@@ -10,6 +10,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.database import SessionLocal
+from app.services.durango_capabilities import WELLS as DURANGO_WELLS, LINES as DURANGO_LINES, FLOWS as DURANGO_FLOWS, flow_unit_for_sensor
 
 
 logger = logging.getLogger(__name__)
@@ -195,45 +196,23 @@ def _sql_connection_error_payload() -> dict[str, Any]:
     return {'__sql_error__': True, 'source_status': 'sql_error'}
 
 
-# Durango expone solamente las ranuras de pozo presentes en dbo.SensorsBOS_Pozo.
-# Estos valores quedan como compatibilidad si alguna fila operativa antigua no trae
-# sensor_id explicito, pero no se usan para inventar pozos adicionales.
-# Mapeo confirmado Durango: Pozo 1 = 1001, Pozo 2 = 1051.
-WELL_NAMES = [
-    'Pozo 1',
-    'Pozo 2',
-]
-
-WELL_IDS = [1, 2]
-ENERGY_SENSOR_IDS = [0, 0]
-FLOW_OUT_SENSOR_IDS = [1001, 1051]
-FLOW_IN_SENSOR_IDS = [0, 0]
-
-DISTRIBUTION_NAMES = [
-    'Lavadora Ciel',
-    'Jarabes',
-    'Lavadora de Vidrio',
-]
-
-
+# Mapeos centralizados en durango_capabilities.py.
+WELL_NAMES = [str(item['display_name']) for item in DURANGO_WELLS]
+WELL_IDS = list(range(1, len(DURANGO_WELLS) + 1))
+ENERGY_SENSOR_IDS = [0 for _ in DURANGO_WELLS]
+FLOW_OUT_SENSOR_IDS = [int(item['sensor_id']) for item in DURANGO_WELLS]
+FLOW_IN_SENSOR_IDS = [0 for _ in DURANGO_WELLS]
+DISTRIBUTION_NAMES = [str(item['display_name']) for item in DURANGO_FLOWS]
 LINE_SENSOR_MAP = [
-    {'sensor_id': 2002, 'numero': 1, 'name': 'Línea 1'},
-    {'sensor_id': 2006, 'numero': 2, 'name': 'Línea 2'},
-    {'sensor_id': 2004, 'numero': 3, 'name': 'Línea 3'},
-    {'sensor_id': 2008, 'numero': 4, 'name': 'Línea 4'},
-    {'sensor_id': 2010, 'numero': 5, 'name': 'Línea 5'},
+    {'sensor_id': int(item['sensor_id']), 'numero': index + 1, 'name': str(item['display_name'])}
+    for index, item in enumerate(DURANGO_LINES)
 ]
-
 LINE_SENSOR_BY_ID = {int(item['sensor_id']): item for item in LINE_SENSOR_MAP}
-
 FLOW_SENSOR_MAP = [
-    {'sensor_id': 3002, 'name': 'Lavadora Ciel', 'category': 'lavadora'},
-    {'sensor_id': 3004, 'name': 'Jarabes', 'category': 'flujo'},
-    {'sensor_id': 3006, 'name': 'Lavadora de Vidrio', 'category': 'lavadora'},
+    {'sensor_id': int(item['sensor_id']), 'name': str(item['display_name']), 'category': str(item.get('category') or 'flujo')}
+    for item in DURANGO_FLOWS
 ]
-
 FLOW_SENSOR_BY_ID = {int(item['sensor_id']): item for item in FLOW_SENSOR_MAP}
-
 CONFIRMED_WELL_SLOT_INDICES = tuple(range(len(WELL_NAMES)))
 CONFIRMED_LINE_SLOT_INDICES = tuple(range(len(LINE_SENSOR_MAP)))
 CONFIRMED_FLOW_SLOT_INDICES = tuple(range(len(FLOW_SENSOR_MAP)))
@@ -414,7 +393,7 @@ def _range_rows(session, table_name: str, start_date: Any = None, end_date: Any 
             params['end_date'] = end.isoformat()
         where_sql = f" WHERE {' AND '.join(clauses)}"
         sql = f"""
-            SELECT *
+            SELECT TOP ({max_rows}) *
             FROM {table_name}
             {where_sql}
             ORDER BY Time_Stamp ASC
@@ -1160,7 +1139,7 @@ def _build_wells(
         municipality_state = str(location_row.get('municipality_state') or '').strip()
         name = registered_name
         # En la columna "Ubicación" se muestra el nombre operativo con el que
-        # el pozo está dado de alta, por ejemplo: "Guadalupe Est. Banco".
+        # el pozo está dado de alta con su nombre operativo confirmado.
         # El municipio/estado se conserva aparte para no perder ese dato.
         location = registered_name
         totalizer = _max_optional(flow_out_total, flow_in_total)
@@ -1209,6 +1188,7 @@ def _build_wells(
             'flujo_entrada': flow_in,
             'flujo_salida': flow_out,
             'flow': max(flow_out, flow_in),
+            'flow_unit': flow_unit_for_sensor(flow_out_sensor_id),
             'updated': updated_iso,
             'ultima_lectura': updated_iso,
             'reading_stale': reading_stale,
@@ -1270,6 +1250,7 @@ def _build_tank_inputs(
             'flow_lps': flow,
             'flujo_lps': flow,
             'flow': flow,
+            'flow_unit': flow_unit_for_sensor(sensor_id),
             'total_m3': total,
             'totalizador_m3': total,
             'period_m3': period_m3,
@@ -1375,6 +1356,7 @@ def _build_lines(
             'sensor_name': sensor_name,
             'sensor_id': sensor_id,
             'flow_lps': flow,
+            'flow_unit': flow_unit_for_sensor(sensor_id),
             'total_m3': total,
             'totalizador_m3': total,
             'period_m3': period_m3,
@@ -1480,6 +1462,7 @@ def _build_flows(
             'flow_lps': flow,
             'flujo_lps': flow,
             'flow': flow,
+            'flow_unit': flow_unit_for_sensor(sensor_id),
             'total_m3': total,
             'totalizador_m3': total,
             'period_m3': period_m3,

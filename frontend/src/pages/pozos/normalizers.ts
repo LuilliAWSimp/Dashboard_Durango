@@ -85,7 +85,7 @@ export function normalizeSqlLine(line: FlexibleRecord, index: number): Normalize
     flow,
     updated,
     ultima_lectura: updated,
-    sensor_id: line.sensor_id,
+    sensor_id: line.sensor_id == null ? undefined : Number(line.sensor_id),
     sensor_name: line.sensor_name,
     diagnosis: `Sensor ${line.sensor_id || ''} · ${line.sensor_name || 'Lectura de línea'}`,
   };
