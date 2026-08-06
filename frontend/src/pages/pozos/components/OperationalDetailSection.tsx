@@ -12,7 +12,7 @@ import useSqlChartDashboard from '../hooks/useSqlChartDashboard';
 import useWaterHistory from '../hooks/useWaterHistory';
 import type { OperationalModule } from './OperationalModuleSection';
 
-interface Props { module: OperationalModule; sensorId: number; backPath: string; }
+interface Props { module: OperationalModule; sensorId: number | string; backPath: string; }
 function array(value: unknown): FlexibleRecord[] { return Array.isArray(value) ? value as FlexibleRecord[] : []; }
 function num(value: unknown): number | null { if (value === null || value === undefined || value === '') return null; const parsed=Number(value); return Number.isFinite(parsed)?parsed:null; }
 function fmt(value: unknown): string { const parsed=num(value); return parsed===null?'—':parsed.toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2}); }
@@ -22,7 +22,7 @@ export default function OperationalDetailSection({ module, sensorId, backPath }:
   const navigate=useNavigate();
   const current=useSqlChartDashboard('dashboard', defaultTodayRange, { forceRefresh:true, includeHistory:false, includeEnergyWater:false, autoRefresh:true });
   const dashboard=current.dashboard as DashboardData|null;
-  const item=rows(dashboard,module).find((row)=>Number(row.sensor_id||0)===sensorId);
+  const item=rows(dashboard,module).find((row)=>String(row.sensor_id ?? row.operational_key ?? '')===String(sensorId));
   const history=useWaterHistory({module,sensorId});
   const name=String(item?.name||item?.nombre||`Elemento ${sensorId}`);
   const flowUnit=String(item?.flow_unit||history.data?.flow_unit||'L/s');

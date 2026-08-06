@@ -13,8 +13,7 @@ WATER_SECTION_META = {
     'dashboard': ('Resumen', 'Monitoreo hídrico operativo de Planta Durango'),
     'pozos': ('Pozos', 'Dos pozos confirmados'),
     'lineas': ('Líneas', 'Cinco líneas confirmadas'),
-    'flujos': ('Flujos auxiliares', 'Lavadoras y Jarabes confirmados'),
-    'tanques': ('Tanques', 'Pendiente de validación de niveles'),
+    'flujos': ('Lavadoras', 'Lavadora Vidrio y Lavadora Ref Pet'),
     'balance': ('Comparativo Operativo de Agua', 'Comparación matemática de volúmenes confiables'),
     'concesion': ('Concesión', 'Pendiente de fuente confirmada'),
     'revision': ('Revisión diaria', 'Cierres y consumos por fecha'),
@@ -25,7 +24,7 @@ WATER_SECTION_META = {
     'fuentes': ('Fuentes', 'Administración de fuentes hidráulicas'),
 }
 
-WATER_REPORT_MODULES = ['Pozos', 'Líneas', 'Flujos auxiliares', 'Cortes por turno', 'Comparativo operativo']
+WATER_REPORT_MODULES = ['Pozos', 'Líneas', 'Lavadoras', 'Cortes por turno', 'Comparativo operativo']
 
 
 def _empty(section: str, status: str, message: str) -> WaterDashboardPayload:
@@ -51,7 +50,7 @@ def _integer_identity(value: Any) -> int:
         return int(digits) if digits else 0
 
 
-def _sensor_id(item: dict[str, Any]) -> int:
+def _item_identity(item: dict[str, Any]) -> str:
     """Resolve the canonical operational sensor for current and period rows.
 
     Legacy well rows used ``id=pozo-1`` plus ``flow_out_sensor_id`` while the
@@ -61,16 +60,20 @@ def _sensor_id(item: dict[str, Any]) -> int:
     for key in ('sensor_id', 'water_sensor_id', 'flow_out_sensor_id'):
         candidate = _integer_identity(item.get(key))
         if candidate:
-            return candidate
-    return _integer_identity(item.get('id'))
+            return str(candidate)
+    operational_key = str(item.get('operational_key') or '').strip().lower()
+    if operational_key:
+        return operational_key
+    fallback = str(item.get('id') or '').strip().lower()
+    return fallback if fallback and not fallback.startswith(('pozo-', 'linea-')) else str(_integer_identity(fallback) or '')
 
 
 def _merge_period(current_rows: list[dict[str, Any]], period_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    by_sensor = {_sensor_id(item): item for item in period_rows if _sensor_id(item)}
-    current_by_sensor: dict[int, dict[str, Any]] = {}
+    by_sensor = {_item_identity(item): item for item in period_rows if _item_identity(item)}
+    current_by_sensor: dict[str, dict[str, Any]] = {}
     current_without_sensor: list[dict[str, Any]] = []
     for current in current_rows:
-        current_sensor = _sensor_id(current)
+        current_sensor = _item_identity(current)
         if current_sensor:
             # Keep the latest occurrence only. This is a defensive guard for
             # inherited BOS payloads that expose the same position twice.
@@ -79,14 +82,16 @@ def _merge_period(current_rows: list[dict[str, Any]], period_rows: list[dict[str
             current_without_sensor.append(current)
 
     result: list[dict[str, Any]] = []
-    seen: set[int] = set()
+    seen: set[str] = set()
     for current_sensor, current in current_by_sensor.items():
         merged = dict(current)
         period = by_sensor.get(current_sensor)
         seen.add(current_sensor)
         if period:
             merged.update(period)
-            merged['sensor_id'] = current_sensor
+            merged['operational_key'] = period.get('operational_key') or current.get('operational_key') or current_sensor
+            if period.get('sensor_id') is not None or current.get('sensor_id') is not None:
+                merged['sensor_id'] = period.get('sensor_id') if period.get('sensor_id') is not None else current.get('sensor_id')
             merged['period_activity'] = period.get('activity')
             merged['period_data_status'] = period.get('data_status')
             current_flow = current.get('flow_lps') if current.get('flow_lps') is not None else current.get('flow')
@@ -142,16 +147,12 @@ def _cards(payload: dict[str, Any]) -> list[KpiCard]:
     return [
         KpiCard(label='Volumen validado de pozos', value=value(wells), unit=unit(wells), trend=trend(wells, 2), accent='blue'),
         KpiCard(label='Volumen validado de líneas', value=value(lines), unit=unit(lines), trend=trend(lines, 5), accent='cyan'),
-        KpiCard(label='Volumen validado de flujos auxiliares', value=value(flows), unit=unit(flows), trend=trend(flows, 3), accent='indigo'),
+        KpiCard(label='Volumen validado de lavadoras', value=value(flows), unit=unit(flows), trend=trend(flows, 2), accent='indigo'),
         KpiCard(label='Datos en revisión', value=str(int(wells.get('review_count', 0)) + int(lines.get('review_count', 0)) + int(flows.get('review_count', 0))), unit='elementos', trend='Pueden conservar volumen validado parcial', accent='brown'),
     ]
 
 
 def get_water_dashboard_payload(section: str = 'dashboard', start_date: Any = None, end_date: Any = None, period: Any = None, include_history: bool = False, include_energy_water: bool = False, force_refresh: bool = False) -> WaterDashboardPayload:
-    if section == 'tanques':
-        payload = _empty(section, 'pending_validation', 'La instrumentación de niveles requiere validación antes de activarse.')
-        payload.plant_capabilities = capability_payload()
-        return payload
     if section == 'concesion':
         return _empty(section, 'pending_validation', 'No existe una fuente de concesión confirmada para Durango.')
 
@@ -178,7 +179,7 @@ def get_water_dashboard_payload(section: str = 'dashboard', start_date: Any = No
             payload['wells'] = _merge_period(list(payload.get('wells') or []), period_payload['wells'])
             payload['production_lines'] = _merge_period(list(payload.get('production_lines') or []), period_payload['lines'])
             payload['flows'] = _merge_period(list(payload.get('flows') or []), period_payload['flows'])
-            payload['tank_inputs'] = payload['flows']
+            payload['tank_inputs'] = []
             payload['period_data'] = period_payload
             payload['operational_summary'] = {
                 'wells': summarize_period_items(payload['wells']),

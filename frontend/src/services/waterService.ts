@@ -127,7 +127,7 @@ export async function fetchWaterDashboard(section = 'dashboard', options: WaterR
 
 export interface WaterHistoryRequestOptions {
   module: 'well' | 'line' | 'flow';
-  sensorId: number;
+  sensorId: number | string;
   startDate: string;
   endDate: string;
   aggregation: HistoryAggregation;

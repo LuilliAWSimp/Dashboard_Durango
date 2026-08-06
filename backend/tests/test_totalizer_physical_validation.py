@@ -116,11 +116,11 @@ class TotalizerPhysicalValidationTests(unittest.TestCase):
         points = _build_points(
             1001,
             'quarter_hour',
-            datetime(2026, 8, 4, 10, 30),
-            datetime(2026, 8, 4, 10, 45),
+            datetime(2026, 8, 5, 10, 30),
+            datetime(2026, 8, 5, 10, 45),
             [
                 {
-                    'bucket_start': datetime(2026, 8, 4, 10, 30),
+                    'bucket_start': datetime(2026, 8, 5, 10, 30),
                     'samples': 15,
                     'flow_avg': 0.0,
                     'flow_min': 0.0,
@@ -142,8 +142,8 @@ class TotalizerPhysicalValidationTests(unittest.TestCase):
         ]
         item = build_period_item(WELLS[0], rows, None, date(2026, 8, 4))
         shift_summary = _summary([item])
-        self.assertIsNone(shift_summary['total_m3'])
-        self.assertEqual(shift_summary['coverage_available'], 0)
+        self.assertEqual(shift_summary['total_m3'], 0.0)
+        self.assertEqual(shift_summary['coverage_available'], 1)
         self.assertEqual(shift_summary['review_count'], 1)
 
         report_row = _report_row(item)

@@ -36,7 +36,7 @@ def read_water_dashboard(
 @router.get('/history')
 def read_water_history(
     module: str = Query(..., pattern='^(well|line|flow)$'),
-    sensor_id: int = Query(..., gt=0),
+    sensor_id: str = Query(..., min_length=1),
     start_date: str = Query(...),
     end_date: str = Query(...),
     aggregation: str = Query(..., pattern='^(quarter_hour|hourly|daily)$'),

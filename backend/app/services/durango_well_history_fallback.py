@@ -9,7 +9,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.database import SessionLocal
-from app.services.durango_capabilities import WELLS
+from app.services.durango_capabilities import DURANGO_SCADA_CUTOVER_LOCAL, WELLS, normalize_flow_lps
 from app.services.plant_time import local_to_source_naive, source_to_local_naive
 from app.services.water_bos_service import _bos_value, _row_to_dict
 
@@ -52,17 +52,12 @@ def _extract_row(row: dict[str, Any], sensor_id: int, index: int) -> dict[str, A
     stamp = source_to_local_naive(row.get('time_stamp') or row.get('timestamp'))
     if stamp is None:
         return None
-    flow_out = _num(_bos_value(row, 'POZO_FLOW_OUT', index, 'instant_value', None))
-    flow_in = _num(_bos_value(row, 'POZO_FLOW_IN', index, 'instant_value', None))
-    flows = [value for value in (flow_out, flow_in) if value is not None]
-    flow = max(flows) if flows else None
+    if stamp < DURANGO_SCADA_CUTOVER_LOCAL:
+        return None
+    flow = normalize_flow_lps(sensor_id, _bos_value(row, 'POZO_FLOW_OUT', index, 'instant_value', None))
     total_out = _num(_bos_value(row, 'POZO_FLOW_OUT', index, 'total_value', None))
-    total_in = _num(_bos_value(row, 'POZO_FLOW_IN', index, 'total_value', None))
-    totals = [value for value in (total_out, total_in) if value is not None and value > 0]
-    total = max(totals) if totals else None
+    total = total_out if total_out is not None and total_out > 0 else None
     quality = _num(_bos_value(row, 'POZO_FLOW_OUT', index, 'quality', None))
-    if quality is None:
-        quality = _num(_bos_value(row, 'POZO_FLOW_IN', index, 'quality', None))
     if flow is None and total is None and quality is None:
         return None
     return {

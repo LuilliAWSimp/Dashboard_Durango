@@ -17,10 +17,10 @@ function group(summary: FlexibleRecord, key: string): FlexibleRecord { const val
 export default function RevisionDiariaSection() {
   const controller = useSqlChartDashboard('dashboard', defaultTodayRange, { forceRefresh: true, includeHistory: false, includeEnergyWater: false, autoRefresh: true });
   const dashboard = controller.dashboard as DashboardData | null;
-  const rows = useMemo(() => [
-    ...array(dashboard?.wells).map((item) => ({ ...item, group: 'Pozo' })),
-    ...array(dashboard?.production_lines).map((item) => ({ ...item, group: 'Línea' })),
-    ...array(dashboard?.flows).map((item) => ({ ...item, group: 'Flujo auxiliar' })),
+  const rows = useMemo<Array<FlexibleRecord & { group: string }>>(() => [
+    ...array(dashboard?.wells).map((item): FlexibleRecord & { group: string } => ({ ...item, group: 'Pozo' })),
+    ...array(dashboard?.production_lines).map((item): FlexibleRecord & { group: string } => ({ ...item, group: 'Línea' })),
+    ...array(dashboard?.flows).map((item): FlexibleRecord & { group: string } => ({ ...item, group: 'Lavadora' })),
   ], [dashboard]);
   const summary = (dashboard?.operational_summary || {}) as FlexibleRecord;
   const wells = group(summary, 'wells');

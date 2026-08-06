@@ -14,7 +14,8 @@ export interface DateRange extends FlexibleRecord {
 }
 
 export interface WaterHistoryPoint extends FlexibleRecord {
-  sensor_id: number;
+  sensor_id: number | string | null;
+  operational_key?: string;
   bucket_start: string;
   bucket_end: string;
   aggregation: HistoryAggregation;
@@ -31,12 +32,13 @@ export interface WaterHistoryPoint extends FlexibleRecord {
   discarded_totalizer_event_details?: FlexibleRecord[];
   has_discontinuities?: boolean;
   volume_reliable: boolean;
-  data_status: 'operational' | 'zero_consumption' | 'no_data' | 'invalid_totalizer' | 'stale_data' | 'no_history' | 'future_interval';
+  data_status: 'operational' | 'zero_consumption' | 'no_data' | 'invalid_totalizer' | 'stale_data' | 'no_history' | 'future_interval' | 'legacy_configuration_pending';
 }
 
 export interface WaterHistoryResponse extends FlexibleRecord {
   module: 'well' | 'line' | 'flow';
-  sensor_id: number;
+  sensor_id: number | null;
+  operational_key?: string;
   name: string;
   flow_unit?: string;
   start_date: string;
@@ -63,7 +65,8 @@ export interface DashboardData extends FlexibleRecord {
 }
 
 export interface NormalizedWaterItem extends FlexibleRecord {
-  sensor_id?: number;
+  sensor_id?: number | null;
+  operational_key?: string;
   id?: unknown;
   numero?: unknown;
   nombre?: unknown;
@@ -111,7 +114,8 @@ export interface ChartDataPoint extends FlexibleRecord {
 }
 
 export interface ShiftElement extends FlexibleRecord {
-  sensor_id: number;
+  sensor_id: number | null;
+  operational_key?: string;
   name: string;
   module: 'well' | 'line' | 'flow';
   flow_unit?: string;
@@ -172,7 +176,8 @@ export interface WaterShiftsResponse extends FlexibleRecord {
 }
 
 export interface WaterModuleHistorySeries extends FlexibleRecord {
-  sensor_id: number;
+  sensor_id: number | null;
+  operational_key?: string;
   name: string;
   flow_unit?: string;
   source_status: string;
@@ -195,7 +200,7 @@ export interface WellMinuteFlowPoint extends FlexibleRecord {
   timestamp: string;
   flow_value: number | null;
   samples: number;
-  data_status: 'operational' | 'no_data' | 'future_interval';
+  data_status: 'operational' | 'no_data' | 'future_interval' | 'legacy_configuration_pending';
 }
 
 export interface WellMinuteFlowSeries extends FlexibleRecord {

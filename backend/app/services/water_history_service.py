@@ -11,7 +11,17 @@ from sqlalchemy import text
 from sqlalchemy.exc import OperationalError, SQLAlchemyError
 
 from app.database import SessionLocal
-from app.services.durango_capabilities import LOCAL_TIMEZONE, SENSORS_BY_MODULE, flow_unit_for_sensor, sensor_contract
+from app.services.durango_capabilities import (
+    DURANGO_SCADA_CUTOVER_LOCAL,
+    LOCAL_TIMEZONE,
+    SENSORS_BY_MODULE,
+    clamp_to_validated_segment,
+    flow_unit_for_sensor,
+    identity_key,
+    normalize_flow_lps,
+    sensor_contract,
+)
+from app.services.durango_lavadoras_service import query_lavadora_rows
 from app.services.durango_well_history_fallback import query_bos_well_rows
 from app.services.plant_time import effective_local_end, is_future_interval, local_now_naive, local_to_source_naive, source_to_local_naive
 from app.services.totalizer_quality import analyze_totalizer_series
@@ -41,10 +51,12 @@ def _parse_date(value: str) -> date:
         raise ValueError('Fecha inválida.') from exc
 
 
-def _validate(module: str, sensor_id: int, start_date: str, end_date: str, aggregation: str) -> tuple[Module, Aggregation, date, date]:
+def _validate(module: str, sensor_id: Any, start_date: str, end_date: str, aggregation: str) -> tuple[Module, Aggregation, date, date]:
     if module not in SENSORS_BY_MODULE:
         raise ValueError('Módulo histórico no permitido.')
-    if int(sensor_id) not in SENSORS_BY_MODULE[module]:
+    requested_identity = identity_key(sensor_id)
+    allowed_identities = {identity_key(value) for value in SENSORS_BY_MODULE[module]}
+    if requested_identity not in allowed_identities:
         raise ValueError('El elemento solicitado no pertenece al contrato de Durango.')
     if aggregation not in {'quarter_hour', 'hourly', 'daily'}:
         raise ValueError('Agrupación histórica no permitida.')
@@ -110,6 +122,10 @@ def _localized_rows(rows: list[dict[str, Any]], *timestamp_keys: str) -> list[di
         for key in timestamp_keys:
             if item.get(key) is not None:
                 item[key] = source_to_local_naive(item[key])
+        identity = item.get('sensor_id') or item.get('operational_key')
+        for key in ('instant_value', 'flow_value', 'flow_avg', 'flow_min', 'flow_max'):
+            if key in item:
+                item[key] = normalize_flow_lps(identity, item.get(key))
         normalized.append(item)
     return normalized
 
@@ -248,7 +264,7 @@ def _validation_rows_by_bucket(rows: list[dict[str, Any]], aggregation: Aggregat
     return grouped
 
 def _aggregate(
-    sensor_id: int,
+    sensor_id: Any,
     rows: list[dict[str, Any]],
     aggregation: Aggregation,
     validation_rows: list[dict[str, Any]] | None = None,
@@ -262,7 +278,7 @@ def _aggregate(
     validation_by_bucket = _validation_rows_by_bucket(validation_rows or [], aggregation)
     contract = sensor_contract(sensor_id)
     flow_unit = flow_unit_for_sensor(sensor_id)
-    require_flow_validation = str(contract.get('group')) == 'well'
+    require_flow_validation = bool(contract.get('require_flow_validation'))
     for bucket, bucket_rows in grouped.items():
         bucket_rows = sorted(bucket_rows, key=lambda row: _dt(row.get('bucket_start')) or datetime.min)
         samples = sum(int(row.get('samples') or 0) for row in bucket_rows)
@@ -291,7 +307,7 @@ def _aggregate(
                 ])
         analysis = analyze_totalizer_series(
             total_points,
-            sensor_id=sensor_id,
+            sensor_id=int(sensor_id) if str(sensor_id).isdigit() else None,
             flow_unit=flow_unit,
             require_flow_validation=require_flow_validation,
         )
@@ -314,7 +330,7 @@ def _aggregate(
     return result
 
 
-def _empty(sensor_id: int, aggregation: Aggregation, start: datetime, end: datetime, *, status: str = 'no_data') -> dict[str, Any]:
+def _empty(sensor_id: Any, aggregation: Aggregation, start: datetime, end: datetime, *, status: str = 'no_data') -> dict[str, Any]:
     return {
         'sensor_id': sensor_id,
         'bucket_start': start.isoformat(timespec='seconds'),
@@ -338,7 +354,7 @@ def _empty(sensor_id: int, aggregation: Aggregation, start: datetime, end: datet
 
 
 def _build_points(
-    sensor_id: int,
+    sensor_id: Any,
     aggregation: Aggregation,
     start_dt: datetime,
     end_dt: datetime,
@@ -354,6 +370,10 @@ def _build_points(
     effective_end = effective_end_dt or end_dt
     while cursor < end_dt:
         bucket_end = min(cursor + step, end_dt)
+        if bucket_end <= DURANGO_SCADA_CUTOVER_LOCAL:
+            result.append(_empty(sensor_id, aggregation, cursor, bucket_end, status='legacy_configuration_pending'))
+            cursor += step
+            continue
         if is_future_interval(cursor, effective_end):
             result.append(_empty(sensor_id, aggregation, cursor, bucket_end, status='future_interval'))
             cursor += step
@@ -473,81 +493,65 @@ def _store_cache(cache_key: str, value: dict[str, Any], ttl_seconds: int) -> dic
     _CACHE[cache_key] = {'expires_at': monotonic() + ttl_seconds, 'value': value}
     return value
 
-def get_water_history(*, module: str, sensor_id: int, start_date: str, end_date: str, aggregation: str, force_refresh: bool = False) -> dict[str, Any]:
+def get_water_history(*, module: str, sensor_id: Any, start_date: str, end_date: str, aggregation: str, force_refresh: bool = False) -> dict[str, Any]:
     module, aggregation, start, end = _validate(module, sensor_id, start_date, end_date, aggregation)
+    identity: Any = int(sensor_id) if str(sensor_id).isdigit() else identity_key(sensor_id)
     now_local = local_now_naive()
     requested_start_dt = datetime.combine(start, time.min)
     requested_end_dt = datetime.combine(end + timedelta(days=1), time.min)
     effective_end_dt = effective_local_end(requested_end_dt, now=now_local)
+    query_start_dt, query_end_dt, legacy_only, crosses_cutover = clamp_to_validated_segment(
+        requested_start_dt, effective_end_dt
+    )
+    query_end_dt = max(query_start_dt, query_end_dt)
     cache_ttl = _history_cache_ttl(start, end, now_local.date())
-    cache_key = f'durango:{module}:{sensor_id}:{start}:{end}:{aggregation}:{effective_end_dt.isoformat(timespec="minutes")}'
+    cache_key = f'durango:{module}:{identity}:{start}:{end}:{aggregation}:{effective_end_dt.isoformat(timespec="minutes")}'
     cached = _CACHE.get(cache_key)
     if not force_refresh and cached and monotonic() < cached['expires_at']:
         return cached['value']
 
-    source = 'readings_minute'
+    source = 'legacy_configuration_pending' if legacy_only else 'readings_minute'
     rows: list[dict[str, Any]] = []
-    query_end_dt = max(requested_start_dt, effective_end_dt)
-    try:
-        if query_end_dt > requested_start_dt:
-            rows = _query_15m(sensor_id, requested_start_dt, query_end_dt)
-    except WaterHistoryError as exc:
-        if module == 'well' and start == end and query_end_dt > requested_start_dt:
-            raw_well_rows = query_bos_well_rows(sensor_id, requested_start_dt, query_end_dt)
-            if raw_well_rows:
-                normalized_rows = _bos_rows_to_15m(sensor_id, raw_well_rows)
-                fallback_points = _build_points(
-                    sensor_id, aggregation, requested_start_dt, requested_end_dt, normalized_rows,
-                    raw_well_rows, effective_end_dt=effective_end_dt,
-                )
-                payload = {
-                    'plant': 'Planta Durango', 'module': module, 'sensor_id': sensor_id,
-                    'name': sensor_contract(sensor_id).get('display_name'), 'flow_unit': flow_unit_for_sensor(sensor_id),
-                    'start_date': start.isoformat(), 'end_date': end.isoformat(), 'aggregation': aggregation,
-                    'effective_end_at': effective_end_dt.isoformat(timespec='seconds'),
-                    'has_future_intervals': effective_end_dt < requested_end_dt,
-                    'points': fallback_points, 'source_status': 'bos_fallback',
-                    'has_data': any(int(point.get('samples') or 0) > 0 for point in fallback_points),
-                }
-                return _store_cache(cache_key, payload, cache_ttl)
-        fallback = _fallback_bos(module, sensor_id, start, end, aggregation)
-        if fallback:
-            fallback_points = _fallback_points(sensor_id, aggregation, start, end, fallback, effective_end_dt=effective_end_dt)
-            payload = {
-                'plant': 'Planta Durango', 'module': module, 'sensor_id': sensor_id,
-                'name': sensor_contract(sensor_id).get('display_name'), 'flow_unit': flow_unit_for_sensor(sensor_id),
-                'start_date': start.isoformat(), 'end_date': end.isoformat(), 'aggregation': aggregation,
-                'effective_end_at': effective_end_dt.isoformat(timespec='seconds'),
-                'has_future_intervals': effective_end_dt < requested_end_dt,
-                'points': fallback_points, 'source_status': 'bos_fallback',
-                'has_data': any(int(point.get('samples') or 0) > 0 for point in fallback_points),
-            }
-            return _store_cache(cache_key, payload, cache_ttl)
-        raise exc
-
-    fallback_rows: list[dict[str, Any]] = []
-    if not rows and module == 'well' and start == end and query_end_dt > requested_start_dt:
-        fallback_rows = query_bos_well_rows(sensor_id, requested_start_dt, query_end_dt)
-        if fallback_rows:
-            rows = _bos_rows_to_15m(sensor_id, fallback_rows)
-            source = 'bos_fallback'
     validation_rows: list[dict[str, Any]] = []
-    if module == 'well' and query_end_dt > requested_start_dt:
-        validation_rows = fallback_rows if source == 'bos_fallback' else _query_physical_validation_rows([sensor_id], requested_start_dt, query_end_dt)
+    if not legacy_only and module == 'flow':
+        raw_rows = query_lavadora_rows(query_start_dt, query_end_dt).get(str(identity), [])
+        rows = _bos_rows_to_15m(identity, raw_rows)
+        validation_rows = raw_rows
+        source = 'dbo.SensorsBOS_Lavadoras' if raw_rows else 'no_data'
+    elif not legacy_only:
+        try:
+            rows = _query_15m(int(identity), query_start_dt, query_end_dt) if query_end_dt > query_start_dt else []
+        except WaterHistoryError as exc:
+            if module != 'well' or start != end:
+                raise exc
+            fallback_rows = query_bos_well_rows(int(identity), query_start_dt, query_end_dt)
+            if not fallback_rows:
+                raise exc
+            rows = _bos_rows_to_15m(identity, fallback_rows)
+            validation_rows = fallback_rows
+            source = 'bos_fallback'
+        if module == 'well' and not validation_rows and query_end_dt > query_start_dt:
+            validation_rows = _query_physical_validation_rows([int(identity)], query_start_dt, query_end_dt)
+
     points = _build_points(
-        sensor_id, aggregation, requested_start_dt, requested_end_dt, rows, validation_rows,
+        identity, aggregation, requested_start_dt, requested_end_dt, rows, validation_rows,
         effective_end_dt=effective_end_dt,
     )
+    contract = sensor_contract(identity)
     payload = {
         'plant': 'Planta Durango',
         'module': module,
-        'sensor_id': sensor_id,
-        'name': sensor_contract(sensor_id).get('display_name'),
-        'flow_unit': flow_unit_for_sensor(sensor_id),
+        'sensor_id': identity if isinstance(identity, int) else None,
+        'operational_key': contract.get('operational_key') or str(identity),
+        'name': contract.get('display_name'),
+        'flow_unit': flow_unit_for_sensor(identity),
         'start_date': start.isoformat(),
         'end_date': end.isoformat(),
         'aggregation': aggregation,
         'effective_end_at': effective_end_dt.isoformat(timespec='seconds'),
+        'validated_segment_start': None if legacy_only else query_start_dt.isoformat(timespec='seconds'),
+        'crosses_scada_cutover': crosses_cutover,
+        'legacy_notice': 'Configuración anterior pendiente de validación' if legacy_only else ('El histórico corresponde al segmento validado posterior al cambio de SCADA.' if crosses_cutover else None),
         'has_future_intervals': effective_end_dt < requested_end_dt,
         'points': points,
         'source_status': source,
@@ -561,7 +565,7 @@ def _validate_module_request(module: str, start_date: str, end_date: str, aggreg
     sensor_ids = SENSORS_BY_MODULE.get(module)
     if not sensor_ids:
         raise ValueError('Módulo histórico no permitido.')
-    return _validate(module, int(sensor_ids[0]), start_date, end_date, aggregation)
+    return _validate(module, sensor_ids[0], start_date, end_date, aggregation)
 
 
 def _query_15m_multi(sensor_ids: list[int], start_dt: datetime, end_dt: datetime) -> list[dict[str, Any]]:
@@ -662,49 +666,60 @@ def get_water_history_module(*, module: str, start_date: str, end_date: str, agg
     cached = _CACHE.get(cache_key)
     if not force_refresh and cached and monotonic() < cached['expires_at']:
         return cached['value']
-    sensor_ids = list(SENSORS_BY_MODULE[module])
-    query_end_dt = max(requested_start_dt, effective_end_dt)
+    identities = list(SENSORS_BY_MODULE[module])
+    query_start_dt, query_end_dt, legacy_only, crosses_cutover = clamp_to_validated_segment(
+        requested_start_dt, effective_end_dt
+    )
+    query_end_dt = max(query_start_dt, query_end_dt)
     query_error: WaterHistoryError | None = None
-    rows: list[dict[str, Any]] = []
-    try:
-        if query_end_dt > requested_start_dt:
-            rows = _query_15m_multi(sensor_ids, requested_start_dt, query_end_dt)
-    except WaterHistoryError as exc:
-        query_error = exc
+    grouped: dict[Any, list[dict[str, Any]]] = {identity: [] for identity in identities}
+    validation_grouped: dict[Any, list[dict[str, Any]]] = {identity: [] for identity in identities}
+    if not legacy_only and module == 'flow':
+        washer_rows = query_lavadora_rows(query_start_dt, query_end_dt)
+        for identity in identities:
+            raw_rows = washer_rows.get(str(identity), [])
+            grouped[identity] = _bos_rows_to_15m(identity, raw_rows)
+            validation_grouped[identity] = raw_rows
+    elif not legacy_only:
+        numeric_ids = [int(value) for value in identities]
+        rows: list[dict[str, Any]] = []
+        try:
+            if query_end_dt > query_start_dt:
+                rows = _query_15m_multi(numeric_ids, query_start_dt, query_end_dt)
+        except WaterHistoryError as exc:
+            query_error = exc
+        for row in rows:
+            row_sensor = int(row.get('sensor_id') or 0)
+            if row_sensor in grouped:
+                grouped[row_sensor].append(row)
+        if module == 'well' and query_end_dt > query_start_dt:
+            for row in _query_physical_validation_rows(numeric_ids, query_start_dt, query_end_dt):
+                validation_sensor = int(row.get('sensor_id') or 0)
+                if validation_sensor in validation_grouped:
+                    validation_grouped[validation_sensor].append(row)
 
-    validation_grouped: dict[int, list[dict[str, Any]]] = {sensor_id: [] for sensor_id in sensor_ids}
-    if module == 'well' and query_end_dt > requested_start_dt:
-        for row in _query_physical_validation_rows(sensor_ids, requested_start_dt, query_end_dt):
-            validation_sensor = int(row.get('sensor_id') or 0)
-            if validation_sensor in validation_grouped:
-                validation_grouped[validation_sensor].append(row)
-
-    grouped: dict[int, list[dict[str, Any]]] = {sensor_id: [] for sensor_id in sensor_ids}
-    for row in rows:
-        sensor_id = int(row.get('sensor_id') or 0)
-        if sensor_id in grouped:
-            grouped[sensor_id].append(row)
     series = []
-    for sensor_id in sensor_ids:
-        sensor_rows = grouped[sensor_id]
-        source_status = 'readings_minute'
-        sensor_validation_rows = validation_grouped.get(sensor_id, [])
-        if not sensor_rows and module == 'well' and start == end and query_end_dt > requested_start_dt:
-            bos_rows = query_bos_well_rows(sensor_id, requested_start_dt, query_end_dt)
+    for identity in identities:
+        sensor_rows = grouped[identity]
+        source_status = 'legacy_configuration_pending' if legacy_only else ('dbo.SensorsBOS_Lavadoras' if module == 'flow' else 'readings_minute')
+        sensor_validation_rows = validation_grouped.get(identity, [])
+        if not sensor_rows and module == 'well' and start == end and query_end_dt > query_start_dt:
+            bos_rows = query_bos_well_rows(int(identity), query_start_dt, query_end_dt)
             if bos_rows:
-                sensor_rows = _bos_rows_to_15m(sensor_id, bos_rows)
+                sensor_rows = _bos_rows_to_15m(identity, bos_rows)
                 sensor_validation_rows = bos_rows
                 source_status = 'bos_fallback'
         points = _build_points(
-            sensor_id, aggregation, requested_start_dt, requested_end_dt, sensor_rows, sensor_validation_rows,
+            identity, aggregation, requested_start_dt, requested_end_dt, sensor_rows, sensor_validation_rows,
             effective_end_dt=effective_end_dt,
         )
-        contract = sensor_contract(sensor_id)
+        contract = sensor_contract(identity)
         series.append({
-            'sensor_id': sensor_id,
+            'sensor_id': identity if isinstance(identity, int) else None,
+            'operational_key': contract.get('operational_key') or str(identity),
             'name': contract.get('display_name'),
-            'flow_unit': flow_unit_for_sensor(sensor_id),
-            'source_status': source_status if sensor_rows else 'no_data',
+            'flow_unit': flow_unit_for_sensor(identity),
+            'source_status': source_status if sensor_rows or legacy_only else 'no_data',
             'has_data': any(int(point.get('samples') or 0) > 0 for point in points),
             'has_future_intervals': any(point.get('data_status') == 'future_interval' for point in points),
             'points': points,
@@ -718,9 +733,12 @@ def get_water_history_module(*, module: str, start_date: str, end_date: str, agg
         'end_date': end.isoformat(),
         'aggregation': aggregation,
         'effective_end_at': effective_end_dt.isoformat(timespec='seconds'),
+        'validated_segment_start': None if legacy_only else query_start_dt.isoformat(timespec='seconds'),
+        'crosses_scada_cutover': crosses_cutover,
+        'legacy_notice': 'Configuración anterior pendiente de validación' if legacy_only else ('El histórico corresponde al segmento validado posterior al cambio de SCADA.' if crosses_cutover else None),
         'has_future_intervals': effective_end_dt < requested_end_dt,
         'series': series,
-        'source_status': 'operational' if any(item['has_data'] for item in series) else 'no_data',
+        'source_status': 'legacy_configuration_pending' if legacy_only else ('operational' if any(item['has_data'] for item in series) else 'no_data'),
     }
     return _store_cache(cache_key, payload, cache_ttl)
 
@@ -775,8 +793,9 @@ def get_wells_minute_flow(*, start_datetime: str, end_datetime: str, force_refre
         return cached['value']
 
     sensor_ids = list(SENSORS_BY_MODULE['well'])
-    query_end_dt = max(start_dt, effective_end_dt)
-    rows = _query_minute_rows(sensor_ids, start_dt, query_end_dt) if query_end_dt > start_dt else []
+    query_start_dt, query_end_dt, legacy_only, crosses_cutover = clamp_to_validated_segment(start_dt, effective_end_dt)
+    query_end_dt = max(query_start_dt, query_end_dt)
+    rows = _query_minute_rows(sensor_ids, query_start_dt, query_end_dt) if query_end_dt > query_start_dt else []
     grouped: dict[int, list[dict[str, Any]]] = {sensor_id: [] for sensor_id in sensor_ids}
     for row in rows:
         sensor_id = int(row.get('sensor_id') or 0)
@@ -786,8 +805,8 @@ def get_wells_minute_flow(*, start_datetime: str, end_datetime: str, force_refre
     for sensor_id in sensor_ids:
         sensor_rows = grouped[sensor_id]
         source_status = 'readings_minute'
-        if not sensor_rows and query_end_dt > start_dt:
-            bos_rows = query_bos_well_rows(sensor_id, start_dt, query_end_dt)
+        if not sensor_rows and query_end_dt > query_start_dt:
+            bos_rows = query_bos_well_rows(sensor_id, query_start_dt, query_end_dt)
             sensor_rows = [{'reading_ts': row.get('operational_ts'), 'flow_value': row.get('instant_value')} for row in bos_rows]
             if sensor_rows:
                 source_status = 'bos_fallback'
@@ -800,7 +819,14 @@ def get_wells_minute_flow(*, start_datetime: str, end_datetime: str, force_refre
         points = []
         cursor = start_dt.replace(second=0, microsecond=0)
         while cursor < requested_end_dt:
-            if is_future_interval(cursor, effective_end_dt):
+            if cursor < DURANGO_SCADA_CUTOVER_LOCAL:
+                points.append({
+                    'timestamp': cursor.isoformat(timespec='seconds'),
+                    'flow_value': None,
+                    'samples': 0,
+                    'data_status': 'legacy_configuration_pending',
+                })
+            elif is_future_interval(cursor, effective_end_dt):
                 points.append({
                     'timestamp': cursor.isoformat(timespec='seconds'),
                     'flow_value': None,
@@ -821,7 +847,7 @@ def get_wells_minute_flow(*, start_datetime: str, end_datetime: str, force_refre
             'sensor_id': sensor_id,
             'name': contract.get('display_name'),
             'flow_unit': flow_unit_for_sensor(sensor_id),
-            'source_status': source_status if any(point['samples'] for point in points) else 'no_data',
+            'source_status': 'legacy_configuration_pending' if legacy_only else (source_status if any(point['samples'] for point in points) else 'no_data'),
             'has_data': any(point['samples'] for point in points),
             'has_future_intervals': any(point['data_status'] == 'future_interval' for point in points),
             'points': points,
@@ -831,8 +857,11 @@ def get_wells_minute_flow(*, start_datetime: str, end_datetime: str, force_refre
         'start_datetime': start_dt.isoformat(timespec='seconds'),
         'end_datetime': requested_end_dt.isoformat(timespec='seconds'),
         'effective_end_at': effective_end_dt.isoformat(timespec='seconds'),
+        'validated_segment_start': None if legacy_only else query_start_dt.isoformat(timespec='seconds'),
+        'crosses_scada_cutover': crosses_cutover,
+        'legacy_notice': 'Configuración anterior pendiente de validación' if legacy_only else ('El histórico corresponde al segmento validado posterior al cambio de SCADA.' if crosses_cutover else None),
         'has_future_intervals': effective_end_dt < requested_end_dt,
         'series': series,
-        'source_status': 'operational' if any(item['has_data'] for item in series) else 'no_data',
+        'source_status': 'legacy_configuration_pending' if legacy_only else ('operational' if any(item['has_data'] for item in series) else 'no_data'),
     }
     return _store_cache(cache_key, payload, cache_ttl)

@@ -14,13 +14,14 @@ import StatusBadge from './StatusBadge';
 import useSqlChartDashboard from '../hooks/useSqlChartDashboard';
 
 export type OperationalModule = 'well' | 'line' | 'flow';
+export type OperationalIdentity = number | string;
 
 interface Props {
   module: OperationalModule;
   title: string;
   subtitle: string;
   route: string;
-  confirmedSensorIds?: number[];
+  confirmedSensorIds?: OperationalIdentity[];
 }
 
 function array(value: unknown): FlexibleRecord[] {
@@ -53,20 +54,27 @@ function configuredItems(module: OperationalModule) {
   return DURANGO_CAPABILITIES.flows;
 }
 
-function resolveSensorId(row: FlexibleRecord, index: number, module: OperationalModule): number {
+function configuredIdentity(item: { sensorId: number | null; operationalKey: string }): OperationalIdentity {
+  return item.sensorId ?? item.operationalKey;
+}
+
+function resolveSensorId(row: FlexibleRecord, index: number, module: OperationalModule): OperationalIdentity {
   for (const key of ['sensor_id', 'water_sensor_id', 'flow_out_sensor_id']) {
     const candidate = numericIdentity(row[key]);
     if (candidate) return candidate;
   }
+  const operationalKey = String(row.operational_key || '').trim();
+  if (operationalKey) return operationalKey;
 
   const items = configuredItems(module);
   const wellPosition = numericIdentity(row.well_id ?? row.numero ?? row.id);
   if (module === 'well' && wellPosition) {
     const match = items[wellPosition - 1];
-    if (match) return match.sensorId;
+    if (match) return configuredIdentity(match);
   }
 
-  return items[index]?.sensorId || numericIdentity(row.id) || index + 1;
+  const configured = items[index];
+  return configured ? configuredIdentity(configured) : numericIdentity(row.id) || String(row.id || `elemento_${index + 1}`);
 }
 
 function itemName(row: FlexibleRecord, index: number): string {
@@ -125,18 +133,21 @@ function mergeDuplicateRows(previous: FlexibleRecord | undefined, next: Flexible
 function uniqueModuleRows(
   dashboard: DashboardData | null,
   module: OperationalModule,
-  confirmedSensorIds?: number[],
+  confirmedSensorIds?: OperationalIdentity[],
 ): FlexibleRecord[] {
   const rawRows = rawModuleRows(dashboard, module);
   const confirmed = confirmedSensorIds?.length
     ? confirmedSensorIds
-    : configuredItems(module).map((item) => item.sensorId);
-  const bySensor = new Map<number, FlexibleRecord>();
+    : configuredItems(module).map(configuredIdentity);
+  const bySensor = new Map<OperationalIdentity, FlexibleRecord>();
 
   rawRows.forEach((row, index) => {
     const sensorId = resolveSensorId(row, index, module);
     if (!confirmed.includes(sensorId)) return;
-    bySensor.set(sensorId, mergeDuplicateRows(bySensor.get(sensorId), { ...row, sensor_id: sensorId }));
+    bySensor.set(sensorId, mergeDuplicateRows(bySensor.get(sensorId), {
+      ...row,
+      ...(typeof sensorId === 'number' ? { sensor_id: sensorId } : { operational_key: sensorId }),
+    }));
   });
 
   return confirmed.flatMap((sensorId) => {
@@ -164,7 +175,7 @@ export default function OperationalModuleSection({
     () => uniqueModuleRows(dashboard, module, confirmedSensorIds),
     [dashboard, module, confirmedSensorIds],
   );
-  const [selectedSensor, setSelectedSensor] = useState<number | null>(null);
+  const [selectedSensor, setSelectedSensor] = useState<OperationalIdentity | null>(null);
 
   useEffect(() => {
     if (rows.length && !rows.some((row, index) => resolveSensorId(row, index, module) === selectedSensor)) {
@@ -250,7 +261,7 @@ export default function OperationalModuleSection({
                 <div className="operational-card-footer">
                   <span className={communication.toLowerCase().includes('actual') ? 'online' : 'warning'}><i />{communication}</span>
                   <strong>{formatSqlDate(row.last_update || row.ultima_lectura)}</strong>
-                  <button type="button" className="open-detail-link" onClick={() => navigate(`${route}/sensor-${sensorId}`)}>Abrir detalle</button>
+                  <button type="button" className="open-detail-link" onClick={() => navigate(`${route}/${encodeURIComponent(String(sensorId))}`)}>Abrir detalle</button>
                 </div>
               </article>
             );

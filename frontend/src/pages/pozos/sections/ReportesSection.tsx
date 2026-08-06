@@ -142,7 +142,7 @@ export default function ReportesSection() {
   const summaryCards = [
     { label: 'Volumen validado de pozos', value: summary.well_validated_volume_m3 ?? summary.well_volume_m3 },
     { label: 'Volumen validado de líneas', value: summary.line_validated_volume_m3 ?? summary.line_volume_m3 },
-    { label: 'Volumen validado de flujos auxiliares', value: summary.flow_validated_volume_m3 ?? summary.flow_volume_m3 },
+    { label: 'Volumen validado de lavadoras', value: summary.washer_validated_volume_m3 ?? summary.flow_validated_volume_m3 ?? summary.flow_volume_m3 },
     { label: 'Total validado operativo', value: summary.total_validated_operational_m3 ?? summary.total_operational_m3 },
   ];
 
@@ -238,11 +238,12 @@ export default function ReportesSection() {
             </article>
           </section>
           <p className="report-summary-note">{summary.note}</p>
+          {report.legacy_notice ? <div className="status-pill alert">{report.legacy_notice}</div> : null}
 
           {[
             ['Pozos', 'wells'],
             ['Líneas', 'production_lines'],
-            ['Flujos auxiliares', 'operational_flows'],
+            ['Lavadoras', 'operational_flows'],
           ].map(([title, key]) => (
             <section key={key} className="panel fade-up report-data-panel">
               <PanelHeader title={title} subtitle={`Periodo ${report.period_label}`} />

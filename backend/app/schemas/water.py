@@ -8,7 +8,7 @@ from app.schemas.dashboard import KpiCard
 
 class WaterMetricItem(BaseModel):
     name: str
-    value: float
+    value: Optional[float] = None
     unit: str = ''
     detail: str = ''
 

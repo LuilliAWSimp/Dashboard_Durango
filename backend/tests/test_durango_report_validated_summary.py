@@ -55,7 +55,8 @@ class DurangoReportValidatedSummaryTests(unittest.TestCase):
                 period_item('Línea 2', validated=0.0, reliable=True, activity='Sin actividad en el periodo'),
             ],
             'flows': [
-                period_item('Lavadora Ciel', validated=None, reliable=False, activity='Sin registros guardados'),
+                period_item('Lavadora Vidrio', validated=None, reliable=False, activity='Sin registros guardados'),
+                period_item('Lavadora Ref Pet', validated=None, reliable=False, activity='Sin registros guardados'),
             ],
             'summary': {
                 'wells': {'total_m3': None, 'active_count': 0, 'review_count': 2},
@@ -91,7 +92,7 @@ class DurangoReportValidatedSummaryTests(unittest.TestCase):
         summary_values = {summary_sheet.cell(row, 1).value: summary_sheet.cell(row, 2).value for row in range(2, summary_sheet.max_row + 1)}
         self.assertAlmostEqual(summary_values['Volumen validado de pozos (m³)'], 175.65, places=6)
         self.assertAlmostEqual(summary_values['Volumen validado de líneas (m³)'], 24.21, places=6)
-        self.assertIsNone(summary_values['Volumen validado de flujos auxiliares (m³)'])
+        self.assertIsNone(summary_values['Volumen validado de lavadoras (m³)'])
         self.assertAlmostEqual(summary_values['Total validado operativo (m³)'], 199.86, places=6)
         wells_sheet = workbook['Pozos']
         self.assertIsInstance(wells_sheet['F2'].value, (int, float))

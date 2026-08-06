@@ -70,7 +70,8 @@ class DurangoSummaryRefreshTests(unittest.TestCase):
     def test_missing_samples_are_not_converted_to_reliable_zero(self):
         summary = summarize_period_items([
             {
-                'sensor_id': 3002,
+                'operational_key': 'lavadora_vidrio',
+                'sensor_id': None,
                 'validated_volume_m3': None,
                 'data_status': 'no_history',
                 'current_flow': None,

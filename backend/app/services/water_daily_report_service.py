@@ -192,6 +192,7 @@ def get_daily_water_report(report_date: Any = None, start_date: Any = None, end_
             'well_validated_volume_m3': well_summary['validated_volume_m3'],
             'line_validated_volume_m3': line_summary['validated_volume_m3'],
             'flow_validated_volume_m3': flow_summary['validated_volume_m3'],
+            'washer_validated_volume_m3': flow_summary['validated_volume_m3'],
             'total_validated_operational_m3': total_validated,
             'discarded_volume_m3': round(
                 well_summary['discarded_volume_m3']
@@ -210,6 +211,10 @@ def get_daily_water_report(report_date: Any = None, start_date: Any = None, end_
         'wells': {'rows': wells, **summaries['wells']},
         'production_lines': {'rows': lines, **summaries['lines']},
         'operational_flows': {'rows': flows, **summaries['flows']},
+        'washers': {'rows': flows, **summaries['flows']},
+        'validated_segment_start': period.get('validated_segment_start'),
+        'crosses_scada_cutover': period.get('crosses_scada_cutover', False),
+        'legacy_notice': period.get('legacy_notice'),
         'shifts': shifts,
         'shift_breakdown_available': bool(shifts),
         'notes': [],
@@ -276,7 +281,7 @@ def build_daily_water_report_pdf(report: dict[str, Any]) -> tuple[bytes, str]:
     summary_headers = [
         Paragraph('Volumen validado<br/>de pozos', center),
         Paragraph('Volumen validado<br/>de líneas', center),
-        Paragraph('Volumen validado de<br/>flujos auxiliares', center),
+        Paragraph('Volumen validado<br/>de lavadoras', center),
         Paragraph('Total validado<br/>operativo', center),
         Paragraph('Datos en<br/>revisión', center),
     ]
@@ -318,12 +323,12 @@ def build_daily_water_report_pdf(report: dict[str, Any]) -> tuple[bytes, str]:
 
     add_section('Pozos', report['wells'], 'Pozo')
     add_section('Líneas', report['production_lines'], 'Línea')
-    add_section('Flujos auxiliares', report['operational_flows'], 'Flujo')
+    add_section('Lavadoras', report['operational_flows'], 'Lavadora')
 
     if report.get('shifts'):
         story.append(PageBreak())
         story.append(Paragraph('Cortes por turno', heading))
-        shift_rows = [['Turno', 'Horario', 'Pozos', 'Líneas', 'Flujos auxiliares', 'Total operativo', 'Estado']]
+        shift_rows = [['Turno', 'Horario', 'Pozos', 'Líneas', 'Lavadoras', 'Total operativo', 'Estado']]
         for shift in report['shifts']:
             summary_shift = shift.get('summary') or {}
             shift_rows.append([
@@ -371,7 +376,7 @@ def build_daily_water_report_excel(report: dict[str, Any]) -> tuple[bytes, str]:
         ('Fecha de generación', datetime.fromisoformat(report['generated_at']).replace(tzinfo=None)),
         ('Volumen validado de pozos (m³)', summary['well_validated_volume_m3']),
         ('Volumen validado de líneas (m³)', summary['line_validated_volume_m3']),
-        ('Volumen validado de flujos auxiliares (m³)', summary['flow_validated_volume_m3']),
+        ('Volumen validado de lavadoras (m³)', summary['flow_validated_volume_m3']),
         ('Total validado operativo (m³)', summary['total_validated_operational_m3']),
         ('Datos en revisión', summary['review_count']),
         ('Estado de comunicación', summary['communication']),
@@ -427,11 +432,11 @@ def build_daily_water_report_excel(report: dict[str, Any]) -> tuple[bytes, str]:
 
     add_items_sheet('Pozos', report['wells']['rows'], 'Pozo')
     add_items_sheet('Líneas', report['production_lines']['rows'], 'Línea')
-    add_items_sheet('Flujos', report['operational_flows']['rows'], 'Flujo auxiliar')
+    add_items_sheet('Lavadoras', report['operational_flows']['rows'], 'Lavadora')
 
     if report.get('shifts'):
         shifts = wb.create_sheet('Turnos')
-        shifts.append(['Turno', 'Horario', 'Pozos (m³)', 'Líneas (m³)', 'Flujos auxiliares (m³)', 'Total operativo (m³)', 'Estado'])
+        shifts.append(['Turno', 'Horario', 'Pozos (m³)', 'Líneas (m³)', 'Lavadoras (m³)', 'Total operativo (m³)', 'Estado'])
         detail = wb.create_sheet('Detalle turnos')
         detail.append(['Turno', 'Grupo', 'Elemento', 'Apertura (m³)', 'Cierre (m³)', 'Volumen (m³)', 'Flujo promedio', 'Flujo mínimo', 'Flujo máximo', 'Muestras', 'Actividad', 'Estado'])
         for shift in report['shifts']:
@@ -445,7 +450,7 @@ def build_daily_water_report_excel(report: dict[str, Any]) -> tuple[bytes, str]:
                 shift_summary.get('total_operational_m3'),
                 shift.get('cut_status'),
             ])
-            for group_key, group_name in [('wells', 'Pozos'), ('lines', 'Líneas'), ('flows', 'Flujos auxiliares')]:
+            for group_key, group_name in [('wells', 'Pozos'), ('lines', 'Líneas'), ('flows', 'Lavadoras')]:
                 for item in shift.get(group_key) or []:
                     detail.append([
                         shift.get('name'),

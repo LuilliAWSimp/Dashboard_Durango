@@ -69,14 +69,14 @@ export function buildDailyWaterReportHtml(report: any): string {
     <div class="summary">
       <div><span>Volumen validado de pozos</span><strong>${fmtVolume(summary.well_validated_volume_m3 ?? summary.well_volume_m3)}</strong></div>
       <div><span>Volumen validado de líneas</span><strong>${fmtVolume(summary.line_validated_volume_m3 ?? summary.line_volume_m3)}</strong></div>
-      <div><span>Volumen validado de flujos auxiliares</span><strong>${fmtVolume(summary.flow_validated_volume_m3 ?? summary.flow_volume_m3)}</strong></div>
+      <div><span>Volumen validado de lavadoras</span><strong>${fmtVolume(summary.washer_validated_volume_m3 ?? summary.flow_validated_volume_m3 ?? summary.flow_volume_m3)}</strong></div>
       <div><span>Total validado operativo</span><strong>${fmtVolume(summary.total_validated_operational_m3 ?? summary.total_operational_m3)}</strong></div>
       <div><span>Datos en revisión</span><strong>${Number(summary.review_count || 0).toLocaleString('es-MX')}</strong></div>
     </div>
     <p class="note">${escapeHtml(summary.note || 'Los volúmenes mostrados consideran únicamente incrementos validados. Los eventos descartados no se incluyen en los totales.')}</p>
     ${section('Pozos', report.wells?.rows || [])}
     ${section('Líneas', report.production_lines?.rows || [])}
-    ${section('Flujos auxiliares', report.operational_flows?.rows || [])}
+    ${section('Lavadoras', report.operational_flows?.rows || [])}
   </body></html>`;
 }
 

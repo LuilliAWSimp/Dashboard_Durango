@@ -25,11 +25,11 @@ class DurangoFutureIntervalTests(unittest.TestCase):
         self.assertEqual(effective_local_end(requested, now=now), now)
 
     def test_future_history_bucket_discards_operational_values(self):
-        start = datetime(2026, 8, 4, 0, 0)
-        end = datetime(2026, 8, 5, 0, 0)
-        now = datetime(2026, 8, 4, 13, 6)
+        start = datetime(2026, 8, 5, 0, 0)
+        end = datetime(2026, 8, 6, 0, 0)
+        now = datetime(2026, 8, 5, 13, 6)
         rows = [{
-            'bucket_start': datetime(2026, 8, 4, 17, 15),
+            'bucket_start': datetime(2026, 8, 5, 17, 15),
             'samples': 15,
             'flow_avg': 2.5,
             'flow_min': 2.0,
@@ -37,8 +37,8 @@ class DurangoFutureIntervalTests(unittest.TestCase):
             'total_open': 100.0,
             'total_close': 101.0,
         }]
-        points = _build_points(3002, 'quarter_hour', start, end, rows, effective_end_dt=now)
-        future = next(point for point in points if point['bucket_start'] == '2026-08-04T17:15:00')
+        points = _build_points('lavadora_vidrio', 'quarter_hour', start, end, rows, effective_end_dt=now)
+        future = next(point for point in points if point['bucket_start'] == '2026-08-05T17:15:00')
         self.assertEqual(future['data_status'], 'future_interval')
         self.assertEqual(future['samples'], 0)
         self.assertIsNone(future['flow_avg_lps'])
@@ -48,38 +48,39 @@ class DurangoFutureIntervalTests(unittest.TestCase):
     @patch('app.services.water_history_service._query_minute_rows')
     @patch('app.services.water_history_service.local_now_naive')
     def test_minute_flow_marks_minutes_after_now_as_future(self, now_mock, query_mock, _fallback_mock):
-        now_mock.return_value = datetime(2026, 8, 4, 13, 6)
+        now_mock.return_value = datetime(2026, 8, 5, 13, 6)
         query_mock.return_value = [
-            {'sensor_id': 1001, 'reading_ts': datetime(2026, 8, 4, 13, 5), 'flow_value': 10.0},
-            {'sensor_id': 1001, 'reading_ts': datetime(2026, 8, 4, 17, 15), 'flow_value': 99.0},
+            {'sensor_id': 1001, 'reading_ts': datetime(2026, 8, 5, 13, 5), 'flow_value': 10.0},
+            {'sensor_id': 1001, 'reading_ts': datetime(2026, 8, 5, 17, 15), 'flow_value': 99.0},
         ]
         payload = get_wells_minute_flow(
-            start_datetime='2026-08-04T13:00:00',
-            end_datetime='2026-08-04T13:10:00',
+            start_datetime='2026-08-05T13:00:00',
+            end_datetime='2026-08-05T13:10:00',
             force_refresh=True,
         )
         series = next(item for item in payload['series'] if item['sensor_id'] == 1001)
         by_time = {point['timestamp']: point for point in series['points']}
-        self.assertEqual(by_time['2026-08-04T13:05:00']['flow_value'], 10.0)
-        self.assertEqual(by_time['2026-08-04T13:06:00']['data_status'], 'future_interval')
-        self.assertEqual(by_time['2026-08-04T13:06:00']['samples'], 0)
-        self.assertIsNone(by_time['2026-08-04T13:06:00']['flow_value'])
+        self.assertEqual(by_time['2026-08-05T13:05:00']['flow_value'], 10.0)
+        self.assertEqual(by_time['2026-08-05T13:06:00']['data_status'], 'future_interval')
+        self.assertEqual(by_time['2026-08-05T13:06:00']['samples'], 0)
+        self.assertIsNone(by_time['2026-08-05T13:06:00']['flow_value'])
 
 
 if __name__ == '__main__':
     unittest.main()
 
 class DurangoPeriodClampTests(unittest.TestCase):
+    @patch('app.services.water_period_service.get_lavadora_period_items', return_value=[])
     @patch('app.services.water_period_service.query_bos_well_rows', return_value=[])
     @patch('app.services.water_period_service.query_previous_closes', return_value={})
     @patch('app.services.water_period_service.query_readings_window', return_value=[])
     @patch('app.services.water_period_service.local_now_naive')
-    def test_current_day_period_query_stops_at_local_now(self, now_mock, query_mock, _previous_mock, _fallback_mock):
+    def test_current_day_period_query_stops_at_local_now(self, now_mock, query_mock, _previous_mock, _fallback_mock, _lavadoras_mock):
         from app.services.water_period_service import get_period_data
 
-        now_mock.return_value = datetime(2026, 8, 4, 13, 6)
-        payload = get_period_data('2026-08-04', '2026-08-04')
-        self.assertEqual(query_mock.call_args.args[2], datetime(2026, 8, 4, 13, 6))
-        self.assertEqual(payload['effective_end_at'], '2026-08-04T13:06:00')
+        now_mock.return_value = datetime(2026, 8, 5, 13, 6)
+        payload = get_period_data('2026-08-05', '2026-08-05')
+        self.assertEqual(query_mock.call_args.args[2], datetime(2026, 8, 5, 13, 6))
+        self.assertEqual(payload['effective_end_at'], '2026-08-05T13:06:00')
         self.assertTrue(payload['has_future_intervals'])
         self.assertIsNone(payload['summary']['wells']['total_m3'])

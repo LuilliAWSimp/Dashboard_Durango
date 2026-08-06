@@ -7,7 +7,6 @@ import PozosSection from './pozos/sections/PozosSection';
 import WellDetailSection from './pozos/sections/WellDetailSection';
 import LineasSection from './pozos/sections/LineasSection';
 import FlujosSection from './pozos/sections/FlujosSection';
-import TanquesSection from './pozos/sections/TanquesSection';
 import ConcesionSection from './pozos/sections/ConcesionSection';
 import ReportesSection from './pozos/sections/ReportesSection';
 
@@ -35,12 +34,8 @@ const sectionMap = {
     render: ({ itemId } = {}) => <LineasSection itemId={itemId} />,
   },
   flujos: {
-    title: 'Flujos',
+    title: 'Lavadoras',
     render: ({ itemId } = {}) => <FlujosSection itemId={itemId} />,
-  },
-  tanques: {
-    title: 'Tanques',
-    render: () => <TanquesSection />,
   },
   balance: {
     title: 'Comparativo Operativo de Agua',

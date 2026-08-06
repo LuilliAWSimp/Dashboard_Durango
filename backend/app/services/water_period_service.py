@@ -11,7 +11,17 @@ from sqlalchemy import text
 from sqlalchemy.exc import OperationalError, SQLAlchemyError
 
 from app.database import SessionLocal
-from app.services.durango_capabilities import ALL_ITEMS, LOCAL_TIMEZONE, WELLS, current_flow_threshold_for_sensor, sensor_contract
+from app.services.durango_capabilities import (
+    DURANGO_SCADA_CUTOVER_LOCAL,
+    LOCAL_TIMEZONE,
+    SENSOR_ITEMS,
+    WELLS,
+    clamp_to_validated_segment,
+    current_flow_threshold_for_sensor,
+    identity_key,
+    normalize_flow_lps,
+)
+from app.services.durango_lavadoras_service import get_lavadora_period_items
 from app.services.durango_well_history_fallback import query_bos_well_rows
 from app.services.plant_time import effective_local_end, local_now_naive, local_to_source_naive, source_to_local_naive
 from app.services.totalizer_quality import TotalizerAnalysis, analyze_totalizer_series
@@ -119,6 +129,7 @@ def query_readings_window(sensor_ids: list[int], start_dt: datetime, end_dt: dat
             rows = [dict(row._mapping) for row in session.execute(sql, params).fetchall()]
             for row in rows:
                 row['operational_ts'] = source_to_local_naive(row.get('operational_ts'))
+                row['instant_value'] = normalize_flow_lps(row.get('sensor_id'), row.get('instant_value'))
             return rows
     except WaterPeriodError:
         raise
@@ -195,7 +206,7 @@ def _analysis_rows(rows: list[dict[str, Any]], contract: dict[str, Any]) -> Tota
         ],
         sensor_id=sensor_id,
         flow_unit=str(contract.get('flow_unit') or 'L/s'),
-        require_flow_validation=str(contract.get('group')) == 'well',
+        require_flow_validation=bool(contract.get('require_flow_validation')),
     )
 
 
@@ -242,6 +253,7 @@ def build_period_item(contract: dict[str, Any], rows: list[dict[str, Any]], prev
 
     return {
         'sensor_id': sensor_id,
+        'operational_key': contract.get('operational_key') or str(sensor_id),
         'id': f"{contract.get('group')}-{sensor_id}",
         'name': contract.get('display_name') or contract.get('name'),
         'nombre': contract.get('display_name') or contract.get('name'),
@@ -317,7 +329,7 @@ def summarize_period_items(group_items: list[dict[str, Any]]) -> dict[str, Any]:
         flow = _num(item.get('current_flow') if item.get('current_flow') is not None else item.get('flow_lps'))
         if flow is None or not _is_recent_communication(item):
             continue
-        threshold = current_flow_threshold_for_sensor(item.get('sensor_id'))
+        threshold = current_flow_threshold_for_sensor(item.get('operational_key') or item.get('sensor_id'))
         if flow > threshold:
             current_flow_count += 1
     partial_count = sum(1 for item in calculable if bool(item.get('has_discontinuities')))
@@ -356,17 +368,49 @@ def get_period_data(start_date: Any = None, end_date: Any = None, *, force_refre
     cached = _PERIOD_CACHE.get(cache_key)
     if not force_refresh and cached and monotonic() < float(cached.get('expires_at') or 0):
         return deepcopy(cached['value'])
-    query_end_dt = max(requested_start_dt, effective_end_dt)
-    sensor_ids = [int(item['sensor_id']) for item in ALL_ITEMS]
+    query_start_dt, validated_end_dt, legacy_only, crosses_cutover = clamp_to_validated_segment(
+        requested_start_dt,
+        effective_end_dt,
+    )
+    query_end_dt = max(query_start_dt, validated_end_dt)
+    sensor_ids = [int(item['sensor_id']) for item in SENSOR_ITEMS]
     period_query_status = 'operational'
+    if legacy_only:
+        payload = {
+            'plant': 'Planta Durango',
+            'start_date': start_day.isoformat(),
+            'end_date': end_day.isoformat(),
+            'requested_end_at': requested_end_dt.isoformat(timespec='seconds'),
+            'effective_end_at': effective_end_dt.isoformat(timespec='seconds'),
+            'validated_segment_start': None,
+            'scada_cutover_local': DURANGO_SCADA_CUTOVER_LOCAL.isoformat(timespec='seconds'),
+            'crosses_scada_cutover': False,
+            'legacy_notice': 'Configuración anterior pendiente de validación',
+            'has_future_intervals': effective_end_dt < requested_end_dt,
+            'generated_at': now_local.isoformat(timespec='seconds'),
+            'items': [], 'wells': [], 'lines': [], 'flows': [],
+            'summary': {
+                'wells': summarize_period_items([]),
+                'lines': summarize_period_items([]),
+                'flows': summarize_period_items([]),
+            },
+            'source_status': 'legacy_configuration_pending',
+        }
+        ttl = _period_cache_ttl(start_day, end_day, now_local.date())
+        _PERIOD_CACHE[cache_key] = {'expires_at': monotonic() + ttl, 'value': deepcopy(payload)}
+        return payload
     try:
-        rows = query_readings_window(sensor_ids, requested_start_dt, query_end_dt) if query_end_dt > requested_start_dt else []
+        rows = query_readings_window(sensor_ids, query_start_dt, query_end_dt) if query_end_dt > query_start_dt else []
     except WaterPeriodError as exc:
         if start_day != end_day:
             raise
         rows = []
         period_query_status = exc.status
-    previous = query_previous_closes(sensor_ids, requested_start_dt) if period_query_status == 'operational' else {}
+    previous = (
+        query_previous_closes(sensor_ids, query_start_dt)
+        if period_query_status == 'operational' and requested_start_dt >= DURANGO_SCADA_CUTOVER_LOCAL
+        else {}
+    )
     grouped: dict[int, list[dict[str, Any]]] = {sensor_id: [] for sensor_id in sensor_ids}
     for row in rows:
         sensor_id = int(row.get('sensor_id') or 0)
@@ -375,18 +419,22 @@ def get_period_data(start_date: Any = None, end_date: Any = None, *, force_refre
             row.setdefault('period_source', 'readings_minute')
             grouped[sensor_id].append(row)
 
-    if start_day == end_day and query_end_dt > requested_start_dt:
+    if start_day == end_day and query_end_dt > query_start_dt:
         for contract in WELLS:
             sensor_id = int(contract['sensor_id'])
             if grouped.get(sensor_id):
                 continue
-            fallback_rows = query_bos_well_rows(sensor_id, requested_start_dt, query_end_dt)
+            fallback_rows = query_bos_well_rows(sensor_id, query_start_dt, query_end_dt)
             if fallback_rows:
                 grouped[sensor_id] = fallback_rows
     items = [
         build_period_item(contract, grouped[int(contract['sensor_id'])], previous.get(int(contract['sensor_id'])), end_day)
-        for contract in ALL_ITEMS
+        for contract in SENSOR_ITEMS
     ]
+    try:
+        items.extend(get_lavadora_period_items(query_start_dt, query_end_dt, end_day))
+    except SQLAlchemyError as exc:
+        raise WaterPeriodError('No fue posible consultar el histórico de lavadoras.', status='sql_error') from exc
 
     groups: dict[str, list[dict[str, Any]]] = {'well': [], 'line': [], 'flow': []}
     for item in items:
@@ -399,6 +447,10 @@ def get_period_data(start_date: Any = None, end_date: Any = None, *, force_refre
         'end_date': end_day.isoformat(),
         'requested_end_at': requested_end_dt.isoformat(timespec='seconds'),
         'effective_end_at': effective_end_dt.isoformat(timespec='seconds'),
+        'validated_segment_start': query_start_dt.isoformat(timespec='seconds'),
+        'scada_cutover_local': DURANGO_SCADA_CUTOVER_LOCAL.isoformat(timespec='seconds'),
+        'crosses_scada_cutover': crosses_cutover,
+        'legacy_notice': 'El volumen corresponde únicamente al segmento validado posterior al cambio de SCADA.' if crosses_cutover else None,
         'has_future_intervals': effective_end_dt < requested_end_dt,
         'generated_at': now_local.isoformat(timespec='seconds'),
         'items': items,
@@ -415,4 +467,3 @@ def get_period_data(start_date: Any = None, end_date: Any = None, *, force_refre
     ttl = _period_cache_ttl(start_day, end_day, now_local.date())
     _PERIOD_CACHE[cache_key] = {'expires_at': monotonic() + ttl, 'value': deepcopy(payload)}
     return payload
-

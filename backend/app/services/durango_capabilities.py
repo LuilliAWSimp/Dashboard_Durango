@@ -1,101 +1,223 @@
 """Contrato operativo central de Dashboard ARCA Durango.
 
-Solo contiene mapeos confirmados para esta planta. Los modulos pendientes no se
-activan automaticamente y las unidades permanecen configurables por elemento.
+La configuración posterior al cambio de SCADA vive únicamente aquí. Los datos
+anteriores al corte no se relabelan con este contrato y nunca se mezclan con el
+segmento validado posterior.
 """
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any
+from zoneinfo import ZoneInfo
 
 PLANT_KEY = 'durango'
 PLANT_NAME = 'Planta Durango'
 PLANT_TITLE = 'Durango'
 LOCAL_TIMEZONE = 'America/Mexico_City'
-# Durango operational timestamps are interpreted as UTC and normalized to the
-# plant clock before filtering, bucketing, display and freshness labels.
 SOURCE_TIMESTAMP_TIMEZONE = 'UTC'
+
+DURANGO_SCADA_CUTOVER_LOCAL = datetime(2026, 8, 4, 18, 16, 0)
+DURANGO_SCADA_CUTOVER_UTC = (
+    DURANGO_SCADA_CUTOVER_LOCAL
+    .replace(tzinfo=ZoneInfo(LOCAL_TIMEZONE))
+    .astimezone(timezone.utc)
+    .replace(tzinfo=None)
+)
 
 CAPABILITIES: dict[str, str | bool] = {
     'wells': True,
     'lines': True,
     'flows': True,
-    'tanks': 'pending_validation',
+    'washers': True,
+    'tanks': False,
     'concession': 'pending_validation',
     'energy': False,
     'reports': True,
     'shifts': True,
 }
 
+
+def _common(*, key: str, name: str, group: str, order: int) -> dict[str, Any]:
+    return {
+        'operational_key': key,
+        'name': name,
+        'display_name': name,
+        'group': group,
+        'module': group,
+        'display_flow_unit': 'L/s',
+        'flow_unit': 'L/s',
+        'timezone': LOCAL_TIMEZONE,
+        'cutover_local': DURANGO_SCADA_CUTOVER_LOCAL.isoformat(timespec='seconds'),
+        'presentation_order': order,
+        'enabled': True,
+        'unit_status': 'confirmed_after_scada_cutover',
+    }
+
+
 WELLS: list[dict[str, Any]] = [
-    {'sensor_id': 1001, 'name': 'Pozo 1', 'display_name': 'Pozo 1', 'group': 'well', 'flow_unit': 'L/s', 'unit_status': 'current_configuration'},
-    {'sensor_id': 1051, 'name': 'Pozo 2', 'display_name': 'Pozo 2', 'group': 'well', 'flow_unit': 'L/s', 'unit_status': 'current_configuration'},
+    {
+        **_common(key='pozo_1', name='Pozo 1', group='well', order=1),
+        'sensor_id': 1001,
+        'table': 'dbo.SensorsBOS_Pozo',
+        'source_key': 'POZO_FLOW_OUT[0]',
+        'slot_index': 0,
+        'raw_flow_unit': 'm3/h',
+        'flow_normalization_factor': 1 / 3.6,
+        'totalizer_unit': 'm3',
+        'require_flow_validation': True,
+    },
+    {
+        **_common(key='pozo_2', name='Pozo 2', group='well', order=2),
+        'sensor_id': 1051,
+        'table': 'dbo.SensorsBOS_Pozo',
+        'source_key': 'POZO_FLOW_OUT[1]',
+        'slot_index': 1,
+        'raw_flow_unit': 'L/s',
+        'flow_normalization_factor': 1.0,
+        'totalizer_unit': 'm3',
+        'require_flow_validation': True,
+    },
 ]
 
-# El orden operativo de Durango no sigue una secuencia numerica de sensor.
 LINES: list[dict[str, Any]] = [
-    {'sensor_id': 2002, 'name': 'Línea 1', 'display_name': 'Línea 1', 'group': 'line', 'flow_unit': 'L/s', 'unit_status': 'current_configuration'},
-    {'sensor_id': 2006, 'name': 'Línea 2', 'display_name': 'Línea 2', 'group': 'line', 'flow_unit': 'L/s', 'unit_status': 'current_configuration'},
-    {'sensor_id': 2004, 'name': 'Línea 3', 'display_name': 'Línea 3', 'group': 'line', 'flow_unit': 'L/s', 'unit_status': 'current_configuration'},
-    {'sensor_id': 2008, 'name': 'Línea 4', 'display_name': 'Línea 4', 'group': 'line', 'flow_unit': 'L/s', 'unit_status': 'current_configuration'},
-    {'sensor_id': 2010, 'name': 'Línea 5', 'display_name': 'Línea 5', 'group': 'line', 'flow_unit': 'L/s', 'unit_status': 'current_configuration'},
+    {
+        **_common(key=f'linea_{index + 1}', name=f'Línea {index + 1}', group='line', order=index + 1),
+        'sensor_id': sensor_id,
+        'table': 'dbo.SensorsBOS_Linea',
+        'source_key': f'LINEA_FLOW_IN[{index}]',
+        'slot_index': index,
+        'raw_flow_unit': 'L/s',
+        'flow_normalization_factor': 1.0,
+        'totalizer_unit': 'm3',
+        'require_flow_validation': False,
+    }
+    for index, sensor_id in enumerate((2002, 2004, 2006, 2008, 2010))
 ]
 
-FLOWS: list[dict[str, Any]] = [
-    {'sensor_id': 3002, 'name': 'Lavadora Ciel', 'display_name': 'Lavadora Ciel', 'group': 'flow', 'category': 'lavadora', 'source_tokens': ['CIEL'], 'flow_unit': 'L/s', 'unit_status': 'current_configuration'},
-    {'sensor_id': 3004, 'name': 'Jarabes', 'display_name': 'Jarabes', 'group': 'flow', 'category': 'flujo', 'source_tokens': ['JARABE'], 'flow_unit': 'L/s', 'unit_status': 'current_configuration'},
-    {'sensor_id': 3006, 'name': 'Lavadora de Vidrio', 'display_name': 'Lavadora de Vidrio', 'group': 'flow', 'category': 'lavadora', 'source_tokens': ['VIDRIO'], 'flow_unit': 'L/s', 'unit_status': 'current_configuration'},
+LAVADORAS: list[dict[str, Any]] = [
+    {
+        **_common(key='lavadora_vidrio', name='Lavadora Vidrio', group='flow', order=1),
+        'sensor_id': None,
+        'table': 'dbo.SensorsBOS_Lavadoras',
+        'source_key': 'LAVADORAS_0',
+        'instant_column': 'LAVADORAS_0_instant_value',
+        'total_column': 'LAVADORAS_0_total_value',
+        'raw_flow_unit': 'L/s',
+        'flow_normalization_factor': 1.0,
+        'totalizer_unit': 'm3',
+        'source_timestamp_timezone': 'UTC',
+        'require_flow_validation': True,
+    },
+    {
+        **_common(key='lavadora_ref_pet', name='Lavadora Ref Pet', group='flow', order=2),
+        'sensor_id': None,
+        'table': 'dbo.SensorsBOS_Lavadoras',
+        'source_key': 'LAVADORAS_1',
+        'instant_column': 'LAVADORAS_1_instant_value',
+        'total_column': 'LAVADORAS_1_total_value',
+        'raw_flow_unit': 'L/s',
+        'flow_normalization_factor': 1.0,
+        'totalizer_unit': 'm3',
+        'source_timestamp_timezone': 'UTC',
+        'require_flow_validation': True,
+    },
 ]
 
-ALL_ITEMS = [*WELLS, *LINES, *FLOWS]
-ITEM_BY_SENSOR = {int(item['sensor_id']): dict(item) for item in ALL_ITEMS}
+# FLOWS se conserva como alias de respuesta para no romper el contrato HTTP ni
+# los componentes existentes. Sus elementos son exclusivamente las lavadoras.
+FLOWS = LAVADORAS
+SENSOR_ITEMS = [*WELLS, *LINES]
+ALL_ITEMS = [*SENSOR_ITEMS, *LAVADORAS]
+
+ITEM_BY_SENSOR = {
+    int(item['sensor_id']): item
+    for item in SENSOR_ITEMS
+    if item.get('sensor_id') is not None
+}
+ITEM_BY_KEY = {str(item['operational_key']): item for item in ALL_ITEMS}
 SENSORS_BY_MODULE = {
     'well': [int(item['sensor_id']) for item in WELLS],
     'line': [int(item['sensor_id']) for item in LINES],
-    'flow': [int(item['sensor_id']) for item in FLOWS],
+    'flow': [str(item['operational_key']) for item in LAVADORAS],
 }
 
-ACTIVE_MODULES = ['Resumen', 'Pozos', 'Líneas', 'Flujos', 'Comparativo Operativo de Agua', 'Revisión diaria', 'Reportes']
-PENDING_MODULES = ['Tanques', 'Concesión']
+ACTIVE_MODULES = ['Resumen', 'Pozos', 'Líneas', 'Lavadoras', 'Comparativo Operativo de Agua', 'Revisión diaria', 'Reportes']
+PENDING_MODULES = ['Concesión']
 DISABLED_MODULES = ['Energía']
 
-
-
-# Umbral central para distinguir una lectura actual con flujo operativo. Puede
-# sobrescribirse por sensor en la configuración sin duplicar números en React.
 DEFAULT_CURRENT_FLOW_ACTIVE_THRESHOLD = 0.01
-CURRENT_FLOW_ACTIVE_THRESHOLD_BY_SENSOR: dict[int, float] = {}
+CURRENT_FLOW_ACTIVE_THRESHOLD_BY_KEY: dict[str, float] = {}
 
 
-def current_flow_threshold_for_sensor(sensor_id: int | str | None) -> float:
+def identity_key(value: Any) -> str:
+    if isinstance(value, dict):
+        value = value.get('operational_key') or value.get('sensor_id') or value.get('id')
+    if value in (None, ''):
+        return ''
     try:
-        parsed = int(sensor_id)
+        number = int(value)
+        if str(value).strip() == str(number):
+            return str(number)
     except (TypeError, ValueError):
-        parsed = -1
-    return float(CURRENT_FLOW_ACTIVE_THRESHOLD_BY_SENSOR.get(parsed, DEFAULT_CURRENT_FLOW_ACTIVE_THRESHOLD))
-
-TANKS_DIAGNOSTIC = {
-    'status': 'pending_validation',
-    'message': 'Tanques pendiente de validación operativa.',
-    'diagnostic_sql_file': 'docs/diagnostico_niveles_durango.sql',
-}
+        pass
+    return str(value).strip().lower()
 
 
-def sensor_contract(sensor_id: int | str | None) -> dict[str, Any]:
+def item_contract(value: Any) -> dict[str, Any]:
+    key = identity_key(value)
+    if key in ITEM_BY_KEY:
+        return dict(ITEM_BY_KEY[key])
     try:
-        parsed = int(sensor_id)
+        sensor_id = int(key)
     except (TypeError, ValueError):
-        parsed = -1
-    return dict(ITEM_BY_SENSOR.get(parsed, {
-        'sensor_id': parsed,
+        sensor_id = -1
+    if sensor_id in ITEM_BY_SENSOR:
+        return dict(ITEM_BY_SENSOR[sensor_id])
+    return {
+        'operational_key': key,
+        'sensor_id': sensor_id if sensor_id > 0 else None,
         'display_name': 'Elemento no confirmado',
         'group': 'unconfirmed',
+        'raw_flow_unit': 'L/s',
+        'display_flow_unit': 'L/s',
         'flow_unit': 'L/s',
+        'flow_normalization_factor': 1.0,
         'unit_status': 'pending',
-    }))
+        'enabled': False,
+    }
 
 
-def flow_unit_for_sensor(sensor_id: int | str | None) -> str:
-    return str(sensor_contract(sensor_id).get('flow_unit') or 'Unidad por confirmar')
+def sensor_contract(sensor_id: Any) -> dict[str, Any]:
+    return item_contract(sensor_id)
+
+
+def flow_unit_for_sensor(sensor_id: Any) -> str:
+    return str(item_contract(sensor_id).get('display_flow_unit') or 'L/s')
+
+
+def normalize_flow_lps(identity: Any, raw_value: Any) -> float | None:
+    if raw_value in (None, ''):
+        return None
+    try:
+        parsed = float(str(raw_value).replace(',', '').strip())
+    except (TypeError, ValueError):
+        return None
+    if parsed != parsed:
+        return None
+    factor = float(item_contract(identity).get('flow_normalization_factor') or 1.0)
+    return parsed * factor
+
+
+def current_flow_threshold_for_sensor(sensor_id: Any) -> float:
+    key = identity_key(sensor_id)
+    return float(CURRENT_FLOW_ACTIVE_THRESHOLD_BY_KEY.get(key, DEFAULT_CURRENT_FLOW_ACTIVE_THRESHOLD))
+
+
+def clamp_to_validated_segment(start_dt: datetime, end_dt: datetime) -> tuple[datetime, datetime, bool, bool]:
+    """Return the post-cutover segment and legacy/crossing flags."""
+    legacy_only = end_dt <= DURANGO_SCADA_CUTOVER_LOCAL
+    crosses_cutover = start_dt < DURANGO_SCADA_CUTOVER_LOCAL < end_dt
+    return max(start_dt, DURANGO_SCADA_CUTOVER_LOCAL), end_dt, legacy_only, crosses_cutover
 
 
 def capability_payload() -> dict[str, Any]:
@@ -105,9 +227,11 @@ def capability_payload() -> dict[str, Any]:
         'active_modules': ACTIVE_MODULES,
         'pending_modules': PENDING_MODULES,
         'disabled_modules': DISABLED_MODULES,
+        'scada_cutover_local': DURANGO_SCADA_CUTOVER_LOCAL.isoformat(timespec='seconds'),
+        'scada_cutover_utc': DURANGO_SCADA_CUTOVER_UTC.isoformat(timespec='seconds') + 'Z',
         'wells': WELLS,
         'lines': LINES,
-        'flows': FLOWS,
-        'tanks': TANKS_DIAGNOSTIC,
+        'flows': LAVADORAS,
+        'washers': LAVADORAS,
         'current_flow_active_threshold': DEFAULT_CURRENT_FLOW_ACTIVE_THRESHOLD,
     }

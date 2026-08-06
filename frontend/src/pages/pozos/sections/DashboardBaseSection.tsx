@@ -50,11 +50,11 @@ export default function DashboardBaseSection() {
     () => [...rows(dashboard?.wells), ...rows(dashboard?.production_lines), ...rows(dashboard?.flows)],
     [dashboard],
   );
-  const latest = all
+  const latestValues = all
     .map((item) => String(item.last_update || item.ultima_lectura || ''))
     .filter(Boolean)
-    .sort()
-    .at(-1);
+    .sort();
+  const latest = latestValues[latestValues.length - 1];
   const review = Number(wells.review_count || 0) + Number(lines.review_count || 0) + Number(flows.review_count || 0);
 
   return (
@@ -67,10 +67,10 @@ export default function DashboardBaseSection() {
       <section className="cards-grid stagger-grid summary-operational-kpis">
         <KpiCard label="Volumen validado de pozos" value={fmt(wells.total_m3)} unit={number(wells.total_m3) === null ? '' : 'm³'} trend={volumeTrend(wells, 2)} accent="blue" />
         <KpiCard label="Volumen validado de líneas" value={fmt(lines.total_m3)} unit={number(lines.total_m3) === null ? '' : 'm³'} trend={volumeTrend(lines, 5)} accent="cyan" />
-        <KpiCard label="Volumen validado de flujos auxiliares" value={fmt(flows.total_m3)} unit={number(flows.total_m3) === null ? '' : 'm³'} trend={volumeTrend(flows, 3)} accent="indigo" />
+        <KpiCard label="Volumen validado de lavadoras" value={fmt(flows.total_m3)} unit={number(flows.total_m3) === null ? '' : 'm³'} trend={volumeTrend(flows, 2)} accent="indigo" />
         <KpiCard label="Pozos con flujo actual" value={`${Number(wells.current_flow_count || 0)}/2`} unit="pozos" trend="Lectura reciente por encima del umbral operativo" accent="teal" />
         <KpiCard label="Líneas con flujo actual" value={`${Number(lines.current_flow_count || 0)}/5`} unit="líneas" trend="Independiente de la actividad del periodo" accent="teal" />
-        <KpiCard label="Flujos auxiliares con flujo actual" value={`${Number(flows.current_flow_count || 0)}/3`} unit="elementos" trend="Lectura actual y comunicación válida" accent="teal" />
+        <KpiCard label="Lavadoras con flujo actual" value={`${Number(flows.current_flow_count || 0)}/2`} unit="lavadoras" trend="Lectura actual y comunicación válida" accent="teal" />
         <KpiCard label="Datos en revisión" value={String(review)} unit="elementos" trend="Pueden conservar volumen validado parcial" accent="brown" />
         <KpiCard label="Última actualización" value={latest ? formatSqlDate(latest) : 'Sin lectura'} unit="" trend={controller.refreshing ? 'Actualizando información…' : 'Actualización automática cada 60 s'} accent="teal" />
       </section>
@@ -84,10 +84,9 @@ export default function DashboardBaseSection() {
           {[
             ['Pozos', 'Dos pozos confirmados', '/pozos/pozos', 'normal'],
             ['Líneas', 'Cinco líneas confirmadas', '/pozos/lineas', 'normal'],
-            ['Flujos auxiliares', 'Lavadoras y Jarabes', '/pozos/flujos', 'normal'],
+            ['Lavadoras', 'Vidrio y Ref Pet', '/pozos/flujos', 'normal'],
             ['Revisión diaria', 'Cierres por fecha y turnos', '/pozos/revision', 'normal'],
             ['Reportes', 'PDF, Excel, HTML y correo', '/pozos/reportes', 'normal'],
-            ['Tanques', 'Pendiente de validación', '/pozos/tanques', 'warning'],
           ].map(([title, detail, path, type]) => (
             <article
               key={title}
