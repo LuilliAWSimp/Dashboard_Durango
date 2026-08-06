@@ -833,8 +833,18 @@ def _build_sensor(sensor_id: int, catalog: dict[int, dict[str, Any]], role: str,
     }
 
 
-def _status_from_values(flow_out: float, flow_in: float, amps: float | None = None) -> tuple[bool, str, str, str, str]:
-    active = max(flow_out, flow_in) > 0 or _num(amps, 0) > 0
+def _status_from_values(
+    flow_out: float | None,
+    flow_in: float | None,
+    amps: float | None = None,
+) -> tuple[bool, str, str, str, str]:
+    # La ausencia de una lectura no debe convertirse en cero en el payload.
+    # Solo se normaliza aquí para decidir si el equipo está activo. Esto permite
+    # que Durango mantenga FLOW_IN deshabilitado sin provocar TypeError.
+    flow_out_value = _num(flow_out, 0)
+    flow_in_value = _num(flow_in, 0)
+    amps_value = _num(amps, 0)
+    active = max(flow_out_value, flow_in_value) > 0 or amps_value > 0
 
     # En ARCA el campo quality de los pozos representa amperaje * 100,
     # no calidad de comunicacion. Por eso no se usa para marcar

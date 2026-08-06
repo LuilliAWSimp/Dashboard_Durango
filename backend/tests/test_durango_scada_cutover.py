@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 import unittest
+from unittest.mock import patch
 
 from app.services.durango_capabilities import (
     CAPABILITIES,
@@ -20,7 +21,12 @@ from app.services.durango_lavadoras_service import (
     build_lavadora_period_item,
     normalize_lavadora_rows,
 )
-from app.services.water_bos_service import _build_lines
+from app.services.water_bos_service import (
+    _build_lines,
+    _build_wells,
+    _status_from_values,
+    get_bos_water_dashboard_payload,
+)
 
 
 class _Result:
@@ -37,7 +43,91 @@ class _Session:
         return _Result()
 
 
+class _DashboardSession:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        return False
+
+
 class DurangoScadaCutoverTests(unittest.TestCase):
+    def test_status_accepts_optional_and_string_values(self):
+        self.assertEqual(_status_from_values(28.76, None, None)[:3], (True, 'Encendido', 'normal'))
+        self.assertEqual(_status_from_values(0, None, None)[:3], (False, 'Apagado', 'idle'))
+        self.assertEqual(_status_from_values(None, None, 12.5)[:3], (True, 'Encendido', 'normal'))
+        self.assertEqual(_status_from_values(None, None, None)[:3], (False, 'Apagado', 'idle'))
+        self.assertEqual(_status_from_values('30.20', None, None)[:3], (True, 'Encendido', 'normal'))
+        self.assertEqual(_status_from_values(None, None, None)[3:], ('Normal', 'normal'))
+
+    def test_build_wells_uses_only_flow_out_when_flow_in_is_disabled(self):
+        row = {
+            'time_stamp': datetime(2026, 8, 5, 0, 20),
+            'pozo_flow_out_0_sensor_id': 1001,
+            'pozo_flow_out_0_instant_value': 103.536,
+            'pozo_flow_out_0_total_value': 1500.0,
+        }
+
+        wells = _build_wells(
+            row,
+            catalog={},
+            locations={},
+            energy_water={},
+            latest_quality_by_sensor={},
+            sql_now=datetime(2026, 8, 5, 0, 20),
+        )
+
+        pozo_one = [item for item in wells if item['sensor_id'] == 1001]
+        self.assertEqual(len(pozo_one), 1)
+        self.assertAlmostEqual(pozo_one[0]['flujo_salida'], 28.76, places=6)
+        self.assertIsNone(pozo_one[0]['flujo_entrada'])
+        self.assertIsNone(pozo_one[0]['flow_in_sensor_id'])
+        self.assertEqual(pozo_one[0]['status'], 'Encendido')
+        self.assertEqual(
+            [sensor['id'] for sensor in pozo_one[0]['sensors'] if sensor['type'] == 'FLOW_OUT'],
+            ['1001'],
+        )
+        published_sensor_ids = {
+            sensor['id']
+            for well in wells
+            for sensor in well.get('sensors', [])
+        }
+        self.assertFalse({'1002', '1052'} & published_sensor_ids)
+
+    def test_fast_dashboard_service_supports_disabled_flow_in(self):
+        pozo_row = {
+            'time_stamp': datetime(2026, 8, 5, 0, 20),
+            'pozo_flow_out_0_sensor_id': 1001,
+            'pozo_flow_out_0_instant_value': 103.536,
+            'pozo_flow_out_0_total_value': 1500.0,
+        }
+
+        def latest_row(_session, table, *_args, **_kwargs):
+            return pozo_row if table == 'dbo.SensorsBOS_Pozo' else None
+
+        with (
+            patch('app.services.water_bos_service.SessionLocal', return_value=_DashboardSession()),
+            patch('app.services.water_bos_service._sql_now', return_value=datetime(2026, 8, 5, 0, 20)),
+            patch('app.services.water_bos_service._safe_latest_row', side_effect=latest_row),
+            patch('app.services.water_bos_service.get_current_lavadoras', return_value=[]),
+            patch('app.services.water_bos_service._sensor_catalog', return_value={}),
+            patch('app.services.water_bos_service._well_locations', return_value={}),
+            patch('app.services.water_bos_service._latest_quality_by_sensor', return_value={}),
+        ):
+            payload = get_bos_water_dashboard_payload(
+                include_history=False,
+                include_energy_water=False,
+                force_refresh=True,
+            )
+
+        self.assertIsNotNone(payload)
+        pozo_one = [item for item in payload['wells'] if item['sensor_id'] == 1001]
+        self.assertEqual(len(pozo_one), 1)
+        self.assertAlmostEqual(pozo_one[0]['flujo_salida'], 28.76, places=6)
+        self.assertIsNone(pozo_one[0]['flujo_entrada'])
+        self.assertNotIn(1002, {item.get('sensor_id') for item in payload['wells']})
+        self.assertNotIn(1052, {item.get('sensor_id') for item in payload['wells']})
+
     def test_operational_contract_contains_only_confirmed_sources(self):
         self.assertEqual([(item['sensor_id'], item['source_key']) for item in WELLS], [
             (1001, 'POZO_FLOW_OUT[0]'),
