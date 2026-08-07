@@ -8,6 +8,7 @@ import LoginPage from './pages/LoginPage';
 import PozosDashboardPage from './pages/PozosDashboardPage';
 import { getAuth, logout } from './services/authService';
 import { fetchWaterDashboard } from './services/waterService';
+import { NotificationProvider } from './pages/pozos/components/NotificationCenter';
 
 const DEFAULT_POZOS_SECTION = 'dashboard';
 
@@ -156,22 +157,24 @@ function PozosShell({ user, onLogout }) {
   }
 
   return (
-    <Shell
-      user={user}
-      onLogout={onLogout}
-      headerMeta={headerMeta}
-      shellClass="pozos-shell"
-      sidebarProps={{
-        collapsed,
-        onToggle: () => setCollapsed((value) => !value),
-        sections: POZOS_MENU,
-        basePath: '/pozos',
-        brandTitle: 'Durango',
-        brandSubtitle: 'Monitoreo hídrico operativo',
-      }}
-    >
-      <PozosDashboardPage section={section} itemId={itemId} setHeaderMeta={setHeaderMeta} />
-    </Shell>
+    <NotificationProvider enableWaterAlerts>
+      <Shell
+        user={user}
+        onLogout={onLogout}
+        headerMeta={headerMeta}
+        shellClass="pozos-shell"
+        sidebarProps={{
+          collapsed,
+          onToggle: () => setCollapsed((value) => !value),
+          sections: POZOS_MENU,
+          basePath: '/pozos',
+          brandTitle: 'Durango',
+          brandSubtitle: 'Monitoreo hídrico operativo',
+        }}
+      >
+        <PozosDashboardPage section={section} itemId={itemId} setHeaderMeta={setHeaderMeta} />
+      </Shell>
+    </NotificationProvider>
   );
 }
 

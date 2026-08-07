@@ -13,6 +13,7 @@ import useAutoRefresh from '../../../hooks/useAutoRefresh';
 import ChartEmptyState from '../components/ChartEmptyState';
 import PanelHeader from '../components/PanelHeader';
 import StatusBadge from '../components/StatusBadge';
+import { useNotifications } from '../components/NotificationCenter';
 
 type ReportMode = 'day' | 'range';
 type ReportSectionKey = 'wells' | 'production_lines' | 'operational_flows';
@@ -152,6 +153,7 @@ function ReportPreviewSection({ report, section }: { report: any; section: { key
 
 export default function ReportesSection() {
   const today = todayInputDate();
+  const { notify } = useNotifications();
   const [mode, setMode] = useState<ReportMode>('day');
   const [date, setDate] = useState(today);
   const [startDate, setStartDate] = useState(today);
@@ -243,7 +245,7 @@ export default function ReportesSection() {
     setSending(true);
     setEmailStatus('');
     try {
-      const result = await sendDailyWaterReportEmail({
+      await sendDailyWaterReportEmail({
         to: form.to,
         cc: form.cc || undefined,
         subject: form.subject,
@@ -253,10 +255,20 @@ export default function ReportesSection() {
         end_date: mode === 'range' ? endDate : undefined,
         formats: selectedFormats,
       });
-      setEmailStatus(result.message || 'El servidor SMTP aceptó el correo para entrega.');
-    } catch (caught) {
-      const candidate = caught as { response?: { data?: { detail?: string } }; message?: string };
-      setEmailStatus(candidate.response?.data?.detail || candidate.message || 'No fue posible enviar el correo.');
+      setEmailOpen(false);
+      setEmailStatus('');
+      notify({
+        tone: 'success',
+        title: 'Correo enviado correctamente',
+        message: `${selectedFormats.map((format) => String(format).toUpperCase()).join(' y ')} enviados a ${form.to.trim()}.`,
+      });
+    } catch {
+      notify({
+        tone: 'error',
+        title: 'No se pudo enviar el correo',
+        message: 'Conservamos el formulario abierto para que revises los datos e intentes nuevamente.',
+        ariaLive: 'assertive',
+      });
     } finally {
       setSending(false);
     }

@@ -1,6 +1,6 @@
-import { DURANGO_CAPABILITIES } from '../../config/plantCapabilities';
-import { defaultTodayRange, recommendedHistoryAggregation } from './dateUtils';
-import type { DateRange, FlexibleRecord, HistoryAggregation } from './types';
+import { DURANGO_CAPABILITIES } from '../../config/plantCapabilities.ts';
+import { defaultTodayRange, recommendedHistoryAggregation } from './dateUtils.ts';
+import type { DateRange, FlexibleRecord, HistoryAggregation } from './types.ts';
 
 export type OperationalModule = 'well' | 'line' | 'flow';
 export type OperationalIdentity = number | string;
