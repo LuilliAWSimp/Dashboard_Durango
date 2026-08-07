@@ -24,7 +24,7 @@ class DurangoFutureIntervalTests(unittest.TestCase):
         requested = datetime(2026, 8, 5, 0, 0)
         self.assertEqual(effective_local_end(requested, now=now), now)
 
-    def test_future_history_bucket_discards_operational_values(self):
+    def test_future_history_buckets_are_not_generated(self):
         start = datetime(2026, 8, 5, 0, 0)
         end = datetime(2026, 8, 6, 0, 0)
         now = datetime(2026, 8, 5, 13, 6)
@@ -38,16 +38,15 @@ class DurangoFutureIntervalTests(unittest.TestCase):
             'total_close': 101.0,
         }]
         points = _build_points('lavadora_vidrio', 'quarter_hour', start, end, rows, effective_end_dt=now)
-        future = next(point for point in points if point['bucket_start'] == '2026-08-05T17:15:00')
-        self.assertEqual(future['data_status'], 'future_interval')
-        self.assertEqual(future['samples'], 0)
-        self.assertIsNone(future['flow_avg_lps'])
-        self.assertIsNone(future['volume_m3'])
+        self.assertTrue(points)
+        self.assertTrue(all(point['bucket_start'] < '2026-08-05T13:06:00' for point in points))
+        self.assertFalse(any(point['data_status'] == 'future_interval' for point in points))
+        self.assertFalse(any(point['bucket_start'] == '2026-08-05T17:15:00' for point in points))
 
     @patch('app.services.water_history_service.query_bos_well_rows', return_value=[])
     @patch('app.services.water_history_service._query_minute_rows')
     @patch('app.services.water_history_service.local_now_naive')
-    def test_minute_flow_marks_minutes_after_now_as_future(self, now_mock, query_mock, _fallback_mock):
+    def test_minute_flow_ends_at_now_without_future_points(self, now_mock, query_mock, _fallback_mock):
         now_mock.return_value = datetime(2026, 8, 5, 13, 6)
         query_mock.return_value = [
             {'sensor_id': 1001, 'reading_ts': datetime(2026, 8, 5, 13, 5), 'flow_value': 10.0},
@@ -61,9 +60,8 @@ class DurangoFutureIntervalTests(unittest.TestCase):
         series = next(item for item in payload['series'] if item['sensor_id'] == 1001)
         by_time = {point['timestamp']: point for point in series['points']}
         self.assertEqual(by_time['2026-08-05T13:05:00']['flow_value'], 10.0)
-        self.assertEqual(by_time['2026-08-05T13:06:00']['data_status'], 'future_interval')
-        self.assertEqual(by_time['2026-08-05T13:06:00']['samples'], 0)
-        self.assertIsNone(by_time['2026-08-05T13:06:00']['flow_value'])
+        self.assertNotIn('2026-08-05T13:06:00', by_time)
+        self.assertFalse(any(point['data_status'] == 'future_interval' for point in series['points']))
 
 
 if __name__ == '__main__':

@@ -41,8 +41,9 @@ function intervalParts(startValue: unknown, endValue: unknown, aggregation: Hist
 
 const STATUS_LABELS: Record<string, string> = {
   operational: 'Con actividad',
-  zero_consumption: 'Sin consumo',
-  no_data: 'Sin registros guardados',
+  partial_activity: 'Actividad parcial',
+  zero_consumption: 'Apagado con datos',
+  no_data: 'Sin registros',
   no_history: 'Sin histórico para el periodo',
   invalid_totalizer: 'Dato en revisión',
   missing_totalizer: 'Sin totalizador disponible',
@@ -57,6 +58,7 @@ export default function WaterHistoryTooltip({ active, payload, aggregation, flow
   const row = payload.find((entry) => entry.payload)?.payload;
   if (!row) return null;
   const samples = Number(row.samples || 0);
+  const expectedSamples = Number(row.samplesExpected || 0);
   const dataStatus = String(row.dataStatus || '');
   const interval = intervalParts(row.bucketStart, row.bucketEnd, aggregation);
   if (dataStatus === 'future_interval') {
@@ -98,9 +100,15 @@ export default function WaterHistoryTooltip({ active, payload, aggregation, flow
       </div>
       <div className="chart-tooltip-list">
         <div className="chart-tooltip-row">
-          <span className="chart-tooltip-name">Flujo promedio</span>
+          <span className="chart-tooltip-name">Promedio del intervalo</span>
           <span className="chart-tooltip-value">{flowDisplay}</span>
         </div>
+        {row.flowActiveAvg !== null && row.flowActiveAvg !== undefined ? (
+          <div className="chart-tooltip-row">
+            <span className="chart-tooltip-name">Promedio durante actividad</span>
+            <span className="chart-tooltip-value">{formatNumber(row.flowActiveAvg)} {flowUnit}</span>
+          </div>
+        ) : null}
         {samples > 0 && row.flowMin !== null && row.flowMin !== undefined && row.flowMax !== null && row.flowMax !== undefined ? (
           <div className="chart-tooltip-row">
             <span className="chart-tooltip-name">Mínimo / máximo</span>
@@ -130,12 +138,20 @@ export default function WaterHistoryTooltip({ active, payload, aggregation, flow
           </>
         ) : null}
         <div className="chart-tooltip-row">
+          <span className="chart-tooltip-name">Tiempo activo</span>
+          <span className="chart-tooltip-value">{formatNumber(row.activeMinutes, 0)} min</span>
+        </div>
+        <div className="chart-tooltip-row">
           <span className="chart-tooltip-name">Muestras</span>
-          <span className="chart-tooltip-value">{samples.toLocaleString('es-MX')}</span>
+          <span className="chart-tooltip-value">{samples.toLocaleString('es-MX')}{expectedSamples > 0 ? `/${expectedSamples.toLocaleString('es-MX')}` : ''}</span>
+        </div>
+        <div className="chart-tooltip-row">
+          <span className="chart-tooltip-name">Cobertura</span>
+          <span className="chart-tooltip-value">{formatNumber(row.coveragePercent)}% · {String(row.coverageStatus || 'Sin registros')}</span>
         </div>
         <div className="chart-tooltip-row">
           <span className="chart-tooltip-name">Estado</span>
-          <span className="chart-tooltip-value">{STATUS_LABELS[dataStatus] || 'Sin datos'}</span>
+          <span className="chart-tooltip-value">{String(row.intervalState || STATUS_LABELS[dataStatus] || 'Sin registros')}</span>
         </div>
       </div>
     </div>

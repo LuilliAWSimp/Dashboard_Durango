@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from contextlib import nullcontext
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 import logging
 from typing import Any
 
@@ -14,8 +14,10 @@ from app.services.durango_capabilities import (
     DURANGO_SCADA_CUTOVER_LOCAL,
     LAVADORAS,
     clamp_to_validated_segment,
+    current_flow_threshold_for_sensor,
     normalize_flow_lps,
 )
+from app.services.operation_semantics import expected_minute_samples, interval_operation_metrics
 from app.services.plant_time import local_now_naive, local_to_source_naive, source_to_local_naive
 from app.services.totalizer_quality import analyze_totalizer_series
 
@@ -137,7 +139,14 @@ def _communication(stamp: datetime | None, end_day: date) -> tuple[str, str]:
     return 'Revisar comunicación', 'stale_data'
 
 
-def build_lavadora_period_item(contract: dict[str, Any], rows: list[dict[str, Any]], end_day: date) -> dict[str, Any]:
+def build_lavadora_period_item(
+    contract: dict[str, Any],
+    rows: list[dict[str, Any]],
+    end_day: date,
+    *,
+    window_start: datetime | None = None,
+    window_end: datetime | None = None,
+) -> dict[str, Any]:
     key = str(contract['operational_key'])
     ordered = sorted(rows, key=lambda row: row.get('operational_ts') or datetime.min)
     analysis = analyze_totalizer_series(
@@ -148,26 +157,62 @@ def build_lavadora_period_item(contract: dict[str, Any], rows: list[dict[str, An
     )
     flows = [_number(row.get('instant_value')) for row in ordered]
     flows = [value for value in flows if value is not None]
+    active_threshold = current_flow_threshold_for_sensor(key)
+    active_flows = [value for value in flows if value > active_threshold]
     totals = [_number(row.get('total_value')) for row in ordered]
     totals = [value for value in totals if value is not None]
     latest_stamp = ordered[-1].get('operational_ts') if ordered else None
     communication, communication_status = _communication(latest_stamp, end_day)
 
-    if not ordered:
-        activity = 'Sin histórico para el periodo'
-        data_status = 'no_history'
-    elif not totals:
-        activity = 'Sin totalizador disponible'
-        data_status = 'no_totalizer'
-    elif analysis.has_discontinuities or not analysis.reliable:
+    valid_minutes = {
+        row.get('operational_ts').replace(second=0, microsecond=0)
+        for row in ordered
+        if isinstance(row.get('operational_ts'), datetime)
+        and (_number(row.get('instant_value')) is not None or _number(row.get('total_value')) is not None)
+    }
+    active_minutes_set = {
+        row.get('operational_ts').replace(second=0, microsecond=0)
+        for row in ordered
+        if isinstance(row.get('operational_ts'), datetime)
+        and (_number(row.get('instant_value')) or 0.0) > active_threshold
+    }
+    derived_start = min(valid_minutes) if valid_minutes else None
+    derived_end = (max(valid_minutes) + timedelta(minutes=1)) if valid_minutes else None
+    coverage_start = window_start or derived_start
+    coverage_end = window_end or derived_end
+    expected = expected_minute_samples(coverage_start, coverage_end) if coverage_start and coverage_end else 0
+    operation = interval_operation_metrics(
+        samples_received=len(valid_minutes),
+        samples_expected=expected,
+        active_samples=len(active_minutes_set),
+        validated_volume_m3=analysis.validated_volume_m3,
+        has_discontinuities=analysis.has_discontinuities,
+    ).payload()
+    if operation['data_status'] == 'no_data':
+        activity = 'Sin registros en el periodo'
+    elif operation['data_status'] == 'invalid_totalizer':
         activity = 'Dato en revisión'
-        data_status = 'invalid_totalizer'
-    elif float(analysis.validated_volume_m3 or 0.0) > 0:
+    elif operation['data_status'] in {'operational', 'partial_activity'}:
         activity = 'Con actividad en el periodo'
-        data_status = 'operational'
     else:
         activity = 'Sin actividad en el periodo'
-        data_status = 'zero_consumption'
+    data_status = str(operation['data_status'])
+    volume_data_status = (
+        'invalid_totalizer' if analysis.has_discontinuities
+        else 'validated' if bool(analysis.reliable and totals)
+        else 'no_totalizer' if not totals
+        else analysis.status
+    )
+    latest_flow = flows[-1] if flows else None
+    if not ordered or latest_flow is None:
+        current_state = 'Sin registros'
+        current_state_status = 'no_data'
+    elif latest_flow > active_threshold:
+        current_state = 'Activo'
+        current_state_status = 'operational'
+    else:
+        current_state = 'Apagado con datos'
+        current_state_status = 'zero_consumption'
 
     return {
         'operational_key': key,
@@ -182,9 +227,17 @@ def build_lavadora_period_item(contract: dict[str, Any], rows: list[dict[str, An
         'current_flow': flows[-1] if flows else None,
         'flow_lps': flows[-1] if flows else None,
         'flow_avg': round(sum(flows) / len(flows), 6) if flows else None,
+        'flow_active_avg': round(sum(active_flows) / len(active_flows), 6) if active_flows else None,
         'flow_min': min(flows) if flows else None,
         'flow_max': max(flows) if flows else None,
-        'samples': len(ordered),
+        'samples': len(valid_minutes),
+        'samples_received': operation['samples_received'],
+        'samples_expected': operation['samples_expected'],
+        'coverage_percent': operation['coverage_percent'],
+        'coverage_status': operation['coverage_status'],
+        'data_reliable': operation['data_reliable'],
+        'active_samples': operation['active_samples'],
+        'active_minutes': operation['active_minutes'],
         'current_totalizer_m3': totals[-1] if totals else None,
         'totalizador_m3': totals[-1] if totals else None,
         'period_open_m3': analysis.opening_m3,
@@ -204,8 +257,11 @@ def build_lavadora_period_item(contract: dict[str, Any], rows: list[dict[str, An
         'activity': activity,
         'activity_status': activity,
         'data_status': data_status,
+        'volume_data_status': volume_data_status,
         'period_activity': activity,
         'period_data_status': data_status,
+        'current_state': current_state,
+        'current_state_status': current_state_status,
         'current_reading_available': bool(ordered),
         'communication': communication,
         'estado_comunicacion': communication,
@@ -219,10 +275,24 @@ def build_lavadora_period_item(contract: dict[str, Any], rows: list[dict[str, An
     }
 
 
-def get_lavadora_period_items(start_local: datetime, end_local: datetime, end_day: date, *, session: Any = None) -> list[dict[str, Any]]:
+def get_lavadora_period_items(
+    start_local: datetime,
+    end_local: datetime,
+    end_day: date,
+    *,
+    session: Any = None,
+    window_start: datetime | None = None,
+    window_end: datetime | None = None,
+) -> list[dict[str, Any]]:
     grouped = query_lavadora_rows(start_local, end_local, session=session)
     return [
-        build_lavadora_period_item(contract, grouped[str(contract['operational_key'])], end_day)
+        build_lavadora_period_item(
+            contract,
+            grouped[str(contract['operational_key'])],
+            end_day,
+            window_start=window_start or start_local,
+            window_end=window_end or end_local,
+        )
         for contract in LAVADORAS
     ]
 
@@ -262,6 +332,14 @@ def get_current_lavadoras(*, session: Any = None) -> list[dict[str, Any]]:
             'data_status': 'no_history',
             'period_data_status': 'no_history',
             'samples': 0,
+            'samples_received': 0,
+            'samples_expected': 0,
+            'coverage_percent': 0.0,
+            'coverage_status': 'Sin histórico para el periodo',
+            'data_reliable': False,
+            'active_samples': 0,
+            'active_minutes': 0.0,
+            'flow_active_avg': None,
         })
         item['active'] = bool(flow is not None and flow > 0)
         item['status'] = 'Operando' if item['active'] else 'Sin flujo' if has_reading else 'Sin datos'

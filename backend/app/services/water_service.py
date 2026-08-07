@@ -5,7 +5,7 @@ from typing import Any
 
 from app.schemas.dashboard import KpiCard
 from app.schemas.water import WaterDashboardPayload
-from app.services.durango_capabilities import capability_payload
+from app.services.durango_capabilities import capability_payload, current_flow_threshold_for_sensor
 from app.services.water_bos_service import get_bos_water_dashboard_payload
 from app.services.water_period_service import WaterPeriodError, get_period_data, summarize_period_items
 
@@ -125,6 +125,31 @@ def _merge_period(current_rows: list[dict[str, Any]], period_rows: list[dict[str
     return result
 
 
+def _apply_current_state(item: dict[str, Any]) -> dict[str, Any]:
+    result = dict(item)
+    flow = result.get('current_flow')
+    if flow is None:
+        flow = result.get('flow_lps') if result.get('flow_lps') is not None else result.get('flow')
+    totalizer = result.get('current_totalizer_m3')
+    if totalizer is None:
+        totalizer = result.get('totalizador_m3')
+    stamp = result.get('last_update') or result.get('ultima_lectura') or result.get('updated')
+    communication_status = str(result.get('communication_status') or result.get('communicationType') or '').lower()
+    has_reading = bool(flow is not None or totalizer is not None or stamp)
+    if not has_reading or communication_status in {'no_data', 'offline'}:
+        label, status = 'Sin registros', 'no_data'
+    else:
+        try:
+            active = float(flow) > current_flow_threshold_for_sensor(result.get('operational_key') or result.get('sensor_id'))
+        except (TypeError, ValueError):
+            active = False
+        label, status = ('Activo', 'operational') if active else ('Apagado con datos', 'zero_consumption')
+    result['current_reading_available'] = has_reading
+    result['current_state'] = label
+    result['current_state_status'] = status
+    return result
+
+
 def _cards(payload: dict[str, Any]) -> list[KpiCard]:
     summary = payload.get('operational_summary') or {}
     wells = summary.get('wells') or {}
@@ -203,6 +228,14 @@ def get_water_dashboard_payload(section: str = 'dashboard', start_date: Any = No
         'wells': summarize_period_items(list(payload.get('wells') or [])),
         'lines': summarize_period_items(list(payload.get('production_lines') or [])),
         'flows': summarize_period_items(list(payload.get('flows') or [])),
+    }
+    payload['wells'] = [_apply_current_state(item) for item in list(payload.get('wells') or [])]
+    payload['production_lines'] = [_apply_current_state(item) for item in list(payload.get('production_lines') or [])]
+    payload['flows'] = [_apply_current_state(item) for item in list(payload.get('flows') or [])]
+    payload['operational_summary'] = {
+        'wells': summarize_period_items(payload['wells']),
+        'lines': summarize_period_items(payload['production_lines']),
+        'flows': summarize_period_items(payload['flows']),
     }
     payload['cards'] = _cards(payload)
     return WaterDashboardPayload(**payload)

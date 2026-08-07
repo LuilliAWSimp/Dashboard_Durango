@@ -28,6 +28,7 @@ interface ChartPoint {
   bucketStart: string;
   bucketEnd: string;
   flow: number | null;
+  flowActiveAvg: number | null;
   flowMin: number | null;
   flowMax: number | null;
   volume: number | null;
@@ -38,6 +39,11 @@ interface ChartPoint {
   hasDiscontinuities: boolean;
   volumeReliable: boolean;
   samples: number;
+  samplesExpected: number;
+  coveragePercent: number;
+  coverageStatus: string;
+  activeMinutes: number;
+  intervalState: string;
   dataStatus: string;
   tooltipAnchor: number;
 }
@@ -61,6 +67,7 @@ export default function WaterHistoryChart({ points, aggregation, height = 430, f
     bucketStart: point.bucket_start,
     bucketEnd: point.bucket_end,
     flow: point.flow_avg_lps,
+    flowActiveAvg: point.flow_active_avg_lps ?? null,
     flowMin: point.flow_min_lps,
     flowMax: point.flow_max_lps,
     volume: point.volume_m3,
@@ -71,6 +78,11 @@ export default function WaterHistoryChart({ points, aggregation, height = 430, f
     hasDiscontinuities: Boolean(point.has_discontinuities),
     volumeReliable: Boolean(point.volume_reliable),
     samples: point.samples,
+    samplesExpected: Number(point.samples_expected || 0),
+    coveragePercent: Number(point.coverage_percent || 0),
+    coverageStatus: String(point.coverage_status || ''),
+    activeMinutes: Number(point.active_minutes || 0),
+    intervalState: String(point.interval_state || ''),
     dataStatus: point.data_status,
     tooltipAnchor: 0,
     }));

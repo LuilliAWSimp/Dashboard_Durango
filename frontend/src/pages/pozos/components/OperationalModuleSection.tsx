@@ -55,6 +55,8 @@ function statusType(value: unknown): string {
   const text = String(value || '').toLowerCase();
   if (text.includes('revisión') || text.includes('atrasada') || text.includes('parcial')) return 'warning';
   if (text.includes('sin histórico') || text.includes('sin registro') || text.includes('sin lectura')) return 'communication';
+  if (text.includes('apagado')) return 'idle';
+  if (text.includes('activo')) return 'normal';
   if (text.includes('actividad')) return text.includes('sin actividad') ? 'idle' : 'normal';
   return 'idle';
 }
@@ -88,7 +90,9 @@ function mergeDuplicateRows(previous: FlexibleRecord | undefined, next: Flexible
     'period_m3_reliable', 'validated_volume_m3', 'discarded_volume_m3',
     'discarded_totalizer_events', 'discarded_totalizer_event_details',
     'has_discontinuities', 'period_activity', 'period_data_status', 'activity',
-    'data_status', 'samples',
+    'data_status', 'samples', 'samples_received', 'samples_expected',
+    'coverage_percent', 'coverage_status', 'data_reliable', 'active_minutes',
+    'flow_active_avg',
   ];
 
   for (const key of currentKeys) {
@@ -189,7 +193,7 @@ export default function OperationalModuleSection({
           trend={total === null ? 'No disponible' : hasPartial ? 'Volumen validado parcial' : 'Suma de incrementos validados'}
           accent="cyan"
         />
-        <KpiCard label="Con actividad en el periodo" value={String(active)} unit="elementos" trend="Movimiento validado del totalizador" accent="teal" />
+        <KpiCard label="Con actividad en el periodo" value={String(active)} unit="elementos" trend="Flujo positivo o movimiento validado" accent="teal" />
         <KpiCard label="Con flujo actual" value={String(currentFlow)} unit="elementos" trend="Lectura reciente por encima del umbral" accent="teal" />
         <KpiCard label="Sin actividad" value={String(inactive)} unit="elementos" trend="Muestras válidas sin movimiento" accent="blue" />
         <KpiCard label="Revisión o sin histórico" value={String(review + noHistory)} unit="elementos" trend="No incluidos como cero confiable" accent="brown" />
@@ -204,6 +208,7 @@ export default function OperationalModuleSection({
           {rows.map((row, index) => {
             const sensorId = resolveOperationalIdentity(row, index, module);
             const activity = periodMessage(row);
+            const currentState = String(row.current_state || (number(row.current_flow ?? row.flow_lps ?? row.flow) === null ? 'Sin registros' : number(row.current_flow ?? row.flow_lps ?? row.flow)! > 0 ? 'Activo' : 'Apagado con datos'));
             const communication = String(row.communication || row.estado_comunicacion || 'Sin lectura');
             const volume = number(row.period_m3);
             const flow = number(row.current_flow ?? row.flow_lps ?? row.flow);
@@ -222,7 +227,7 @@ export default function OperationalModuleSection({
                         <span>{title}</span>
                         <strong>{itemName(row, index)}</strong>
                       </div>
-                      <StatusBadge type={statusType(activity)}>{activity}</StatusBadge>
+                      <StatusBadge type={statusType(currentState)}>{currentState}</StatusBadge>
                     </div>
                     <div className="metric-pairs-grid operational-metric-grid">
                       <MetricPair label="Flujo actual" value={flow === null ? 'Sin dato' : fmt(flow)} unit={flow === null ? '' : String(row.flow_unit || 'L/s')} />
@@ -232,7 +237,9 @@ export default function OperationalModuleSection({
                         value={volume === null ? 'No disponible' : fmt(volume)}
                         unit={volume === null ? '' : 'm³'}
                       />
-                      <MetricPair label="Muestras del periodo" value={row.samples == null || Number(row.samples) === 0 ? '—' : String(row.samples)} />
+                      <MetricPair label="Actividad del periodo" value={activity} />
+                      <MetricPair label="Tiempo activo" value={number(row.active_minutes) === null ? '—' : fmt(row.active_minutes)} unit={number(row.active_minutes) === null ? '' : 'min'} />
+                      <MetricPair label="Cobertura" value={number(row.coverage_percent) === null ? '—' : fmt(row.coverage_percent)} unit={number(row.coverage_percent) === null ? '' : '%'} />
                     </div>
                   </div>
                   <div className="operational-card-footer">
@@ -255,7 +262,7 @@ export default function OperationalModuleSection({
         <div className="pozos-table-scroll">
           <table className="pozos-operacion-table">
             <thead>
-              <tr><th>Elemento</th><th>Flujo actual</th><th>Apertura</th><th>Cierre</th><th>Volumen periodo</th><th>Actividad</th><th>Comunicación</th><th>Última actualización</th></tr>
+              <tr><th>Elemento</th><th>Estado actual</th><th>Flujo actual</th><th>Apertura</th><th>Cierre</th><th>Volumen periodo</th><th>Actividad</th><th>Tiempo activo</th><th>Cobertura</th><th>Comunicación</th><th>Última actualización</th></tr>
             </thead>
             <tbody>
               {rows.map((row, index) => {
@@ -263,11 +270,14 @@ export default function OperationalModuleSection({
                 return (
                   <tr key={`table-${module}-${sensorId}`}>
                     <td>{itemName(row, index)}</td>
+                    <td>{String(row.current_state || 'Sin registros')}</td>
                     <td>{number(row.current_flow ?? row.flow_lps) === null ? '—' : `${fmt(row.current_flow ?? row.flow_lps)} ${String(row.flow_unit || 'L/s')}`}</td>
                     <td>{number(row.period_open_m3) === null ? '—' : `${fmt(row.period_open_m3)} m³`}</td>
                     <td>{number(row.period_close_m3) === null ? '—' : `${fmt(row.period_close_m3)} m³`}</td>
                     <td>{number(row.period_m3) === null ? 'No disponible' : row.has_discontinuities ? `Volumen validado parcial: ${fmt(row.period_m3)} m³` : `${fmt(row.period_m3)} m³`}</td>
                     <td>{periodMessage(row)}</td>
+                    <td>{number(row.active_minutes) === null ? '—' : `${fmt(row.active_minutes)} min`}</td>
+                    <td>{number(row.coverage_percent) === null ? '—' : `${fmt(row.coverage_percent)}% · ${String(row.coverage_status || '')}`}</td>
                     <td>{String(row.communication || row.estado_comunicacion || 'Sin lectura')}</td>
                     <td>{formatSqlDate(row.last_update || row.ultima_lectura)}</td>
                   </tr>

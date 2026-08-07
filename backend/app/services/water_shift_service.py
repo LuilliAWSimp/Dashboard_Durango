@@ -59,13 +59,18 @@ def _cut_status(day: date, start: datetime, end: datetime) -> tuple[str, datetim
 
 def _summary(items: list[dict[str, Any]]) -> dict[str, Any]:
     reliable = [item for item in items if item.get('validated_volume_m3') is not None]
+    received = sum(int(item.get('samples_received') or item.get('samples') or 0) for item in items)
+    expected = sum(int(item.get('samples_expected') or 0) for item in items)
     return {
         'total_m3': round(sum(float(item['validated_volume_m3']) for item in reliable), 6) if reliable else None,
-        'active_count': sum(1 for item in reliable if float(item.get('validated_volume_m3') or 0) > 0),
-        'inactive_count': sum(1 for item in reliable if float(item.get('validated_volume_m3') or 0) == 0 and not item.get('has_discontinuities')),
-        'review_count': sum(1 for item in items if item.get('data_status') in {'invalid_totalizer', 'no_totalizer'}),
+        'active_count': sum(1 for item in items if item.get('data_status') in {'operational', 'partial_activity'}),
+        'inactive_count': sum(1 for item in items if item.get('data_status') == 'zero_consumption'),
+        'review_count': sum(1 for item in items if item.get('data_status') == 'invalid_totalizer'),
         'coverage_available': len(reliable),
         'coverage_total': len(items),
+        'samples_received': received,
+        'samples_expected': expected,
+        'sample_coverage_percent': round(min((received / expected) * 100.0, 100.0), 2) if expected else 0.0,
     }
 
 
@@ -125,10 +130,23 @@ def get_shift_consumption_data(report_date: Any = None, *, force_refresh: bool =
             if sensor_id in grouped:
                 grouped[sensor_id].append(row)
         items = [
-            build_period_item(contract, grouped[int(contract['sensor_id'])], previous.get(int(contract['sensor_id'])), day)
+            build_period_item(
+                contract,
+                grouped[int(contract['sensor_id'])],
+                previous.get(int(contract['sensor_id'])),
+                day,
+                window_start=query_start,
+                window_end=query_end,
+            )
             for contract in SENSOR_ITEMS
         ]
-        items.extend(get_lavadora_period_items(query_start, query_end, day))
+        items.extend(get_lavadora_period_items(
+            query_start,
+            query_end,
+            day,
+            window_start=query_start,
+            window_end=query_end,
+        ))
         wells = [item for item in items if item.get('module') == 'well']
         lines = [item for item in items if item.get('module') == 'line']
         flows = [item for item in items if item.get('module') == 'flow']

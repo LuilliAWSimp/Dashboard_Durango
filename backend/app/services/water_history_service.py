@@ -23,7 +23,8 @@ from app.services.durango_capabilities import (
 )
 from app.services.durango_lavadoras_service import query_lavadora_rows
 from app.services.durango_well_history_fallback import query_bos_well_rows
-from app.services.plant_time import effective_local_end, is_future_interval, local_now_naive, local_to_source_naive, source_to_local_naive
+from app.services.operation_semantics import expected_minute_samples, interval_operation_metrics
+from app.services.plant_time import effective_local_end, local_now_naive, local_to_source_naive, source_to_local_naive
 from app.services.totalizer_quality import analyze_totalizer_series
 from app.services.water_bos_service import get_bos_water_dashboard_payload
 
@@ -123,7 +124,7 @@ def _localized_rows(rows: list[dict[str, Any]], *timestamp_keys: str) -> list[di
             if item.get(key) is not None:
                 item[key] = source_to_local_naive(item[key])
         identity = item.get('sensor_id') or item.get('operational_key')
-        for key in ('instant_value', 'flow_value', 'flow_avg', 'flow_min', 'flow_max'):
+        for key in ('instant_value', 'flow_value', 'flow_avg', 'flow_active_avg', 'flow_min', 'flow_max'):
             if key in item:
                 item[key] = normalize_flow_lps(identity, item.get(key))
         normalized.append(item)
@@ -151,8 +152,10 @@ def _query_15m(sensor_id: int, start_dt: datetime, end_dt: datetime) -> list[dic
         ), aggregates AS (
             SELECT
                 bucket_start,
-                COUNT_BIG(1) AS samples,
+                SUM(CASE WHEN flow_value IS NOT NULL OR total_value IS NOT NULL THEN 1 ELSE 0 END) AS samples,
+                SUM(CASE WHEN flow_value > 0 THEN 1 ELSE 0 END) AS active_samples,
                 AVG(flow_value) AS flow_avg,
+                AVG(CASE WHEN flow_value > 0 THEN flow_value END) AS flow_active_avg,
                 MIN(flow_value) AS flow_min,
                 MAX(flow_value) AS flow_max
             FROM bucketed
@@ -161,7 +164,9 @@ def _query_15m(sensor_id: int, start_dt: datetime, end_dt: datetime) -> list[dic
         SELECT
             aggregate.bucket_start,
             aggregate.samples,
+            aggregate.active_samples,
             aggregate.flow_avg,
+            aggregate.flow_active_avg,
             aggregate.flow_min,
             aggregate.flow_max,
             opening.total_value AS total_open,
@@ -282,9 +287,16 @@ def _aggregate(
     for bucket, bucket_rows in grouped.items():
         bucket_rows = sorted(bucket_rows, key=lambda row: _dt(row.get('bucket_start')) or datetime.min)
         samples = sum(int(row.get('samples') or 0) for row in bucket_rows)
+        active_samples = sum(int(row.get('active_samples') or 0) for row in bucket_rows)
         weighted = [(_num(row.get('flow_avg')), int(row.get('samples') or 0)) for row in bucket_rows]
         weighted = [(value, count) for value, count in weighted if value is not None and count > 0]
         flow_avg = sum(value * count for value, count in weighted) / sum(count for _, count in weighted) if weighted else None
+        active_weighted = [(_num(row.get('flow_active_avg')), int(row.get('active_samples') or 0)) for row in bucket_rows]
+        active_weighted = [(value, count) for value, count in active_weighted if value is not None and count > 0]
+        flow_active_avg = (
+            sum(value * count for value, count in active_weighted) / sum(count for _, count in active_weighted)
+            if active_weighted else None
+        )
         mins = [_num(row.get('flow_min')) for row in bucket_rows]
         maxs = [_num(row.get('flow_max')) for row in bucket_rows]
         mins = [value for value in mins if value is not None]
@@ -313,7 +325,9 @@ def _aggregate(
         )
         result[bucket] = {
             'samples': samples,
+            'active_samples': active_samples,
             'flow_avg': flow_avg,
+            'flow_active_avg': flow_active_avg,
             'flow_min': min(mins) if mins else None,
             'flow_max': max(maxs) if maxs else None,
             'total_open': analysis.opening_m3,
@@ -330,14 +344,38 @@ def _aggregate(
     return result
 
 
-def _empty(sensor_id: Any, aggregation: Aggregation, start: datetime, end: datetime, *, status: str = 'no_data') -> dict[str, Any]:
+def _empty(
+    sensor_id: Any,
+    aggregation: Aggregation,
+    start: datetime,
+    end: datetime,
+    *,
+    status: str = 'no_data',
+    expected_samples: int | None = None,
+) -> dict[str, Any]:
+    expected = expected_minute_samples(start, end) if expected_samples is None else max(int(expected_samples), 0)
+    metrics = interval_operation_metrics(
+        samples_received=0,
+        samples_expected=expected,
+        active_samples=0,
+        validated_volume_m3=None,
+    ).payload()
     return {
         'sensor_id': sensor_id,
         'bucket_start': start.isoformat(timespec='seconds'),
         'bucket_end': end.isoformat(timespec='seconds'),
         'aggregation': aggregation,
         'samples': 0,
+        'samples_received': 0,
+        'samples_expected': expected,
+        'coverage_percent': metrics['coverage_percent'],
+        'coverage_status': metrics['coverage_status'],
+        'data_reliable': False,
+        'active_samples': 0,
+        'active_minutes': 0.0,
+        'interval_state': 'Sin registros' if status == 'no_data' else 'Configuración anterior pendiente',
         'flow_avg_lps': None,
+        'flow_active_avg_lps': None,
         'flow_min_lps': None,
         'flow_max_lps': None,
         'totalizer_open_m3': None,
@@ -368,38 +406,46 @@ def _build_points(
     cursor = _floor(start_dt, aggregation)
     step = _step(aggregation)
     effective_end = effective_end_dt or end_dt
-    while cursor < end_dt:
-        bucket_end = min(cursor + step, end_dt)
+    series_end = min(end_dt, effective_end)
+    while cursor < series_end:
+        bucket_end = min(cursor + step, end_dt, series_end)
         if bucket_end <= DURANGO_SCADA_CUTOVER_LOCAL:
-            result.append(_empty(sensor_id, aggregation, cursor, bucket_end, status='legacy_configuration_pending'))
+            result.append(_empty(sensor_id, aggregation, cursor, bucket_end, status='legacy_configuration_pending', expected_samples=0))
             cursor += step
             continue
-        if is_future_interval(cursor, effective_end):
-            result.append(_empty(sensor_id, aggregation, cursor, bucket_end, status='future_interval'))
-            cursor += step
-            continue
+        expected_start = max(cursor, start_dt, DURANGO_SCADA_CUTOVER_LOCAL)
+        expected = expected_minute_samples(expected_start, bucket_end)
         item = aggregates.get(cursor)
         if not item:
-            result.append(_empty(sensor_id, aggregation, cursor, bucket_end))
+            result.append(_empty(sensor_id, aggregation, cursor, bucket_end, expected_samples=expected))
         else:
             samples = int(item['samples'])
+            active_samples = int(item.get('active_samples') or 0)
             flow_avg = item['flow_avg']
             volume = item['volume']
-            if not item['reliable']:
-                status = 'invalid_totalizer'
-            elif (volume or 0) > 0:
-                status = 'operational'
-            elif samples > 0:
-                status = 'zero_consumption'
-            else:
-                status = 'no_data'
+            metrics = interval_operation_metrics(
+                samples_received=samples,
+                samples_expected=expected,
+                active_samples=active_samples,
+                validated_volume_m3=volume,
+                has_discontinuities=bool(item.get('has_discontinuities')),
+            ).payload()
             result.append({
                 'sensor_id': sensor_id,
                 'bucket_start': cursor.isoformat(timespec='seconds'),
                 'bucket_end': bucket_end.isoformat(timespec='seconds'),
                 'aggregation': aggregation,
                 'samples': samples,
+                'samples_received': metrics['samples_received'],
+                'samples_expected': metrics['samples_expected'],
+                'coverage_percent': metrics['coverage_percent'],
+                'coverage_status': metrics['coverage_status'],
+                'data_reliable': metrics['data_reliable'],
+                'active_samples': metrics['active_samples'],
+                'active_minutes': metrics['active_minutes'],
+                'interval_state': metrics['interval_state'],
                 'flow_avg_lps': flow_avg,
+                'flow_active_avg_lps': item.get('flow_active_avg'),
                 'flow_min_lps': item['flow_min'],
                 'flow_max_lps': item['flow_max'],
                 'totalizer_open_m3': item['total_open'],
@@ -411,7 +457,7 @@ def _build_points(
                 'discarded_totalizer_event_details': item.get('discarded_totalizer_event_details', []),
                 'has_discontinuities': bool(item.get('has_discontinuities')),
                 'volume_reliable': bool(item['reliable']),
-                'data_status': status,
+                'data_status': metrics['data_status'],
             })
         cursor += step
     return result
@@ -447,13 +493,30 @@ def _fallback_points(sensor_id: int, aggregation: Aggregation, start: date, end:
         flow = _num(row.get('flow_lps') if row.get('flow_lps') is not None else row.get('flujo_lps'))
         volume = _num(row.get('period_m3') if row.get('period_m3') is not None else row.get('volumen_periodo_m3'))
         samples = int(row.get('samples') or 0)
+        active_samples = samples if flow is not None and flow > 0 else 0
+        interval_end = min(bucket + _step(aggregation), effective_end_dt or (bucket + _step(aggregation)))
+        metrics = interval_operation_metrics(
+            samples_received=samples,
+            samples_expected=expected_minute_samples(bucket, interval_end),
+            active_samples=active_samples,
+            validated_volume_m3=volume,
+        ).payload()
         by_bucket[bucket] = {
             'sensor_id': sensor_id,
             'bucket_start': bucket.isoformat(timespec='seconds'),
             'bucket_end': (bucket + _step(aggregation)).isoformat(timespec='seconds'),
             'aggregation': aggregation,
             'samples': samples,
+            'samples_received': metrics['samples_received'],
+            'samples_expected': metrics['samples_expected'],
+            'coverage_percent': metrics['coverage_percent'],
+            'coverage_status': metrics['coverage_status'],
+            'data_reliable': metrics['data_reliable'],
+            'active_samples': metrics['active_samples'],
+            'active_minutes': metrics['active_minutes'],
+            'interval_state': metrics['interval_state'],
             'flow_avg_lps': flow if samples > 0 else None,
+            'flow_active_avg_lps': flow if active_samples > 0 else None,
             'flow_min_lps': flow if samples > 0 else None,
             'flow_max_lps': flow if samples > 0 else None,
             'totalizer_open_m3': None,
@@ -465,7 +528,7 @@ def _fallback_points(sensor_id: int, aggregation: Aggregation, start: date, end:
             'discarded_totalizer_event_details': [],
             'has_discontinuities': False,
             'volume_reliable': bool(samples > 0 and volume is not None),
-            'data_status': ('operational' if volume is not None and volume > 0 else 'zero_consumption') if samples > 0 else 'no_data',
+            'data_status': metrics['data_status'],
         }
     start_dt = datetime.combine(start, time.min)
     end_dt = datetime.combine(end + timedelta(days=1), time.min)
@@ -474,10 +537,16 @@ def _fallback_points(sensor_id: int, aggregation: Aggregation, start: date, end:
     effective_end = effective_end_dt or end_dt
     while cursor < end_dt:
         bucket_end = min(cursor + _step(aggregation), end_dt)
-        if is_future_interval(cursor, effective_end):
-            points.append(_empty(sensor_id, aggregation, cursor, bucket_end, status='future_interval'))
-        else:
-            points.append(by_bucket.get(cursor) or _empty(sensor_id, aggregation, cursor, bucket_end))
+        if cursor >= effective_end:
+            break
+        bucket_end = min(bucket_end, effective_end)
+        points.append(by_bucket.get(cursor) or _empty(
+            sensor_id,
+            aggregation,
+            cursor,
+            bucket_end,
+            expected_samples=expected_minute_samples(max(cursor, DURANGO_SCADA_CUTOVER_LOCAL), bucket_end),
+        ))
         cursor += _step(aggregation)
     return points
 
@@ -589,13 +658,17 @@ def _query_15m_multi(sensor_ids: list[int], start_dt: datetime, end_dt: datetime
                    DATEADD(minute, (DATEDIFF(minute, CONVERT(datetime2, '20000101'), reading_ts) / 15) * 15, CONVERT(datetime2, '20000101')) AS bucket_start
             FROM source_rows
         ), aggregates AS (
-            SELECT sensor_id, bucket_start, COUNT_BIG(1) AS samples,
-                   AVG(flow_value) AS flow_avg, MIN(flow_value) AS flow_min, MAX(flow_value) AS flow_max
+            SELECT sensor_id, bucket_start,
+                   SUM(CASE WHEN flow_value IS NOT NULL OR total_value IS NOT NULL THEN 1 ELSE 0 END) AS samples,
+                   SUM(CASE WHEN flow_value > 0 THEN 1 ELSE 0 END) AS active_samples,
+                   AVG(flow_value) AS flow_avg,
+                   AVG(CASE WHEN flow_value > 0 THEN flow_value END) AS flow_active_avg,
+                   MIN(flow_value) AS flow_min, MAX(flow_value) AS flow_max
             FROM bucketed
             GROUP BY sensor_id, bucket_start
         )
-        SELECT aggregate.sensor_id, aggregate.bucket_start, aggregate.samples,
-               aggregate.flow_avg, aggregate.flow_min, aggregate.flow_max,
+        SELECT aggregate.sensor_id, aggregate.bucket_start, aggregate.samples, aggregate.active_samples,
+               aggregate.flow_avg, aggregate.flow_active_avg, aggregate.flow_min, aggregate.flow_max,
                opening.total_value AS total_open, closing.total_value AS total_close
         FROM aggregates AS aggregate
         OUTER APPLY (
@@ -638,15 +711,30 @@ def _bos_rows_to_15m(sensor_id: int, rows: list[dict[str, Any]]) -> list[dict[st
     result = []
     for bucket, bucket_rows in sorted(grouped.items()):
         bucket_rows = sorted(bucket_rows, key=lambda row: _dt(row.get('operational_ts')) or datetime.min)
-        flows = [_num(row.get('instant_value')) for row in bucket_rows]
+        # SensorsBOS_Lavadoras puede registrar más de una fila dentro del mismo
+        # minuto. Para cobertura y tiempo activo cada minuto cuenta una sola vez.
+        rows_by_minute: dict[datetime, dict[str, Any]] = {}
+        for row in bucket_rows:
+            stamp = _dt(row.get('operational_ts'))
+            if stamp is not None:
+                rows_by_minute[stamp.replace(second=0, microsecond=0)] = row
+        bucket_rows = list(rows_by_minute.values())
+        valid_rows = [
+            row for row in bucket_rows
+            if _num(row.get('instant_value')) is not None or _num(row.get('total_value')) is not None
+        ]
+        flows = [_num(row.get('instant_value')) for row in valid_rows]
         flows = [value for value in flows if value is not None]
+        active_flows = [value for value in flows if value > 0]
         totals = [_num(row.get('total_value')) for row in bucket_rows]
         totals = [value for value in totals if value is not None and value > 0]
         result.append({
             'sensor_id': sensor_id,
             'bucket_start': bucket,
-            'samples': len(bucket_rows),
+            'samples': len(valid_rows),
+            'active_samples': len(active_flows),
             'flow_avg': sum(flows) / len(flows) if flows else None,
+            'flow_active_avg': sum(active_flows) / len(active_flows) if active_flows else None,
             'flow_min': min(flows) if flows else None,
             'flow_max': max(flows) if flows else None,
             'total_open': totals[0] if totals else None,
@@ -818,7 +906,8 @@ def get_wells_minute_flow(*, start_datetime: str, end_datetime: str, force_refre
                 minute_values[stamp.replace(second=0, microsecond=0)].append(value)
         points = []
         cursor = start_dt.replace(second=0, microsecond=0)
-        while cursor < requested_end_dt:
+        minute_series_end = min(requested_end_dt, effective_end_dt)
+        while cursor < minute_series_end:
             if cursor < DURANGO_SCADA_CUTOVER_LOCAL:
                 points.append({
                     'timestamp': cursor.isoformat(timespec='seconds'),
@@ -826,20 +915,14 @@ def get_wells_minute_flow(*, start_datetime: str, end_datetime: str, force_refre
                     'samples': 0,
                     'data_status': 'legacy_configuration_pending',
                 })
-            elif is_future_interval(cursor, effective_end_dt):
-                points.append({
-                    'timestamp': cursor.isoformat(timespec='seconds'),
-                    'flow_value': None,
-                    'samples': 0,
-                    'data_status': 'future_interval',
-                })
             else:
                 values = minute_values.get(cursor, [])
+                average = sum(values) / len(values) if values else None
                 points.append({
                     'timestamp': cursor.isoformat(timespec='seconds'),
-                    'flow_value': sum(values) / len(values) if values else None,
+                    'flow_value': average,
                     'samples': len(values),
-                    'data_status': 'operational' if values else 'no_data',
+                    'data_status': 'operational' if average is not None and average > 0 else 'zero_consumption' if values else 'no_data',
                 })
             cursor += timedelta(minutes=1)
         contract = sensor_contract(sensor_id)

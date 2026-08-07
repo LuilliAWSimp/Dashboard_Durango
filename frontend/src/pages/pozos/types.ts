@@ -20,7 +20,16 @@ export interface WaterHistoryPoint extends FlexibleRecord {
   bucket_end: string;
   aggregation: HistoryAggregation;
   samples: number;
+  samples_received?: number;
+  samples_expected?: number;
+  coverage_percent?: number;
+  coverage_status?: string;
+  data_reliable?: boolean;
+  active_samples?: number;
+  active_minutes?: number;
+  interval_state?: string;
   flow_avg_lps: number | null;
+  flow_active_avg_lps?: number | null;
   flow_min_lps: number | null;
   flow_max_lps: number | null;
   totalizer_open_m3: number | null;
@@ -32,7 +41,7 @@ export interface WaterHistoryPoint extends FlexibleRecord {
   discarded_totalizer_event_details?: FlexibleRecord[];
   has_discontinuities?: boolean;
   volume_reliable: boolean;
-  data_status: 'operational' | 'zero_consumption' | 'no_data' | 'invalid_totalizer' | 'stale_data' | 'no_history' | 'future_interval' | 'legacy_configuration_pending';
+  data_status: 'operational' | 'partial_activity' | 'zero_consumption' | 'no_data' | 'invalid_totalizer' | 'stale_data' | 'no_history' | 'future_interval' | 'legacy_configuration_pending';
 }
 
 export interface WaterHistoryResponse extends FlexibleRecord {
@@ -97,6 +106,16 @@ export interface NormalizedWaterItem extends FlexibleRecord {
   today_accumulated_m3?: number | null;
   activity?: string;
   activity_status?: string;
+  current_state?: string;
+  current_state_status?: string;
+  flow_active_avg?: number | null;
+  samples_received?: number;
+  samples_expected?: number;
+  coverage_percent?: number;
+  coverage_status?: string;
+  data_reliable?: boolean;
+  active_samples?: number;
+  active_minutes?: number;
   data_status?: string;
   communication?: string;
   last_update?: string | null;

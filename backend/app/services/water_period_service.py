@@ -23,6 +23,7 @@ from app.services.durango_capabilities import (
 )
 from app.services.durango_lavadoras_service import get_lavadora_period_items
 from app.services.durango_well_history_fallback import query_bos_well_rows
+from app.services.operation_semantics import expected_minute_samples, interval_operation_metrics
 from app.services.plant_time import effective_local_end, local_now_naive, local_to_source_naive, source_to_local_naive
 from app.services.totalizer_quality import TotalizerAnalysis, analyze_totalizer_series
 
@@ -210,11 +211,21 @@ def _analysis_rows(rows: list[dict[str, Any]], contract: dict[str, Any]) -> Tota
     )
 
 
-def build_period_item(contract: dict[str, Any], rows: list[dict[str, Any]], previous_close: tuple[datetime | None, float | None] | None, end_day: date) -> dict[str, Any]:
+def build_period_item(
+    contract: dict[str, Any],
+    rows: list[dict[str, Any]],
+    previous_close: tuple[datetime | None, float | None] | None,
+    end_day: date,
+    *,
+    window_start: datetime | None = None,
+    window_end: datetime | None = None,
+) -> dict[str, Any]:
     sensor_id = int(contract['sensor_id'])
     ordered = sorted(rows, key=lambda row: _dt(row.get('operational_ts')) or datetime.min)
     flow_values = [_num(row.get('instant_value')) for row in ordered]
     flow_values = [value for value in flow_values if value is not None]
+    active_threshold = current_flow_threshold_for_sensor(sensor_id)
+    active_flow_values = [value for value in flow_values if value > active_threshold]
     analysis = _analysis_rows(ordered, contract)
     latest = ordered[-1] if ordered else None
     latest_time = _dt(latest.get('operational_ts')) if latest else None
@@ -226,24 +237,55 @@ def build_period_item(contract: dict[str, Any], rows: list[dict[str, Any]], prev
     current_totalizer = totalizer_values[-1] if totalizer_values else None
     period_volume = analysis.validated_volume_m3
     period_source = str((ordered[-1].get('period_source') or ordered[-1].get('source') or 'readings_minute')) if ordered else 'no_history'
-    if not ordered:
-        activity = 'Sin histórico para el periodo'
-        data_status = 'no_history'
-    elif not totalizer_values:
-        activity = 'Sin totalizador disponible'
-        data_status = 'no_totalizer'
-    elif analysis.has_discontinuities:
+    valid_minutes = {
+        (_dt(row.get('operational_ts')) or datetime.min).replace(second=0, microsecond=0)
+        for row in ordered
+        if _dt(row.get('operational_ts')) is not None
+        and (_num(row.get('instant_value')) is not None or _num(row.get('total_value')) is not None)
+    }
+    active_minutes_set = {
+        (_dt(row.get('operational_ts')) or datetime.min).replace(second=0, microsecond=0)
+        for row in ordered
+        if _dt(row.get('operational_ts')) is not None
+        and (_num(row.get('instant_value')) or 0.0) > active_threshold
+    }
+    derived_start = min(valid_minutes) if valid_minutes else None
+    derived_end = (max(valid_minutes) + timedelta(minutes=1)) if valid_minutes else None
+    coverage_start = window_start or derived_start
+    coverage_end = window_end or derived_end
+    expected = expected_minute_samples(coverage_start, coverage_end) if coverage_start and coverage_end else 0
+    operation = interval_operation_metrics(
+        samples_received=len(valid_minutes),
+        samples_expected=expected,
+        active_samples=len(active_minutes_set),
+        validated_volume_m3=period_volume,
+        has_discontinuities=analysis.has_discontinuities,
+    ).payload()
+    if operation['data_status'] == 'no_data':
+        activity = 'Sin registros en el periodo'
+    elif operation['data_status'] == 'invalid_totalizer':
         activity = 'Dato en revisión'
-        data_status = 'invalid_totalizer'
-    elif not analysis.reliable:
-        activity = 'Dato en revisión'
-        data_status = 'invalid_totalizer'
-    elif (period_volume or 0) > 0:
+    elif operation['data_status'] in {'operational', 'partial_activity'}:
         activity = 'Con actividad en el periodo'
-        data_status = 'operational'
     else:
         activity = 'Sin actividad en el periodo'
-        data_status = 'zero_consumption'
+    data_status = str(operation['data_status'])
+    volume_data_status = (
+        'invalid_totalizer' if analysis.has_discontinuities
+        else 'validated' if bool(analysis.reliable and totalizer_values)
+        else 'no_totalizer' if not totalizer_values
+        else analysis.status
+    )
+    latest_flow = flow_values[-1] if flow_values else None
+    if not ordered or latest_flow is None:
+        current_state = 'Sin registros'
+        current_state_status = 'no_data'
+    elif latest_flow > active_threshold:
+        current_state = 'Activo'
+        current_state_status = 'operational'
+    else:
+        current_state = 'Apagado con datos'
+        current_state_status = 'zero_consumption'
 
     # The accumulated value comes from the same validated increments used by
     # period views, shifts and reports. It must never be recalculated as current
@@ -263,9 +305,17 @@ def build_period_item(contract: dict[str, Any], rows: list[dict[str, Any]], prev
         'current_flow': flow_values[-1] if flow_values else None,
         'flow_lps': flow_values[-1] if flow_values else None,
         'flow_avg': round(sum(flow_values) / len(flow_values), 6) if flow_values else None,
+        'flow_active_avg': round(sum(active_flow_values) / len(active_flow_values), 6) if active_flow_values else None,
         'flow_min': min(flow_values) if flow_values else None,
         'flow_max': max(flow_values) if flow_values else None,
-        'samples': len(ordered),
+        'samples': len(valid_minutes),
+        'samples_received': operation['samples_received'],
+        'samples_expected': operation['samples_expected'],
+        'coverage_percent': operation['coverage_percent'],
+        'coverage_status': operation['coverage_status'],
+        'data_reliable': operation['data_reliable'],
+        'active_samples': operation['active_samples'],
+        'active_minutes': operation['active_minutes'],
         'previous_close_m3': previous_value,
         'previous_close_at': previous_stamp.isoformat(timespec='seconds') if previous_stamp else None,
         'current_totalizer_m3': current_totalizer,
@@ -286,8 +336,11 @@ def build_period_item(contract: dict[str, Any], rows: list[dict[str, Any]], prev
         'activity': activity,
         'activity_status': activity,
         'data_status': data_status,
+        'volume_data_status': volume_data_status,
         'period_activity': activity,
         'period_data_status': data_status,
+        'current_state': current_state,
+        'current_state_status': current_state_status,
         'current_reading_available': bool(latest_time is not None),
         'communication': communication,
         'estado_comunicacion': communication,
@@ -310,15 +363,19 @@ def _is_recent_communication(item: dict[str, Any]) -> bool:
 def summarize_period_items(group_items: list[dict[str, Any]]) -> dict[str, Any]:
     calculable = [item for item in group_items if item.get('validated_volume_m3') is not None]
     total = round(sum(float(item.get('validated_volume_m3') or 0.0) for item in calculable), 6) if calculable else None
-    active_count = sum(1 for item in calculable if float(item.get('validated_volume_m3') or 0.0) > 0.0)
+    active_count = sum(
+        1 for item in group_items
+        if str(item.get('data_status') or item.get('period_data_status') or '') in {'operational', 'partial_activity'}
+        or float(item.get('validated_volume_m3') or 0.0) > 0.0
+    )
     inactive_count = sum(
-        1 for item in calculable
-        if float(item.get('validated_volume_m3') or 0.0) == 0.0 and not bool(item.get('has_discontinuities'))
+        1 for item in group_items
+        if str(item.get('data_status') or item.get('period_data_status') or '') == 'zero_consumption'
     )
     review_count = sum(
         1 for item in group_items
         if bool(item.get('has_discontinuities'))
-        or str(item.get('data_status') or item.get('period_data_status') or '') in {'invalid_totalizer', 'no_totalizer'}
+        or str(item.get('data_status') or item.get('period_data_status') or '') == 'invalid_totalizer'
     )
     no_history_count = sum(
         1 for item in group_items
@@ -333,6 +390,9 @@ def summarize_period_items(group_items: list[dict[str, Any]]) -> dict[str, Any]:
         if flow > threshold:
             current_flow_count += 1
     partial_count = sum(1 for item in calculable if bool(item.get('has_discontinuities')))
+    received_samples = sum(int(item.get('samples_received') or item.get('samples') or 0) for item in group_items)
+    expected_samples = sum(int(item.get('samples_expected') or 0) for item in group_items)
+    sample_coverage_percent = min((received_samples / expected_samples) * 100.0, 100.0) if expected_samples else 0.0
     return {
         'total_m3': total,
         'validated_volume_m3': total,
@@ -351,6 +411,9 @@ def summarize_period_items(group_items: list[dict[str, Any]]) -> dict[str, Any]:
             else 'Completa' if len(calculable) == len(group_items)
             else 'Cobertura parcial'
         ),
+        'samples_received': received_samples,
+        'samples_expected': expected_samples,
+        'sample_coverage_percent': round(sample_coverage_percent, 2),
     }
 
 
@@ -428,11 +491,24 @@ def get_period_data(start_date: Any = None, end_date: Any = None, *, force_refre
             if fallback_rows:
                 grouped[sensor_id] = fallback_rows
     items = [
-        build_period_item(contract, grouped[int(contract['sensor_id'])], previous.get(int(contract['sensor_id'])), end_day)
+        build_period_item(
+            contract,
+            grouped[int(contract['sensor_id'])],
+            previous.get(int(contract['sensor_id'])),
+            end_day,
+            window_start=query_start_dt,
+            window_end=query_end_dt,
+        )
         for contract in SENSOR_ITEMS
     ]
     try:
-        items.extend(get_lavadora_period_items(query_start_dt, query_end_dt, end_day))
+        items.extend(get_lavadora_period_items(
+            query_start_dt,
+            query_end_dt,
+            end_day,
+            window_start=query_start_dt,
+            window_end=query_end_dt,
+        ))
     except SQLAlchemyError as exc:
         raise WaterPeriodError('No fue posible consultar el histórico de lavadoras.', status='sql_error') from exc
 

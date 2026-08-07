@@ -55,6 +55,11 @@ function moduleRows(dashboard: DashboardData | null, module: OperationalModule):
 }
 
 function statusType(item?: FlexibleRecord): string {
+  const currentState = String(item?.current_state || '').toLowerCase();
+  if (currentState.includes('revisión')) return 'warning';
+  if (currentState.includes('sin registro')) return 'communication';
+  if (currentState.includes('apagado')) return 'idle';
+  if (currentState.includes('activo')) return 'normal';
   const status = String(item?.period_data_status || item?.data_status || '').toLowerCase();
   const activity = String(item?.period_activity || item?.activity || '').toLowerCase();
   if (status.includes('review') || activity.includes('revisión') || activity.includes('parcial')) return 'warning';
@@ -100,6 +105,7 @@ export default function OperationalDetailSection({ module, sensorId, backPath }:
   const name = String(item?.name || item?.nombre || configuredName || `Elemento ${sensorId}`);
   const flowUnit = String(item?.flow_unit || history.data?.flow_unit || 'L/s');
   const activity = String(item?.period_activity || item?.activity || 'Sin registros');
+  const currentState = String(item?.current_state || (num(item?.current_flow ?? item?.flow_lps) === null ? 'Sin registros' : Number(item?.current_flow ?? item?.flow_lps) > 0 ? 'Activo' : 'Apagado con datos'));
   const communication = String(item?.communication || item?.estado_comunicacion || 'Sin lectura');
 
   useEffect(() => {
@@ -172,7 +178,7 @@ export default function OperationalDetailSection({ module, sensorId, backPath }:
           <div className="eyebrow">Detalle operativo</div>
           <div className="well-detail-title-row">
             <h2>{name}</h2>
-            <StatusBadge type={statusType(item)}>{activity}</StatusBadge>
+            <StatusBadge type={statusType({ ...item, current_state: currentState })}>{currentState}</StatusBadge>
           </div>
           <p>Análisis individual del elemento para el periodo seleccionado.</p>
         </div>
@@ -180,6 +186,9 @@ export default function OperationalDetailSection({ module, sensorId, backPath }:
           <article><span>Flujo actual</span><strong>{fmt(item?.current_flow ?? item?.flow_lps)} <small>{flowUnit}</small></strong></article>
           <article><span>Totalizador actual</span><strong>{fmt(item?.current_totalizer_m3 ?? item?.totalizador_m3)} <small>m³</small></strong></article>
           <article><span>Volumen del periodo</span><strong>{num(item?.period_m3) === null ? activity : fmt(item?.period_m3)} <small>{num(item?.period_m3) === null ? '' : 'm³'}</small></strong></article>
+          <article><span>Actividad del periodo</span><strong>{activity}</strong></article>
+          <article><span>Tiempo activo</span><strong>{fmt(item?.active_minutes)} <small>{num(item?.active_minutes) === null ? '' : 'min'}</small></strong></article>
+          <article><span>Cobertura</span><strong>{fmt(item?.coverage_percent)} <small>{num(item?.coverage_percent) === null ? '' : '%'}</small></strong></article>
           <article><span>Comunicación</span><strong>{communication}</strong></article>
           <article><span>Última lectura</span><strong>{formatSqlDate(item?.last_update || item?.ultima_lectura)}</strong></article>
         </div>
@@ -209,6 +218,10 @@ export default function OperationalDetailSection({ module, sensorId, backPath }:
           <MetricPair label="Apertura" value={fmt(item?.period_open_m3)} unit={num(item?.period_open_m3) === null ? '' : 'm³'} />
           <MetricPair label="Cierre" value={fmt(item?.period_close_m3)} unit={num(item?.period_close_m3) === null ? '' : 'm³'} />
           <MetricPair label="Actividad" value={activity} />
+          <MetricPair label="Estado actual" value={currentState} />
+          <MetricPair label="Promedio durante actividad" value={fmt(item?.flow_active_avg)} unit={num(item?.flow_active_avg) === null ? '' : flowUnit} />
+          <MetricPair label="Muestras" value={`${Number(item?.samples_received || item?.samples || 0).toLocaleString('es-MX')}/${Number(item?.samples_expected || 0).toLocaleString('es-MX')}`} />
+          <MetricPair label="Cobertura" value={num(item?.coverage_percent) === null ? '—' : `${fmt(item?.coverage_percent)}% · ${String(item?.coverage_status || '')}`} />
           <MetricPair label="Comunicación" value={communication} />
         </div>
       </section>

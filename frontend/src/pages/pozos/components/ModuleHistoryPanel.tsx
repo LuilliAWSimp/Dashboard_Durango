@@ -53,9 +53,12 @@ function ModuleTooltip({ active, payload, aggregation, selected }: { active?: bo
               ) : (
                 <div className="module-history-tooltip-grid">
                   <span>Flujo promedio</span><strong>{flow == null ? 'Sin datos' : `${formatNumber(flow)} ${item?.flowUnit || 'L/s'}`}</strong>
+                  <span>Promedio activo</span><strong>{meta?.flowActiveAvg == null ? 'Sin actividad' : `${formatNumber(meta.flowActiveAvg)} ${item?.flowUnit || 'L/s'}`}</strong>
                   <span>Mínimo / máximo</span><strong>{meta?.flowMin == null ? 'Sin datos' : `${formatNumber(meta.flowMin)} / ${formatNumber(meta.flowMax)} ${item?.flowUnit || 'L/s'}`}</strong>
-                  <span>Muestras</span><strong>{Number(meta?.samples || 0).toLocaleString('es-MX')}</strong>
-                  <span>Estado</span><strong>{status === 'no_data' ? 'Sin registros guardados' : status === 'invalid_totalizer' ? 'Dato en revisión' : status === 'zero_consumption' ? 'Sin consumo' : 'Con información'}</strong>
+                  <span>Tiempo activo</span><strong>{Number(meta?.activeMinutes || 0).toLocaleString('es-MX')} min</strong>
+                  <span>Muestras</span><strong>{Number(meta?.samples || 0).toLocaleString('es-MX')}/{Number(meta?.samplesExpected || 0).toLocaleString('es-MX')}</strong>
+                  <span>Cobertura</span><strong>{formatNumber(meta?.coveragePercent)}% · {String(meta?.coverageStatus || 'Sin registros')}</strong>
+                  <span>Estado</span><strong>{String(meta?.intervalState || (status === 'no_data' ? 'Sin registros' : status === 'invalid_totalizer' ? 'Dato en revisión' : status === 'zero_consumption' ? 'Apagado con datos' : status === 'partial_activity' ? 'Actividad parcial' : 'Activo'))}</strong>
                   {Number(meta?.discardedEvents || 0) > 0 ? <><span>Eventos descartados</span><strong>{Number(meta?.discardedEvents).toLocaleString('es-MX')}</strong><span>Volumen descartado</span><strong>{formatNumber(meta?.discardedVolume)} m³</strong></> : null}
                 </div>
               )}
@@ -127,7 +130,21 @@ export default function ModuleHistoryPanel({ range }: Props) {
       const row = byTime.get(key) || { timestamp, bucketStart: point.bucket_start, bucketEnd: point.bucket_end, tooltipAnchor: 0 };
       const identity = seriesIdentity(series);
       row[`flow_${identity}`] = point.flow_avg_lps;
-      row[`meta_${identity}`] = { flowMin: point.flow_min_lps, flowMax: point.flow_max_lps, samples: point.samples, status: point.data_status, discardedEvents: point.discarded_totalizer_events || 0, discardedVolume: point.discarded_volume_m3 || 0, hasDiscontinuities: Boolean(point.has_discontinuities) };
+      row[`meta_${identity}`] = {
+        flowMin: point.flow_min_lps,
+        flowMax: point.flow_max_lps,
+        flowActiveAvg: point.flow_active_avg_lps,
+        activeMinutes: point.active_minutes,
+        samples: point.samples,
+        samplesExpected: point.samples_expected,
+        coveragePercent: point.coverage_percent,
+        coverageStatus: point.coverage_status,
+        intervalState: point.interval_state,
+        status: point.data_status,
+        discardedEvents: point.discarded_totalizer_events || 0,
+        discardedVolume: point.discarded_volume_m3 || 0,
+        hasDiscontinuities: Boolean(point.has_discontinuities),
+      };
       byTime.set(key, row);
     }));
     return [...byTime.values()].sort((a, b) => a.timestamp - b.timestamp);
