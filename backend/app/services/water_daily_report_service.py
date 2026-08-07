@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from html import escape
 from io import BytesIO
 from pathlib import Path
 from typing import Any
@@ -10,13 +11,15 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 from reportlab.lib import colors
-from reportlab.lib.enums import TA_CENTER, TA_RIGHT
-from reportlab.lib.pagesizes import letter
+from reportlab.graphics.shapes import Drawing, Line, Path as DrawingPath, Rect, String
+from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
-from reportlab.platypus import Image, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import HRFlowable, Image, KeepTogether, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from app.services.durango_capabilities import LOCAL_TIMEZONE
+from app.services.water_history_service import WaterHistoryError, get_water_history_module
 from app.services.water_period_service import WaterPeriodError, get_period_data
 from app.services.water_shift_service import get_shift_consumption_data
 
@@ -143,6 +146,35 @@ def _module_validated_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _history_aggregation(start_day: date, end_day: date) -> str:
+    days = (end_day - start_day).days + 1
+    if days == 1:
+        return 'quarter_hour'
+    if days <= 7:
+        return 'hourly'
+    return 'daily'
+
+
+def _report_history(module: str, start_day: date, end_day: date, aggregation: str) -> dict[str, Any]:
+    try:
+        return get_water_history_module(
+            module=module,
+            start_date=start_day.isoformat(),
+            end_date=end_day.isoformat(),
+            aggregation=aggregation,
+        )
+    except (WaterHistoryError, ValueError):
+        return {
+            'module': module,
+            'start_date': start_day.isoformat(),
+            'end_date': end_day.isoformat(),
+            'aggregation': aggregation,
+            'series': [],
+            'source_status': 'unavailable',
+            'has_future_intervals': False,
+        }
+
+
 def get_daily_water_report(report_date: Any = None, start_date: Any = None, end_date: Any = None) -> dict[str, Any]:
     start_day = _parse_date(start_date or report_date)
     end_day = _parse_date(end_date or report_date or start_day)
@@ -172,6 +204,13 @@ def get_daily_water_report(report_date: Any = None, start_date: Any = None, end_
     review_count = well_summary['review_count'] + line_summary['review_count'] + flow_summary['review_count']
     latest = max((str(item.get('last_update') or '') for item in [*wells, *lines, *flows]), default='')
     period_label = start_day.strftime('%d/%m/%Y') if start_day == end_day else f'{start_day:%d/%m/%Y} al {end_day:%d/%m/%Y}'
+    aggregation = _history_aggregation(start_day, end_day)
+    history = {
+        'aggregation': aggregation,
+        'wells': _report_history('well', start_day, end_day, aggregation),
+        'lines': _report_history('line', start_day, end_day, aggregation),
+        'flows': _report_history('flow', start_day, end_day, aggregation),
+    }
 
     return {
         'title': 'Reporte Diario de Control Hídrico Durango',
@@ -217,6 +256,7 @@ def get_daily_water_report(report_date: Any = None, start_date: Any = None, end_
         'legacy_notice': period.get('legacy_notice'),
         'shifts': shifts,
         'shift_breakdown_available': bool(shifts),
+        'history': history,
         'notes': [],
     }
 
@@ -232,102 +272,275 @@ def _logo_path() -> Path | None:
 def _pdf_table(rows: list[list[Any]], widths: list[float], *, repeat_rows: int = 1) -> Table:
     table = Table(rows, colWidths=widths, repeatRows=repeat_rows, hAlign='CENTER')
     table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0B6E8E')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#E8F1F8')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor('#334155')),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 7.4),
-        ('GRID', (0, 0), (-1, -1), 0.35, colors.HexColor('#9CC4D5')),
-        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F1F7FA')]),
+        ('FONTSIZE', (0, 0), (-1, -1), 7.1),
+        ('GRID', (0, 0), (-1, -1), 0.35, colors.HexColor('#C5D6E3')),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F7FAFC')]),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
-        ('LEFTPADDING', (0, 0), (-1, -1), 4),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 4),
-        ('TOPPADDING', (0, 0), (-1, -1), 4),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('LEFTPADDING', (0, 0), (-1, -1), 3.5),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 3.5),
+        ('TOPPADDING', (0, 0), (-1, -1), 4.5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4.5),
     ]))
     return table
+
+
+PDF_COLORS = ['#1597D4', '#7047EB', '#F59E0B', '#10B981', '#E84A5F']
+
+
+def _parse_history_timestamp(value: Any) -> datetime | None:
+    try:
+        return datetime.fromisoformat(str(value).replace('Z', '')).replace(tzinfo=None)
+    except (TypeError, ValueError):
+        return None
+
+
+def _history_label(stamp: datetime, aggregation: str, single_day: bool) -> str:
+    if aggregation == 'daily':
+        return stamp.strftime('%d/%m')
+    if single_day:
+        return stamp.strftime('%H:%M')
+    return stamp.strftime('%d/%m %Hh')
+
+
+def _flow_history_drawing(history: dict[str, Any], *, width: float, height: float, single_day: bool) -> Drawing:
+    drawing = Drawing(width, height)
+    left, right, bottom, top = 34.0, 10.0, 42.0, 12.0
+    plot_width = width - left - right
+    plot_height = height - bottom - top
+    drawing.add(Rect(left, bottom, plot_width, plot_height, fillColor=colors.HexColor('#FBFDFF'), strokeColor=colors.HexColor('#D7E4ED'), strokeWidth=0.6))
+    series = list(history.get('series') or [])
+    all_points = [point for item in series for point in item.get('points') or []]
+    stamps = sorted({stamp for point in all_points if (stamp := _parse_history_timestamp(point.get('bucket_start') or point.get('timestamp'))) is not None})
+    valid_values = [
+        float(point['flow_avg_lps'])
+        for point in all_points
+        if int(point.get('samples') or 0) > 0 and point.get('flow_avg_lps') is not None
+    ]
+    if not stamps or not valid_values:
+        drawing.add(String(width / 2, height / 2, 'Sin registros históricos para graficar', textAnchor='middle', fontName='Helvetica', fontSize=9, fillColor=colors.HexColor('#64748B')))
+        return drawing
+
+    start, end = stamps[0], stamps[-1]
+    span = max((end - start).total_seconds(), 1.0)
+    y_max = max(max(valid_values) * 1.12, 1.0)
+
+    for index in range(5):
+        ratio = index / 4
+        y = bottom + plot_height * ratio
+        drawing.add(Line(left, y, left + plot_width, y, strokeColor=colors.HexColor('#E4EDF3'), strokeWidth=0.45))
+        drawing.add(String(left - 5, y - 2.5, f'{y_max * ratio:,.1f}', textAnchor='end', fontName='Helvetica', fontSize=6.5, fillColor=colors.HexColor('#64748B')))
+    drawing.add(String(8, bottom + plot_height / 2, 'L/s', fontName='Helvetica-Bold', fontSize=7, fillColor=colors.HexColor('#475569')))
+
+    label_indexes = sorted({round(index * (len(stamps) - 1) / 4) for index in range(5)})
+    aggregation = str(history.get('aggregation') or 'hourly')
+    for index in label_indexes:
+        stamp = stamps[index]
+        x = left + ((stamp - start).total_seconds() / span) * plot_width
+        drawing.add(Line(x, bottom, x, bottom - 3, strokeColor=colors.HexColor('#94A3B8'), strokeWidth=0.45))
+        drawing.add(String(x, bottom - 12, _history_label(stamp, aggregation, single_day), textAnchor='middle', fontName='Helvetica', fontSize=6.2, fillColor=colors.HexColor('#64748B')))
+
+    for series_index, item in enumerate(series):
+        color = colors.HexColor(PDF_COLORS[series_index % len(PDF_COLORS)])
+        values_by_stamp = {
+            stamp: point
+            for point in item.get('points') or []
+            if (stamp := _parse_history_timestamp(point.get('bucket_start') or point.get('timestamp'))) is not None
+        }
+        path = DrawingPath()
+        started = False
+        has_segment = False
+        for stamp in stamps:
+            point = values_by_stamp.get(stamp)
+            value = None if not point or int(point.get('samples') or 0) <= 0 else _as_float(point.get('flow_avg_lps'))
+            if value is None:
+                started = False
+                continue
+            x = left + ((stamp - start).total_seconds() / span) * plot_width
+            y = bottom + (max(value, 0.0) / y_max) * plot_height
+            if not started:
+                path.moveTo(x, y)
+                started = True
+            else:
+                path.lineTo(x, y)
+            has_segment = True
+        if has_segment:
+            path.strokeColor = color
+            path.strokeWidth = 1.55
+            path.fillColor = None
+            drawing.add(path)
+
+        legend_column = series_index % 2
+        legend_row = series_index // 2
+        legend_x = left + legend_column * (plot_width / 2)
+        legend_y = 8 + (1 - legend_row) * 10
+        drawing.add(Line(legend_x, legend_y + 2, legend_x + 12, legend_y + 2, strokeColor=color, strokeWidth=2))
+        drawing.add(String(legend_x + 16, legend_y, str(item.get('name') or 'Elemento'), fontName='Helvetica', fontSize=6.8, fillColor=colors.HexColor('#334155')))
+    return drawing
+
+
+def _validated_volume_drawing(rows: list[dict[str, Any]], *, width: float) -> Drawing:
+    height = max(42 * mm, 16 * mm + len(rows) * 8 * mm)
+    drawing = Drawing(width, height)
+    label_width, value_width = 104.0, 72.0
+    right = 8.0
+    plot_width = width - label_width - value_width - right
+    values = [_as_float(row.get('validated_volume_m3')) for row in rows]
+    max_value = max((value for value in values if value is not None), default=0.0)
+    scale_max = max(max_value, 1.0)
+    row_height = (height - 18.0) / max(len(rows), 1)
+    for index, row in enumerate(rows):
+        y = height - 18.0 - index * row_height
+        value = values[index]
+        drawing.add(String(0, y + 2.0, str(row.get('name') or 'Elemento'), fontName='Helvetica', fontSize=7.2, fillColor=colors.HexColor('#334155')))
+        drawing.add(Rect(label_width, y, plot_width, 8.0, fillColor=colors.HexColor('#EDF3F7'), strokeColor=None))
+        if value is not None:
+            color = '#F59E0B' if row.get('has_discontinuities') else '#1597D4'
+            if value > 0:
+                drawing.add(Rect(label_width, y, plot_width * value / scale_max, 8.0, fillColor=colors.HexColor(color), strokeColor=None))
+            suffix = ' · parcial' if row.get('has_discontinuities') else ''
+            label = f'{value:,.2f} m³{suffix}'
+        else:
+            label = 'Sin registros' if int(row.get('samples') or 0) <= 0 else str(row.get('activity') or 'Dato en revisión')
+        drawing.add(String(label_width + plot_width + 6, y + 1.5, label, fontName='Helvetica', fontSize=6.8, fillColor=colors.HexColor('#475569')))
+    return drawing
+
+
+def _report_footer(canvas, doc) -> None:
+    canvas.saveState()
+    width, _ = A4
+    canvas.setStrokeColor(colors.HexColor('#D7E1E8'))
+    canvas.setLineWidth(0.5)
+    canvas.line(doc.leftMargin, 10 * mm, width - doc.rightMargin, 10 * mm)
+    canvas.setFillColor(colors.HexColor('#64748B'))
+    canvas.setFont('Helvetica', 7)
+    canvas.drawString(doc.leftMargin, 6.5 * mm, 'Dashboard ARCA · Control hídrico · Planta Durango')
+    canvas.drawRightString(width - doc.rightMargin, 6.5 * mm, f'Página {doc.page}')
+    canvas.restoreState()
 
 
 def build_daily_water_report_pdf(report: dict[str, Any]) -> tuple[bytes, str]:
     buffer = BytesIO()
     doc = SimpleDocTemplate(
         buffer,
-        pagesize=letter,
-        leftMargin=14 * mm,
-        rightMargin=14 * mm,
-        topMargin=12 * mm,
-        bottomMargin=12 * mm,
+        pagesize=A4,
+        leftMargin=12 * mm,
+        rightMargin=12 * mm,
+        topMargin=11 * mm,
+        bottomMargin=16 * mm,
+        title=str(report.get('title') or 'Reporte Diario de Control Hídrico Durango'),
+        author='Dashboard ARCA',
     )
     styles = getSampleStyleSheet()
-    title_style = ParagraphStyle('TitleDurango', parent=styles['Title'], alignment=TA_CENTER, fontSize=15, leading=18, textColor=colors.HexColor('#073B4C'))
-    heading = ParagraphStyle('HeadingDurango', parent=styles['Heading2'], fontSize=10.5, leading=13, textColor=colors.HexColor('#075985'), spaceBefore=6, spaceAfter=5)
-    small = ParagraphStyle('SmallDurango', parent=styles['BodyText'], fontSize=7.6, leading=9.5)
-    note_style = ParagraphStyle('NoteDurango', parent=small, fontSize=7.8, leading=10, textColor=colors.HexColor('#31576A'), spaceBefore=5, spaceAfter=6)
+    title_style = ParagraphStyle('TitleDurango', parent=styles['Title'], alignment=TA_CENTER, fontSize=16, leading=19, textColor=colors.HexColor('#1F2937'), spaceAfter=2)
+    eyebrow = ParagraphStyle('EyebrowDurango', parent=styles['BodyText'], alignment=TA_CENTER, fontSize=7.2, leading=9, textColor=colors.HexColor('#C8102E'), fontName='Helvetica-Bold', spaceAfter=2)
+    heading = ParagraphStyle('HeadingDurango', parent=styles['Heading2'], fontSize=13, leading=16, textColor=colors.HexColor('#1F2937'), spaceBefore=2, spaceAfter=5)
+    chart_heading = ParagraphStyle('ChartHeadingDurango', parent=styles['Heading3'], fontSize=9.5, leading=12, textColor=colors.HexColor('#334155'), spaceBefore=5, spaceAfter=4)
+    small = ParagraphStyle('SmallDurango', parent=styles['BodyText'], fontSize=7.0, leading=8.8, textColor=colors.HexColor('#334155'))
+    note_style = ParagraphStyle('NoteDurango', parent=small, fontSize=7.6, leading=10, textColor=colors.HexColor('#475569'))
     right = ParagraphStyle('RightDurango', parent=small, alignment=TA_RIGHT)
     center = ParagraphStyle('CenterDurango', parent=small, alignment=TA_CENTER)
+    left = ParagraphStyle('LeftDurango', parent=small, alignment=TA_LEFT)
     story: list[Any] = []
     logo = _logo_path()
     if logo:
-        logo_image = Image(str(logo), width=42 * mm, height=14 * mm, kind='proportional')
+        logo_image = Image(str(logo), width=34 * mm, height=12 * mm, kind='proportional')
         logo_image.hAlign = 'CENTER'
         story.append(logo_image)
-        story.append(Spacer(1, 4 * mm))
-    story.append(Paragraph('Reporte Diario de Control Hídrico Durango', title_style))
-    story.append(Paragraph(f"Periodo: {report.get('period_label')} · Generado: {_fmt_date(report.get('generated_at'))}", center))
-    story.append(Spacer(1, 4 * mm))
+        story.append(Spacer(1, 1.5 * mm))
+    story.append(Paragraph('DASHBOARD ARCA · PLANTA DURANGO', eyebrow))
+    story.append(Paragraph('Reporte Diario de Control Hídrico', title_style))
+    story.append(Paragraph(f"Periodo: {escape(str(report.get('period_label') or ''))} &nbsp;&nbsp;·&nbsp;&nbsp; Generado: {escape(_fmt_date(report.get('generated_at')))}", center))
+    story.append(Spacer(1, 2.5 * mm))
+    story.append(HRFlowable(width='100%', thickness=1.5, color=colors.HexColor('#C8102E'), spaceAfter=4 * mm))
 
     summary = report['summary']
     story.append(Paragraph('Resumen ejecutivo', heading))
-    summary_headers = [
-        Paragraph('Volumen validado<br/>de pozos', center),
-        Paragraph('Volumen validado<br/>de líneas', center),
-        Paragraph('Volumen validado<br/>de flujos', center),
-        Paragraph('Total validado<br/>operativo', center),
-        Paragraph('Datos en<br/>revisión', center),
+    kpis = [
+        ('Volumen validado de pozos', _fmt_volume(summary.get('well_validated_volume_m3'))),
+        ('Volumen validado de líneas', _fmt_volume(summary.get('line_validated_volume_m3'))),
+        ('Volumen validado de flujos', _fmt_volume(summary.get('flow_validated_volume_m3'))),
+        ('Total validado operativo', _fmt_volume(summary.get('total_validated_operational_m3'))),
+        ('Pozos con actividad', f"{int(summary.get('wells_active') or 0)}/{len(report.get('wells', {}).get('rows', []))}"),
+        ('Líneas con actividad', f"{int(summary.get('lines_active') or 0)}/{len(report.get('production_lines', {}).get('rows', []))}"),
+        ('Flujos con actividad', f"{int(summary.get('flows_active') or 0)}/{len(report.get('operational_flows', {}).get('rows', []))}"),
+        ('Datos en revisión', str(int(summary.get('review_count') or 0))),
     ]
-    summary_rows = [
-        summary_headers,
-        [
-            _fmt_volume(summary['well_validated_volume_m3']),
-            _fmt_volume(summary['line_validated_volume_m3']),
-            _fmt_volume(summary['flow_validated_volume_m3']),
-            _fmt_volume(summary['total_validated_operational_m3']),
-            str(summary['review_count']),
-        ],
-    ]
-    summary_table = _pdf_table(summary_rows, [34 * mm, 34 * mm, 42 * mm, 38 * mm, 26 * mm])
-    summary_table.setStyle(TableStyle([('ALIGN', (0, 1), (-1, -1), 'CENTER')]))
-    story.append(summary_table)
-    story.append(Paragraph(str(summary.get('note') or SUMMARY_NOTE), note_style))
+    cards = []
+    for label, value in kpis:
+        card = Table(
+            [[Paragraph(escape(label.upper()), ParagraphStyle('KpiLabel', parent=center, fontSize=6.2, leading=7.5, textColor=colors.HexColor('#64748B'), fontName='Helvetica-Bold'))],
+             [Paragraph(escape(value), ParagraphStyle('KpiValue', parent=center, fontSize=11.2, leading=13, textColor=colors.HexColor('#1F2937'), fontName='Helvetica-Bold'))]],
+            colWidths=[44.5 * mm],
+            rowHeights=[8 * mm, 10 * mm],
+        )
+        card.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#F8FAFC')),
+            ('BOX', (0, 0), (-1, -1), 0.55, colors.HexColor('#CBD9E4')),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 3),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 3),
+        ]))
+        cards.append(card)
+    card_grid = Table([cards[:4], cards[4:]], colWidths=[46.5 * mm] * 4, rowHeights=[20 * mm, 20 * mm], hAlign='CENTER')
+    card_grid.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'MIDDLE'), ('LEFTPADDING', (0, 0), (-1, -1), 1.5), ('RIGHTPADDING', (0, 0), (-1, -1), 1.5), ('TOPPADDING', (0, 0), (-1, -1), 1.5), ('BOTTOMPADDING', (0, 0), (-1, -1), 1.5)]))
+    story.append(card_grid)
+    story.append(Spacer(1, 3 * mm))
+    note = Table([[Paragraph(
+        escape(str(summary.get('note') or SUMMARY_NOTE)) + '<br/><b>Cero</b>: lectura válida sin flujo. <b>Hueco</b>: intervalo sin registros suficientes. Los gráficos no generan intervalos futuros.',
+        note_style,
+    )]], colWidths=[186 * mm])
+    note.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#F1F6FA')), ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#C7D8E4')), ('LEFTPADDING', (0, 0), (-1, -1), 8), ('RIGHTPADDING', (0, 0), (-1, -1), 8), ('TOPPADDING', (0, 0), (-1, -1), 7), ('BOTTOMPADDING', (0, 0), (-1, -1), 7)]))
+    story.append(note)
 
-    def add_section(title: str, section: dict[str, Any], first_name: str) -> None:
-        story.append(Paragraph(title, heading))
-        data: list[list[Any]] = [[first_name, 'Flujo', 'Apertura', 'Cierre', 'Volumen', 'Actividad', 'Comunicación', 'Última actualización']]
+    aggregation_label = {'quarter_hour': '15 minutos', 'hourly': '1 hora', 'daily': '1 día'}.get(str(report.get('history', {}).get('aggregation')), 'periodo')
+
+    def section_block(title: str, section: dict[str, Any], history: dict[str, Any], first_name: str) -> list[Any]:
+        data: list[list[Any]] = [[first_name, 'Flujo actual', 'Apertura', 'Cierre', 'Volumen validado', 'Actividad', 'Comunicación', 'Última actualización']]
         for item in section.get('rows', []):
             data.append([
-                Paragraph(str(item['name']), small),
+                Paragraph(escape(str(item['name'])), left),
                 Paragraph('No disponible' if item['flow'] is None else f"{_fmt_number(item['flow'])} {item['flow_unit']}", right),
                 Paragraph(_fmt_volume(item['opening_m3']), right),
                 Paragraph(_fmt_volume(item['closing_m3']), right),
-                Paragraph(_report_volume_display(item), right),
-                Paragraph(str(item['activity']).replace(' en el periodo', ''), center),
-                Paragraph(str(item['communication']), center),
-                Paragraph(_fmt_date(item['last_update']), center),
+                Paragraph(escape(_report_volume_display(item)), right),
+                Paragraph(escape(str(item['activity']).replace(' en el periodo', '')), center),
+                Paragraph(escape(str(item['communication'])), center),
+                Paragraph(escape(_fmt_date(item['last_update'])), center),
             ])
-        table = _pdf_table(data, [22 * mm, 18 * mm, 21 * mm, 21 * mm, 32 * mm, 25 * mm, 22 * mm, 27 * mm])
+        table = _pdf_table(data, [21 * mm, 18 * mm, 20 * mm, 20 * mm, 28 * mm, 24 * mm, 23 * mm, 32 * mm])
         table.setStyle(TableStyle([
             ('ALIGN', (1, 1), (4, -1), 'RIGHT'),
             ('ALIGN', (5, 1), (-1, -1), 'CENTER'),
         ]))
-        story.append(table)
+        return [
+            Paragraph(title, heading),
+            Paragraph(f"Periodo {escape(str(report.get('period_label') or ''))} · Agrupación histórica: {aggregation_label}", small),
+            Spacer(1, 2 * mm),
+            table,
+            Paragraph(f'Comportamiento de flujo · {title}', chart_heading),
+            _flow_history_drawing(history, width=186 * mm, height=64 * mm, single_day=report.get('start_date') == report.get('end_date')),
+            Paragraph('Volumen validado por elemento', chart_heading),
+            _validated_volume_drawing(section.get('rows', []), width=186 * mm),
+        ]
 
-    add_section('Pozos', report['wells'], 'Pozo')
-    add_section('Líneas', report['production_lines'], 'Línea')
-    add_section('Flujos', report['operational_flows'], 'Flujo')
+    report_history = report.get('history') or {}
+    for title, section, history_key, first_name in [
+        ('Pozos', report['wells'], 'wells', 'Pozo'),
+        ('Líneas', report['production_lines'], 'lines', 'Línea'),
+        ('Flujos', report['operational_flows'], 'flows', 'Flujo'),
+    ]:
+        story.append(PageBreak())
+        story.append(KeepTogether(section_block(title, section, report_history.get(history_key) or {}, first_name)))
 
     if report.get('shifts'):
         story.append(PageBreak())
         story.append(Paragraph('Cortes por turno', heading))
+        story.append(Paragraph('Cortes administrativos calculados con las mismas lecturas normalizadas del dashboard.', small))
+        story.append(Spacer(1, 2 * mm))
         shift_rows = [['Turno', 'Horario', 'Pozos', 'Líneas', 'Flujos', 'Total operativo', 'Estado']]
         for shift in report['shifts']:
             summary_shift = shift.get('summary') or {}
@@ -340,9 +553,9 @@ def build_daily_water_report_pdf(report: dict[str, Any]) -> tuple[bytes, str]:
                 _fmt_volume(summary_shift.get('total_operational_m3')),
                 shift.get('cut_status'),
             ])
-        story.append(_pdf_table(shift_rows, [22 * mm, 26 * mm, 26 * mm, 26 * mm, 32 * mm, 30 * mm, 28 * mm]))
+        story.append(_pdf_table(shift_rows, [22 * mm, 26 * mm, 25 * mm, 25 * mm, 28 * mm, 32 * mm, 28 * mm]))
 
-    doc.build(story)
+    doc.build(story, onFirstPage=_report_footer, onLaterPages=_report_footer)
     filename = f"reporte-diario-control-hidrico-durango-{report.get('start_date')}.pdf"
     return buffer.getvalue(), filename
 
@@ -430,9 +643,66 @@ def build_daily_water_report_excel(report: dict[str, Any]) -> tuple[bytes, str]:
                 sheet.cell(row, 11).number_format = 'dd/mm/yyyy hh:mm'
         _style_sheet(sheet)
 
+    def add_history_sheet(name: str, history: dict[str, Any]) -> None:
+        sheet = wb.create_sheet(name)
+        sheet.append([
+            'Elemento',
+            'Inicio del intervalo',
+            'Fin del intervalo',
+            'Agrupación',
+            'Flujo promedio del intervalo (L/s)',
+            'Flujo promedio activo (L/s)',
+            'Flujo mínimo (L/s)',
+            'Flujo máximo (L/s)',
+            'Minutos activos',
+            'Muestras recibidas',
+            'Muestras esperadas',
+            'Cobertura (%)',
+            'Totalizador apertura (m³)',
+            'Totalizador cierre (m³)',
+            'Volumen validado (m³)',
+            'Estado del intervalo',
+            'Estado de datos',
+        ])
+        for series in history.get('series') or []:
+            for point in series.get('points') or []:
+                start = _parse_history_timestamp(point.get('bucket_start') or point.get('timestamp'))
+                end = _parse_history_timestamp(point.get('bucket_end'))
+                sheet.append([
+                    series.get('name'),
+                    start,
+                    end,
+                    point.get('aggregation') or history.get('aggregation'),
+                    point.get('flow_avg_lps'),
+                    point.get('flow_active_avg_lps'),
+                    point.get('flow_min_lps'),
+                    point.get('flow_max_lps'),
+                    point.get('active_minutes'),
+                    point.get('samples_received', point.get('samples')),
+                    point.get('samples_expected'),
+                    point.get('coverage_percent'),
+                    point.get('totalizer_open_m3'),
+                    point.get('totalizer_close_m3'),
+                    point.get('validated_volume_m3'),
+                    point.get('interval_state'),
+                    point.get('data_status'),
+                ])
+        for row in range(2, sheet.max_row + 1):
+            for column in (2, 3):
+                if isinstance(sheet.cell(row, column).value, datetime):
+                    sheet.cell(row, column).number_format = 'dd/mm/yyyy hh:mm'
+            for column in range(5, 16):
+                if isinstance(sheet.cell(row, column).value, (int, float)):
+                    sheet.cell(row, column).number_format = '#,##0.00'
+        _style_sheet(sheet)
+
+    report_history = report.get('history') or {}
     add_items_sheet('Pozos', report['wells']['rows'], 'Pozo')
+    add_history_sheet('Histórico Pozos', report_history.get('wells') or {})
     add_items_sheet('Líneas', report['production_lines']['rows'], 'Línea')
+    add_history_sheet('Histórico Líneas', report_history.get('lines') or {})
     add_items_sheet('Flujos', report['operational_flows']['rows'], 'Flujo')
+    add_history_sheet('Histórico Flujos', report_history.get('flows') or {})
 
     if report.get('shifts'):
         shifts = wb.create_sheet('Turnos')

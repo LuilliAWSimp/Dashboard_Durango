@@ -69,6 +69,17 @@ class DurangoReportValidatedSummaryTests(unittest.TestCase):
     def build_report(self) -> dict:
         with patch('app.services.water_daily_report_service.get_period_data', return_value=self.period), patch(
             'app.services.water_daily_report_service.get_shift_consumption_data', return_value={'shifts': []}
+        ), patch(
+            'app.services.water_daily_report_service.get_water_history_module',
+            side_effect=lambda module, start_date, end_date, aggregation: {
+                'module': module,
+                'start_date': start_date,
+                'end_date': end_date,
+                'aggregation': aggregation,
+                'series': [],
+                'source_status': 'no_data',
+                'has_future_intervals': False,
+            },
         ):
             return get_daily_water_report('2026-08-04')
 

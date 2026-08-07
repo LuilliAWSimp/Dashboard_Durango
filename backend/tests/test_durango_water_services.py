@@ -118,10 +118,51 @@ def _period_fixture():
     } | {'summary': {'wells': summary(groups['well']), 'lines': summary(groups['line']), 'flows': summary(groups['flow'])}}
 
 
+def _history_fixture(module, start_date, end_date, aggregation, **_):
+    contracts = {'well': WELLS, 'line': LINES, 'flow': FLOWS}[module]
+    return {
+        'module': module,
+        'start_date': start_date,
+        'end_date': end_date,
+        'aggregation': aggregation,
+        'source_status': 'operational',
+        'has_future_intervals': False,
+        'series': [
+            {
+                'sensor_id': item.get('sensor_id'),
+                'operational_key': item['operational_key'],
+                'name': item['name'],
+                'has_data': True,
+                'points': [{
+                    'bucket_start': f'{start_date}T00:00:00',
+                    'bucket_end': f'{start_date}T00:15:00',
+                    'aggregation': aggregation,
+                    'samples': 15,
+                    'samples_received': 15,
+                    'samples_expected': 15,
+                    'coverage_percent': 100.0,
+                    'active_minutes': 0,
+                    'flow_avg_lps': 0.0,
+                    'flow_active_avg_lps': None,
+                    'flow_min_lps': 0.0,
+                    'flow_max_lps': 0.0,
+                    'totalizer_open_m3': 100.0,
+                    'totalizer_close_m3': 100.0,
+                    'validated_volume_m3': 0.0,
+                    'interval_state': 'Apagado con datos',
+                    'data_status': 'operational',
+                }],
+            }
+            for item in contracts
+        ],
+    }
+
+
 def test_pdf_excel_and_email_attachment_use_same_report_structure(monkeypatch):
     fixture = _period_fixture()
     monkeypatch.setattr(report_service, 'get_period_data', lambda *args, **kwargs: fixture)
     monkeypatch.setattr(report_service, 'get_shift_consumption_data', lambda *args, **kwargs: {'shifts': []})
+    monkeypatch.setattr(report_service, 'get_water_history_module', _history_fixture)
     report = report_service.get_daily_water_report('2026-08-01')
     pdf_bytes, pdf_name = report_service.build_daily_water_report_pdf(report)
     excel_bytes, excel_name = report_service.build_daily_water_report_excel(report)
@@ -129,10 +170,15 @@ def test_pdf_excel_and_email_attachment_use_same_report_structure(monkeypatch):
     assert pdf_name == 'reporte-diario-control-hidrico-durango-2026-08-01.pdf'
     assert excel_name == 'reporte-diario-control-hidrico-durango-2026-08-01.xlsx'
     workbook = load_workbook(BytesIO(excel_bytes), data_only=True)
-    assert workbook.sheetnames[:4] == ['Resumen', 'Pozos', 'Líneas', 'Flujos']
+    assert workbook.sheetnames[:7] == ['Resumen', 'Pozos', 'Histórico Pozos', 'Líneas', 'Histórico Líneas', 'Flujos', 'Histórico Flujos']
     assert workbook['Pozos'].max_row == 3
     assert workbook['Líneas'].max_row == 5
     assert workbook['Flujos'].max_row == 5
+    assert workbook['Histórico Pozos']['E2'].value == 0
+    assert workbook['Histórico Pozos']['J2'].value == 15
+    assert report['history']['aggregation'] == 'quarter_hour'
+    assert [row['name'] for row in report['production_lines']['rows']] == ['Línea 1', 'Línea 3', 'Línea 4', 'Línea 5']
+    assert [row['name'] for row in report['operational_flows']['rows']] == ['Lavadora Línea 2', 'Lavadora Vidrio', 'Lavadora Ref Pet', 'Jarabes']
 
 
 def test_shift_boundary_minutes_belong_to_expected_turn():
