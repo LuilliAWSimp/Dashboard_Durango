@@ -5185,6 +5185,205 @@ th { color: #c1d0e8; font-weight: 700; position: sticky; top: 0; background: #0f
   min-width: 260px;
 }
 
+/* Durango: module hierarchy, shared comparison controls and shift selector */
+.operational-module-heading {
+  margin: 4px 0 22px;
+  padding: 6px 0 2px;
+  border-bottom: 1px solid rgba(56, 189, 248, .16);
+}
+
+.operational-module-heading .panel-header.compact {
+  margin: 0;
+  padding: 0 4px 20px;
+}
+
+.operational-module-heading .panel-title {
+  color: #f3fbff;
+  font-size: clamp(30px, 4vw, 48px);
+  font-weight: 900;
+  line-height: 1.02;
+  letter-spacing: -.035em;
+}
+
+.operational-module-heading .panel-subtitle {
+  max-width: 760px;
+  margin-top: 9px;
+  color: #9ecfe1;
+  font-size: clamp(13px, 1.4vw, 16px);
+  line-height: 1.5;
+}
+
+.operational-module-heading + .chart-date-range-panel {
+  margin: 0 0 22px;
+  padding: 16px 18px;
+  border-color: rgba(56, 189, 248, .24);
+  background: linear-gradient(135deg, rgba(8, 47, 73, .46), rgba(3, 15, 28, .78));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .04), 0 16px 34px rgba(0, 0, 0, .12);
+}
+
+.operational-module-comparison {
+  overflow: visible;
+}
+
+.module-comparison-controls {
+  display: flex;
+  align-items: end;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.module-metric-selector {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 40px;
+  padding: 4px;
+  border: 1px solid rgba(56, 189, 248, .25);
+  border-radius: 13px;
+  background: rgba(3, 15, 28, .82);
+}
+
+.module-metric-selector button,
+.module-selection-heading button {
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: #a9d7e9;
+  min-height: 30px;
+  padding: 0 11px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.module-metric-selector button:hover,
+.module-metric-selector button:focus-visible,
+.module-selection-heading button:hover,
+.module-selection-heading button:focus-visible {
+  border-color: rgba(125, 211, 252, .42);
+  color: #fff;
+  outline: none;
+}
+
+.module-metric-selector button.active {
+  border-color: rgba(125, 211, 252, .55);
+  background: linear-gradient(135deg, rgba(14, 116, 144, .95), rgba(2, 132, 199, .9));
+  color: #fff;
+}
+
+.module-selection-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+  color: #8dd7f1;
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.module-selection-heading > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.module-selection-heading button {
+  color: #8edcff;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.module-history-sensors .sensor-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.module-metric-note {
+  margin: 4px 0 12px;
+}
+
+.shift-selector-field select {
+  width: 100%;
+  min-width: 240px;
+  min-height: 42px;
+  appearance: none;
+  border: 1px solid rgba(56, 189, 248, .46);
+  border-radius: 11px;
+  padding: 0 42px 0 13px;
+  background-color: #061827;
+  background-image: linear-gradient(45deg, transparent 50%, #7dd3fc 50%), linear-gradient(135deg, #7dd3fc 50%, transparent 50%);
+  background-position: calc(100% - 18px) 17px, calc(100% - 12px) 17px;
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+  color: #effbff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 750;
+  cursor: pointer;
+  transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease;
+}
+
+.shift-selector-field select:hover {
+  border-color: rgba(125, 211, 252, .76);
+  background-color: #092239;
+}
+
+.shift-selector-field select:focus-visible {
+  border-color: #38bdf8;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, .18);
+}
+
+.shift-selector-field select option {
+  background: #071827;
+  color: #effbff;
+}
+
+.shift-controls-panel .date-range-fields {
+  align-items: end;
+}
+
+.shift-controls-panel .date-range-apply,
+.shift-controls-panel .date-range-reset {
+  min-height: 42px;
+}
+
+@media (max-width: 720px) {
+  .operational-module-heading {
+    margin-bottom: 16px;
+  }
+
+  .module-history-toolbar,
+  .module-comparison-controls,
+  .module-metric-selector,
+  .module-selection-heading {
+    width: 100%;
+  }
+
+  .module-comparison-controls,
+  .module-selection-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .module-metric-selector button {
+    flex: 1 1 0;
+  }
+
+  .module-selection-heading > div,
+  .module-selection-heading button,
+  .shift-selector-field select {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
 /* Historical aggregation control: accessible dark dropdown */
 .date-range-panel {
   overflow: visible;

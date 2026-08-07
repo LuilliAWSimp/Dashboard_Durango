@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import KpiCard from '../../../components/KpiCard';
+import { DURANGO_CAPABILITIES } from '../../../config/plantCapabilities';
 import ChartEmptyState from '../components/ChartEmptyState';
 import ModuleHistoryPanel from '../components/ModuleHistoryPanel';
 import PanelHeader from '../components/PanelHeader';
@@ -56,6 +57,9 @@ export default function DashboardBaseSection() {
     .sort();
   const latest = latestValues[latestValues.length - 1];
   const review = Number(wells.review_count || 0) + Number(lines.review_count || 0) + Number(flows.review_count || 0);
+  const wellCount = DURANGO_CAPABILITIES.wells.length;
+  const lineCount = DURANGO_CAPABILITIES.lines.length;
+  const flowCount = DURANGO_CAPABILITIES.flows.length;
 
   return (
     <>
@@ -65,12 +69,12 @@ export default function DashboardBaseSection() {
       </section>
 
       <section className="cards-grid stagger-grid summary-operational-kpis">
-        <KpiCard label="Volumen validado de pozos" value={fmt(wells.total_m3)} unit={number(wells.total_m3) === null ? '' : 'm³'} trend={volumeTrend(wells, 2)} accent="blue" />
-        <KpiCard label="Volumen validado de líneas" value={fmt(lines.total_m3)} unit={number(lines.total_m3) === null ? '' : 'm³'} trend={volumeTrend(lines, 5)} accent="cyan" />
-        <KpiCard label="Volumen validado de flujos" value={fmt(flows.total_m3)} unit={number(flows.total_m3) === null ? '' : 'm³'} trend={volumeTrend(flows, 3)} accent="indigo" />
-        <KpiCard label="Pozos con flujo actual" value={`${Number(wells.current_flow_count || 0)}/2`} unit="pozos" trend="Lectura reciente por encima del umbral operativo" accent="teal" />
-        <KpiCard label="Líneas con flujo actual" value={`${Number(lines.current_flow_count || 0)}/5`} unit="líneas" trend="Independiente de la actividad del periodo" accent="teal" />
-        <KpiCard label="Flujos con flujo actual" value={`${Number(flows.current_flow_count || 0)}/3`} unit="flujos" trend="Lectura actual y comunicación válida" accent="teal" />
+        <KpiCard label="Volumen validado de pozos" value={fmt(wells.total_m3)} unit={number(wells.total_m3) === null ? '' : 'm³'} trend={volumeTrend(wells, wellCount)} accent="blue" />
+        <KpiCard label="Volumen validado de líneas" value={fmt(lines.total_m3)} unit={number(lines.total_m3) === null ? '' : 'm³'} trend={volumeTrend(lines, lineCount)} accent="cyan" />
+        <KpiCard label="Volumen validado de flujos" value={fmt(flows.total_m3)} unit={number(flows.total_m3) === null ? '' : 'm³'} trend={volumeTrend(flows, flowCount)} accent="indigo" />
+        <KpiCard label="Pozos con flujo actual" value={`${Number(wells.current_flow_count || 0)}/${wellCount}`} unit="pozos" trend="Lectura reciente por encima del umbral operativo" accent="teal" />
+        <KpiCard label="Líneas con flujo actual" value={`${Number(lines.current_flow_count || 0)}/${lineCount}`} unit="líneas" trend="Independiente de la actividad del periodo" accent="teal" />
+        <KpiCard label="Flujos con flujo actual" value={`${Number(flows.current_flow_count || 0)}/${flowCount}`} unit="flujos" trend="Lectura actual y comunicación válida" accent="teal" />
         <KpiCard label="Datos en revisión" value={String(review)} unit="elementos" trend="Pueden conservar volumen validado parcial" accent="brown" />
         <KpiCard label="Última actualización" value={latest ? formatSqlDate(latest) : 'Sin lectura'} unit="" trend={controller.refreshing ? 'Actualizando información…' : 'Actualización automática cada 60 s'} accent="teal" />
       </section>
@@ -82,9 +86,9 @@ export default function DashboardBaseSection() {
         <PanelHeader title="Accesos operativos" subtitle="Módulos confirmados y pendientes de validación" />
         <div className="water-type-grid">
           {[
-            ['Pozos', 'Dos pozos confirmados', '/pozos/pozos', 'normal'],
-            ['Líneas', 'Cinco líneas confirmadas', '/pozos/lineas', 'normal'],
-            ['Flujos', 'Lavadoras y Jarabes', '/pozos/flujos', 'normal'],
+            ['Pozos', 'Elementos operativos confirmados', '/pozos/pozos', 'normal'],
+            ['Líneas', 'Producción clasificada desde configuración', '/pozos/lineas', 'normal'],
+            ['Flujos', 'Lavadoras y Jarabes operativos', '/pozos/flujos', 'normal'],
             ['Revisión diaria', 'Cierres por fecha y turnos', '/pozos/revision', 'normal'],
             ['Reportes', 'PDF, Excel, HTML y correo', '/pozos/reportes', 'normal'],
           ].map(([title, detail, path, type]) => (

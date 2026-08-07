@@ -18,6 +18,7 @@ from app.services.durango_capabilities import (
     clamp_to_validated_segment,
     flow_unit_for_sensor,
     identity_key,
+    item_contract,
     normalize_flow_lps,
     sensor_contract,
     source_timezone_for_identity,
@@ -587,10 +588,11 @@ def get_water_history(*, module: str, sensor_id: Any, start_date: str, end_date:
     if not force_refresh and cached and monotonic() < cached['expires_at']:
         return cached['value']
 
+    contract = item_contract(identity)
     source = 'legacy_configuration_pending' if legacy_only else 'readings_minute'
     rows: list[dict[str, Any]] = []
     validation_rows: list[dict[str, Any]] = []
-    if not legacy_only and module == 'flow':
+    if not legacy_only and module == 'flow' and contract.get('table') != 'dbo.SensorsBOS_Linea':
         if str(identity) == '3010':
             raw_rows = query_jarabes_rows(query_start_dt, query_end_dt)
             source = 'dbo.SensorsBOS_Tanque' if raw_rows else 'no_data'
@@ -618,7 +620,6 @@ def get_water_history(*, module: str, sensor_id: Any, start_date: str, end_date:
         identity, aggregation, requested_start_dt, requested_end_dt, rows, validation_rows,
         effective_end_dt=effective_end_dt,
     )
-    contract = sensor_contract(identity)
     payload = {
         'plant': 'Planta Durango',
         'module': module,
@@ -775,9 +776,24 @@ def get_water_history_module(*, module: str, start_date: str, end_date: str, agg
     grouped: dict[Any, list[dict[str, Any]]] = {identity: [] for identity in identities}
     validation_grouped: dict[Any, list[dict[str, Any]]] = {identity: [] for identity in identities}
     if not legacy_only and module == 'flow':
+        line_flow_ids = [
+            int(identity)
+            for identity in identities
+            if str(identity).isdigit() and item_contract(identity).get('table') == 'dbo.SensorsBOS_Linea'
+        ]
+        if line_flow_ids and query_end_dt > query_start_dt:
+            try:
+                for row in _query_15m_multi(line_flow_ids, query_start_dt, query_end_dt):
+                    row_sensor = int(row.get('sensor_id') or 0)
+                    if row_sensor in grouped:
+                        grouped[row_sensor].append(row)
+            except WaterHistoryError as exc:
+                query_error = exc
         washer_rows = query_lavadora_rows(query_start_dt, query_end_dt)
         jarabes_rows = query_jarabes_rows(query_start_dt, query_end_dt) if 3010 in identities else []
         for identity in identities:
+            if item_contract(identity).get('table') == 'dbo.SensorsBOS_Linea':
+                continue
             raw_rows = jarabes_rows if str(identity) == '3010' else washer_rows.get(str(identity), [])
             grouped[identity] = _bos_rows_to_15m(identity, raw_rows)
             validation_grouped[identity] = raw_rows
@@ -802,7 +818,18 @@ def get_water_history_module(*, module: str, start_date: str, end_date: str, agg
     series = []
     for identity in identities:
         sensor_rows = grouped[identity]
-        source_status = 'legacy_configuration_pending' if legacy_only else ('dbo.SensorsBOS_Tanque' if module == 'flow' and str(identity) == '3010' else 'dbo.SensorsBOS_Lavadoras' if module == 'flow' else 'readings_minute')
+        contract = item_contract(identity)
+        source_status = (
+            'legacy_configuration_pending'
+            if legacy_only
+            else 'readings_minute'
+            if contract.get('table') == 'dbo.SensorsBOS_Linea'
+            else 'dbo.SensorsBOS_Tanque'
+            if module == 'flow' and str(identity) == '3010'
+            else 'dbo.SensorsBOS_Lavadoras'
+            if module == 'flow'
+            else 'readings_minute'
+        )
         sensor_validation_rows = validation_grouped.get(identity, [])
         if not sensor_rows and module == 'well' and start == end and query_end_dt > query_start_dt:
             bos_rows = query_bos_well_rows(int(identity), query_start_dt, query_end_dt)

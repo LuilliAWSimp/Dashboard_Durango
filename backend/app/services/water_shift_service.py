@@ -7,8 +7,11 @@ from zoneinfo import ZoneInfo
 
 from app.services.durango_capabilities import (
     DURANGO_SCADA_CUTOVER_LOCAL,
+    FLOWS,
     LOCAL_TIMEZONE,
+    LINES,
     SENSOR_ITEMS,
+    WELLS,
     clamp_to_validated_segment,
 )
 from app.services.durango_lavadoras_service import get_lavadora_period_items
@@ -98,9 +101,9 @@ def get_shift_consumption_data(report_date: Any = None, *, force_refresh: bool =
                 'lines': [],
                 'flows': [],
                 'summary': {
-                    'wells': {'total_m3': None, 'active_count': 0, 'inactive_count': 0, 'review_count': 0, 'coverage_available': 0, 'coverage_total': 2},
-                    'lines': {'total_m3': None, 'active_count': 0, 'inactive_count': 0, 'review_count': 0, 'coverage_available': 0, 'coverage_total': 5},
-                    'flows': {'total_m3': None, 'active_count': 0, 'inactive_count': 0, 'review_count': 0, 'coverage_available': 0, 'coverage_total': 3},
+                    'wells': {'total_m3': None, 'active_count': 0, 'inactive_count': 0, 'review_count': 0, 'coverage_available': 0, 'coverage_total': len(WELLS)},
+                    'lines': {'total_m3': None, 'active_count': 0, 'inactive_count': 0, 'review_count': 0, 'coverage_available': 0, 'coverage_total': len(LINES)},
+                    'flows': {'total_m3': None, 'active_count': 0, 'inactive_count': 0, 'review_count': 0, 'coverage_available': 0, 'coverage_total': len(FLOWS)},
                     'total_operational_m3': None,
                 },
             })

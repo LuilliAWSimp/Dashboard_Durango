@@ -21,4 +21,17 @@ class DurangoHistoryOverviewTests(unittest.TestCase):
         current=[{'sensor_id':1051,'name':'Pozo 2','flow_lps':29.75,'totalizador_m3':93695.94,'estado_comunicacion':'Actualizado','ultima_lectura':'2026-08-04T12:21:00'}]
         period=[{'sensor_id':1051,'name':'Pozo 2','period_m3':None,'period_m3_reliable':False,'activity':'Sin histórico para el periodo','data_status':'no_history','samples':0}]
         merged=_merge_period(current,period)[0];self.assertEqual(merged['current_flow'],29.75);self.assertEqual(merged['current_totalizer_m3'],93695.94);self.assertEqual(merged['communication'],'Actualizado');self.assertEqual(merged['activity'],'Sin histórico para el periodo');self.assertIsNone(merged['period_m3']);self.assertTrue(merged['current_reading_available'])
+    def test_reclassified_line_washer_history_stays_on_readings_minute(self):
+        rows=[{'sensor_id':2004,'bucket_start':datetime(2026,8,5,8,0),'samples':15,'active_samples':5,'flow_avg':4.0,'flow_active_avg':12.0,'flow_min':0.0,'flow_max':12.0,'total_open':100.0,'total_close':103.6}]
+        with patch.object(history,'_query_15m_multi',return_value=rows) as query_lines,patch.object(history,'query_lavadora_rows',return_value={}) as query_lavadoras,patch.object(history,'query_jarabes_rows',return_value=[]):
+            payload=history.get_water_history_module(module='flow',start_date='2026-08-05',end_date='2026-08-05',aggregation='quarter_hour',force_refresh=True)
+        query_lines.assert_called_once()
+        self.assertEqual(query_lines.call_args.args[0],[2004])
+        query_lavadoras.assert_called_once()
+        first=payload['series'][0]
+        self.assertEqual(first['sensor_id'],2004)
+        self.assertEqual(first['name'],'Lavadora Línea 2')
+        self.assertEqual(first['source_status'],'readings_minute')
+        self.assertEqual(first['points'][32]['flow_avg_lps'],4.0)
+        self.assertEqual(first['points'][32]['totalizer_close_m3'],103.6)
 if __name__=='__main__': unittest.main()

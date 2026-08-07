@@ -5,15 +5,15 @@ from typing import Any
 
 from app.schemas.dashboard import KpiCard
 from app.schemas.water import WaterDashboardPayload
-from app.services.durango_capabilities import capability_payload, current_flow_threshold_for_sensor
+from app.services.durango_capabilities import FLOWS, LINES, WELLS, capability_payload, current_flow_threshold_for_sensor
 from app.services.water_bos_service import get_bos_water_dashboard_payload
 from app.services.water_period_service import WaterPeriodError, get_period_data, summarize_period_items
 
 WATER_SECTION_META = {
     'dashboard': ('Resumen', 'Monitoreo hídrico operativo de Planta Durango'),
     'pozos': ('Pozos', 'Dos pozos confirmados'),
-    'lineas': ('Líneas', 'Cinco líneas confirmadas'),
-    'flujos': ('Flujos', 'Lavadora Vidrio, Lavadora Ref Pet y Jarabes'),
+    'lineas': ('Líneas', 'Elementos operativos clasificados como líneas'),
+    'flujos': ('Flujos', 'Lavadoras y Jarabes confirmados'),
     'balance': ('Comparativo Operativo de Agua', 'Comparación matemática de volúmenes confiables'),
     'concesion': ('Concesión', 'Pendiente de fuente confirmada'),
     'revision': ('Revisión diaria', 'Cierres y consumos por fecha'),
@@ -170,9 +170,9 @@ def _cards(payload: dict[str, Any]) -> list[KpiCard]:
         return f"{prefix}{group.get('active_count', 0)}/{total} con actividad · {group.get('current_flow_count', 0)}/{total} con flujo actual"
 
     return [
-        KpiCard(label='Volumen validado de pozos', value=value(wells), unit=unit(wells), trend=trend(wells, 2), accent='blue'),
-        KpiCard(label='Volumen validado de líneas', value=value(lines), unit=unit(lines), trend=trend(lines, 5), accent='cyan'),
-        KpiCard(label='Volumen validado de flujos', value=value(flows), unit=unit(flows), trend=trend(flows, 3), accent='indigo'),
+        KpiCard(label='Volumen validado de pozos', value=value(wells), unit=unit(wells), trend=trend(wells, len(WELLS)), accent='blue'),
+        KpiCard(label='Volumen validado de líneas', value=value(lines), unit=unit(lines), trend=trend(lines, len(LINES)), accent='cyan'),
+        KpiCard(label='Volumen validado de flujos', value=value(flows), unit=unit(flows), trend=trend(flows, len(FLOWS)), accent='indigo'),
         KpiCard(label='Datos en revisión', value=str(int(wells.get('review_count', 0)) + int(lines.get('review_count', 0)) + int(flows.get('review_count', 0))), unit='elementos', trend='Pueden conservar volumen validado parcial', accent='brown'),
     ]
 

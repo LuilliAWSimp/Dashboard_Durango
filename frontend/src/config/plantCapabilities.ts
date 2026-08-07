@@ -16,12 +16,12 @@ export const DURANGO_CAPABILITIES = {
   ],
   lines: [
     { operationalKey: 'linea_1', sensorId: 2002, name: 'Línea 1', flowUnit: 'L/s' },
-    { operationalKey: 'linea_2', sensorId: 2004, name: 'Línea 2', flowUnit: 'L/s' },
     { operationalKey: 'linea_3', sensorId: 2006, name: 'Línea 3', flowUnit: 'L/s' },
     { operationalKey: 'linea_4', sensorId: 2008, name: 'Línea 4', flowUnit: 'L/s' },
     { operationalKey: 'linea_5', sensorId: 2010, name: 'Línea 5', flowUnit: 'L/s' },
   ],
   flows: [
+    { operationalKey: 'lavadora_linea_2', sensorId: 2004, name: 'Lavadora Línea 2', flowUnit: 'L/s', sourceKey: 'LINEA_FLOW_IN[1]' },
     { operationalKey: 'lavadora_vidrio', sensorId: null, name: 'Lavadora Vidrio', flowUnit: 'L/s', sourceKey: 'LAVADORAS_0' },
     { operationalKey: 'lavadora_ref_pet', sensorId: null, name: 'Lavadora Ref Pet', flowUnit: 'L/s', sourceKey: 'LAVADORAS_1' },
     { operationalKey: 'jarabes', sensorId: 3010, name: 'Jarabes', flowUnit: 'L/s', sourceKey: 'TANQUE_FLOW_IN[4]' },

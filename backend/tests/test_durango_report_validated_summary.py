@@ -52,9 +52,9 @@ class DurangoReportValidatedSummaryTests(unittest.TestCase):
             ],
             'lines': [
                 period_item('Línea 1', validated=24.21, reliable=False, discarded=500.0, discontinuity=True, activity='Dato en revisión'),
-                period_item('Línea 2', validated=0.0, reliable=True, activity='Sin actividad en el periodo'),
             ],
             'flows': [
+                period_item('Lavadora Línea 2', validated=0.0, reliable=True, activity='Sin actividad en el periodo'),
                 period_item('Lavadora Vidrio', validated=None, reliable=False, activity='Sin registros guardados'),
                 period_item('Lavadora Ref Pet', validated=None, reliable=False, activity='Sin registros guardados'),
             ],
@@ -77,12 +77,14 @@ class DurangoReportValidatedSummaryTests(unittest.TestCase):
         summary = report['summary']
         self.assertAlmostEqual(summary['well_validated_volume_m3'], 175.65, places=6)
         self.assertAlmostEqual(summary['line_validated_volume_m3'], 24.21, places=6)
-        self.assertIsNone(summary['flow_validated_volume_m3'])
+        self.assertEqual(summary['flow_validated_volume_m3'], 0.0)
         self.assertAlmostEqual(summary['total_validated_operational_m3'], 199.86, places=6)
         self.assertAlmostEqual(summary['discarded_volume_m3'], 15950.839845, places=6)
         self.assertEqual(summary['review_count'], 3)
         self.assertEqual(summary['note'], SUMMARY_NOTE)
         self.assertEqual(report['notes'], [])
+        self.assertNotIn('Lavadora Línea 2', [item['name'] for item in report['production_lines']['rows']])
+        self.assertEqual([item['name'] for item in report['operational_flows']['rows']].count('Lavadora Línea 2'), 1)
 
     def test_excel_uses_numeric_validated_values_and_same_summary(self) -> None:
         report = self.build_report()
@@ -92,7 +94,7 @@ class DurangoReportValidatedSummaryTests(unittest.TestCase):
         summary_values = {summary_sheet.cell(row, 1).value: summary_sheet.cell(row, 2).value for row in range(2, summary_sheet.max_row + 1)}
         self.assertAlmostEqual(summary_values['Volumen validado de pozos (m³)'], 175.65, places=6)
         self.assertAlmostEqual(summary_values['Volumen validado de líneas (m³)'], 24.21, places=6)
-        self.assertIsNone(summary_values['Volumen validado de flujos (m³)'])
+        self.assertEqual(summary_values['Volumen validado de flujos (m³)'], 0)
         self.assertAlmostEqual(summary_values['Total validado operativo (m³)'], 199.86, places=6)
         wells_sheet = workbook['Pozos']
         self.assertIsInstance(wells_sheet['F2'].value, (int, float))

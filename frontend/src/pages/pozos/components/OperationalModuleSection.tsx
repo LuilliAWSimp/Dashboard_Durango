@@ -14,6 +14,7 @@ import type { OperationalIdentity, OperationalModule } from '../operationalNavig
 import type { DashboardData, FlexibleRecord } from '../types';
 import ChartEmptyState from './ChartEmptyState';
 import MetricPair from './MetricPair';
+import ModuleHistoryPanel from './ModuleHistoryPanel';
 import PanelHeader from './PanelHeader';
 import ShiftConsumptionPanel from './ShiftConsumptionPanel';
 import SqlChartDateControls from './SqlChartDateControls';
@@ -140,6 +141,7 @@ export default function OperationalModuleSection({
   const navigate = useNavigate();
   const location = useLocation();
   const [initialContext] = useState(() => readOperationalNavigationContext(location.search, module));
+  const [aggregation, setAggregation] = useState(initialContext.aggregation);
   const initialRangeFactory = useCallback(() => ({ ...initialContext.range }), [initialContext.range]);
   const controller = useSqlChartDashboard('dashboard', initialRangeFactory, {
     forceRefresh: true,
@@ -152,8 +154,6 @@ export default function OperationalModuleSection({
     () => uniqueModuleRows(dashboard, module, confirmedSensorIds),
     [dashboard, module, confirmedSensorIds],
   );
-  const aggregation = initialContext.aggregation;
-
   useEffect(() => {
     const search = buildOperationalNavigationSearch(controller.range, aggregation, module);
     if (location.search === search) return;
@@ -180,10 +180,15 @@ export default function OperationalModuleSection({
 
   return (
     <>
-      <section className="panel fade-up compact-hero">
+      <section className="operational-module-heading fade-up">
         <PanelHeader title={title} subtitle={subtitle} />
-        <SqlChartDateControls controller={controller} title="Periodo operativo" />
       </section>
+
+      <SqlChartDateControls
+        controller={{ ...controller, aggregation, setAggregation }}
+        title="Periodo de análisis"
+        subtitle="El rango y la agrupación se conservan al abrir el detalle de un elemento."
+      />
 
       <section className="cards-grid stagger-grid">
         <KpiCard
@@ -254,6 +259,13 @@ export default function OperationalModuleSection({
         </div>
         {!rows.length && !controller.loading ? <ChartEmptyState message="Sin registros para el periodo seleccionado." /> : null}
       </section>
+
+      <ModuleHistoryPanel
+        range={controller.range}
+        fixedModule={module}
+        aggregation={aggregation}
+        onAggregationChange={setAggregation}
+      />
 
       <ShiftConsumptionPanel group={module} date={String(controller.range.endDate || controller.range.startDate || '')} title={`Cortes por turno · ${title}`} />
 

@@ -5,7 +5,7 @@ from io import BytesIO
 
 from openpyxl import load_workbook
 
-from app.services.durango_capabilities import JARABES, LAVADORAS, LINES, WELLS
+from app.services.durango_capabilities import FLOWS, JARABES, LAVADORAS, LINE_FLOWS, LINES, WELLS
 from app.services.totalizer_quality import analyze_totalizer_series
 from app.services.water_history_service import _build_points
 from app.services.water_shift_service import SHIFT_DEFINITIONS, _window
@@ -16,8 +16,9 @@ import app.services.water_daily_report_service as report_service
 def test_confirmed_mappings_keep_durango_order():
     assert [(item['sensor_id'], item['name']) for item in WELLS] == [(1001, 'Pozo 1'), (1051, 'Pozo 2')]
     assert [(item['sensor_id'], item['name']) for item in LINES] == [
-        (2002, 'Línea 1'), (2004, 'Línea 2'), (2006, 'Línea 3'), (2008, 'Línea 4'), (2010, 'Línea 5')
+        (2002, 'Línea 1'), (2006, 'Línea 3'), (2008, 'Línea 4'), (2010, 'Línea 5')
     ]
+    assert [(item['sensor_id'], item['name']) for item in LINE_FLOWS] == [(2004, 'Lavadora Línea 2')]
     assert [(item['operational_key'], item['name']) for item in LAVADORAS] == [
         ('lavadora_vidrio', 'Lavadora Vidrio'), ('lavadora_ref_pet', 'Lavadora Ref Pet')
     ]
@@ -74,7 +75,7 @@ def test_shift_windows_are_non_overlapping():
 
 
 def _period_fixture():
-    contracts = [*WELLS, *LINES, *LAVADORAS, *JARABES]
+    contracts = [*WELLS, *LINES, *FLOWS]
     rows = []
     for index, contract in enumerate(contracts, start=1):
         rows.append({
@@ -130,8 +131,8 @@ def test_pdf_excel_and_email_attachment_use_same_report_structure(monkeypatch):
     workbook = load_workbook(BytesIO(excel_bytes), data_only=True)
     assert workbook.sheetnames[:4] == ['Resumen', 'Pozos', 'Líneas', 'Flujos']
     assert workbook['Pozos'].max_row == 3
-    assert workbook['Líneas'].max_row == 6
-    assert workbook['Flujos'].max_row == 4
+    assert workbook['Líneas'].max_row == 5
+    assert workbook['Flujos'].max_row == 5
 
 
 def test_shift_boundary_minutes_belong_to_expected_turn():

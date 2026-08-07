@@ -13,7 +13,8 @@ from app.database import SessionLocal
 from app.services.durango_capabilities import (
     DURANGO_SCADA_CUTOVER_LOCAL,
     WELLS as DURANGO_WELLS,
-    LINES as DURANGO_LINES,
+    LINE_FLOWS as DURANGO_LINE_FLOWS,
+    LINE_SOURCE_ITEMS as DURANGO_LINE_SOURCE_ITEMS,
     FLOWS as DURANGO_FLOWS,
     flow_unit_for_sensor,
     normalize_flow_lps,
@@ -215,12 +216,20 @@ FLOW_OUT_SENSOR_IDS = [int(item['sensor_id']) for item in DURANGO_WELLS]
 FLOW_IN_SENSOR_IDS = [0 for _ in DURANGO_WELLS]
 DISTRIBUTION_NAMES = [str(item['display_name']) for item in DURANGO_FLOWS]
 LINE_SENSOR_MAP = [
-    {'sensor_id': int(item['sensor_id']), 'numero': index + 1, 'name': str(item['display_name'])}
-    for index, item in enumerate(DURANGO_LINES)
+    {
+        'sensor_id': int(item['sensor_id']),
+        'numero': int(item['slot_index']) + 1,
+        'name': str(item['display_name']),
+        'operational_key': str(item['operational_key']),
+        'module': str(item['group']),
+        'slot_index': int(item['slot_index']),
+        'source_key': str(item['source_key']),
+    }
+    for item in DURANGO_LINE_SOURCE_ITEMS
 ]
 LINE_SENSOR_BY_ID = {int(item['sensor_id']): item for item in LINE_SENSOR_MAP}
 CONFIRMED_WELL_SLOT_INDICES = tuple(range(len(WELL_NAMES)))
-CONFIRMED_LINE_SLOT_INDICES = tuple(range(len(LINE_SENSOR_MAP)))
+CONFIRMED_LINE_SLOT_INDICES = tuple(int(item['slot_index']) for item in LINE_SENSOR_MAP)
 
 
 # dbo.NIVELES_BOS expone niveles por columna. El dashboard conserva el nombre
@@ -1231,6 +1240,7 @@ def _build_lines(
         period_m3, period_available = _period_delta_from_totalizers(raw_total, raw_start_total, has_period)
         quality = _num(_bos_value(linea_row, 'LINEA_FLOW_IN', index, 'quality', 0))
         numero, line_name, sensor_name = _line_metadata(index, sensor_id, catalog)
+        configured = LINE_SENSOR_MAP[index]
         updated_iso = _iso(updated_value) or 'Dato SQL Server'
         has_reading = raw_flow is not None or raw_total is not None
         active, status, status_type, communication, communication_type = _flow_status(
@@ -1244,7 +1254,11 @@ def _build_lines(
             'numero': numero,
             'name': line_name,
             'nombre': line_name,
-            'ubicacion': 'Líneas de producción',
+            'operational_key': configured['operational_key'],
+            'module': configured['module'],
+            'category': 'lavadora' if configured['module'] == 'flow' else 'linea',
+            'source_key': configured['source_key'],
+            'ubicacion': 'Flujos operativos' if configured['module'] == 'flow' else 'Líneas de producción',
             'sensor_name': sensor_name,
             'sensor_id': sensor_id,
             'flow_lps': flow,
@@ -1526,13 +1540,17 @@ def get_bos_water_dashboard_payload(start_date: Any = None, end_date: Any = None
 
     wells = _build_wells(pozo_row, catalog, locations, energy_water, pozo_start_row=pozo_start_row, has_period=has_period, latest_quality_by_sensor=latest_quality_by_sensor, well_slots=well_slots, sql_now=sql_now)
     tank_inputs: list[dict[str, Any]] = []
-    flows = [*lavadoras, *jarabes]
+    line_source_rows = _build_lines(linea_row, catalog, linea_start_row=linea_start_row, has_period=has_period, sql_now=sql_now)
+    line_flow_ids = {int(item['sensor_id']) for item in DURANGO_LINE_FLOWS}
+    lines = [item for item in line_source_rows if int(item.get('sensor_id') or 0) not in line_flow_ids]
+    line_flows = [item for item in line_source_rows if int(item.get('sensor_id') or 0) in line_flow_ids]
+    flows = [*line_flows, *lavadoras, *jarabes]
     tank_level_readings = _build_tank_level_readings(niveles_row)
-    lines = _build_lines(linea_row, catalog, linea_start_row=linea_start_row, has_period=has_period, sql_now=sql_now)
     normalized_period = _normalize_period(period, start_date, end_date)
     well_flow_history = _build_well_flow_history(pozo_history_rows, normalized_period, well_slots=well_slots)
-    flow_history: list[dict[str, Any]] = []
-    production_line_history = _build_line_history(linea_history_rows, catalog, normalized_period)
+    line_source_history = _build_line_history(linea_history_rows, catalog, normalized_period)
+    production_line_history = [item for item in line_source_history if int(item.get('sensor_id') or 0) not in line_flow_ids]
+    flow_history: list[dict[str, Any]] = [item for item in line_source_history if int(item.get('sensor_id') or 0) in line_flow_ids]
     tank_level_history = _build_tank_level_history(niveles_history_rows, normalized_period)
     sensors = [sensor for well in wells for sensor in well.get('sensors', [])]
     water_entry_by_well = [

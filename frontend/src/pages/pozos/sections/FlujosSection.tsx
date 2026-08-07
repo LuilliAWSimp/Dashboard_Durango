@@ -10,7 +10,7 @@ export default function FlujosSection({ itemId }: Props) {
     : <OperationalModuleSection
         module="flow"
         title="Flujos"
-        subtitle="Lavadora Vidrio, Lavadora Ref Pet y Jarabes"
+        subtitle="Lavadoras y Jarabes con seguimiento de flujo y totalizador"
         route="/pozos/flujos"
       />;
 }

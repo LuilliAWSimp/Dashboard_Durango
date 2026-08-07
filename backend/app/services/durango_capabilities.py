@@ -84,25 +84,45 @@ WELLS: list[dict[str, Any]] = [
     },
 ]
 
-LINES: list[dict[str, Any]] = [
-    {
-        **_common(key=f'linea_{index + 1}', name=f'Línea {index + 1}', group='line', order=index + 1),
+def _line_source_item(*, key: str, name: str, group: str, order: int, sensor_id: int, slot_index: int) -> dict[str, Any]:
+    """Build one operational item without changing its physical BOS source."""
+    return {
+        **_common(key=key, name=name, group=group, order=order),
         'sensor_id': sensor_id,
         'table': 'dbo.SensorsBOS_Linea',
-        'source_key': f'LINEA_FLOW_IN[{index}]',
-        'slot_index': index,
+        'source_key': f'LINEA_FLOW_IN[{slot_index}]',
+        'slot_index': slot_index,
         'raw_flow_unit': 'L/s',
         'flow_normalization_factor': 1.0,
         'totalizer_unit': 'm3',
         'source_timestamp_timezone': LOCAL_TIMEZONE,
         'require_flow_validation': False,
     }
-    for index, sensor_id in enumerate((2002, 2004, 2006, 2008, 2010))
+
+
+# Clasificación operativa final. Los índices conservan exactamente las columnas
+# físicas LINEA_FLOW_IN originales; únicamente cambia el grupo visual de 2004.
+LINES: list[dict[str, Any]] = [
+    _line_source_item(key='linea_1', name='Línea 1', group='line', order=1, sensor_id=2002, slot_index=0),
+    _line_source_item(key='linea_3', name='Línea 3', group='line', order=2, sensor_id=2006, slot_index=2),
+    _line_source_item(key='linea_4', name='Línea 4', group='line', order=3, sensor_id=2008, slot_index=3),
+    _line_source_item(key='linea_5', name='Línea 5', group='line', order=4, sensor_id=2010, slot_index=4),
+]
+
+LINE_FLOWS: list[dict[str, Any]] = [
+    _line_source_item(
+        key='lavadora_linea_2',
+        name='Lavadora Línea 2',
+        group='flow',
+        order=1,
+        sensor_id=2004,
+        slot_index=1,
+    ),
 ]
 
 LAVADORAS: list[dict[str, Any]] = [
     {
-        **_common(key='lavadora_vidrio', name='Lavadora Vidrio', group='flow', order=1),
+        **_common(key='lavadora_vidrio', name='Lavadora Vidrio', group='flow', order=2),
         'sensor_id': None,
         'table': 'dbo.SensorsBOS_Lavadoras',
         'source_key': 'LAVADORAS_0',
@@ -115,7 +135,7 @@ LAVADORAS: list[dict[str, Any]] = [
         'require_flow_validation': True,
     },
     {
-        **_common(key='lavadora_ref_pet', name='Lavadora Ref Pet', group='flow', order=2),
+        **_common(key='lavadora_ref_pet', name='Lavadora Ref Pet', group='flow', order=3),
         'sensor_id': None,
         'table': 'dbo.SensorsBOS_Lavadoras',
         'source_key': 'LAVADORAS_1',
@@ -131,7 +151,7 @@ LAVADORAS: list[dict[str, Any]] = [
 
 JARABES: list[dict[str, Any]] = [
     {
-        **_common(key='jarabes', name='Jarabes', group='flow', order=3),
+        **_common(key='jarabes', name='Jarabes', group='flow', order=4),
         'sensor_id': 3010,
         'table': 'dbo.SensorsBOS_Tanque',
         'source_key': 'TANQUE_FLOW_IN[4]',
@@ -147,9 +167,10 @@ JARABES: list[dict[str, Any]] = [
     },
 ]
 
-FLOWS = [*LAVADORAS, *JARABES]
-SENSOR_ITEMS = [*WELLS, *LINES]
-ALL_ITEMS = [*SENSOR_ITEMS, *FLOWS]
+FLOWS = [*LINE_FLOWS, *LAVADORAS, *JARABES]
+LINE_SOURCE_ITEMS = sorted([*LINES, *LINE_FLOWS], key=lambda item: int(item['slot_index']))
+SENSOR_ITEMS = [*WELLS, *LINES, *LINE_FLOWS]
+ALL_ITEMS = [*WELLS, *LINES, *FLOWS]
 
 ITEM_BY_SENSOR = {
     int(item['sensor_id']): item

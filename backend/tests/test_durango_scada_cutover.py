@@ -13,6 +13,8 @@ from app.services.durango_capabilities import (
     FLOWS,
     JARABES,
     LAVADORAS,
+    LINE_FLOWS,
+    LINE_SOURCE_ITEMS,
     LINES,
     WELLS,
     clamp_to_validated_segment,
@@ -131,21 +133,53 @@ class DurangoScadaCutoverTests(unittest.TestCase):
         self.assertNotIn(1002, {item.get('sensor_id') for item in payload['wells']})
         self.assertNotIn(1052, {item.get('sensor_id') for item in payload['wells']})
 
+    def test_dashboard_reclassifies_2004_without_changing_its_line_source(self):
+        line_row = {'time_stamp': datetime(2026, 8, 5, 0, 20)}
+        for index, sensor_id in enumerate((2002, 2004, 2006, 2008, 2010)):
+            line_row[f'linea_flow_in_{index}_sensor_id'] = sensor_id
+            line_row[f'linea_flow_in_{index}_instant_value'] = float(index)
+            line_row[f'linea_flow_in_{index}_total_value'] = 100.0 + index
+
+        def latest_row(_session, table, *_args, **_kwargs):
+            return line_row if table == 'dbo.SensorsBOS_Linea' else None
+
+        with (
+            patch('app.services.water_bos_service.SessionLocal', return_value=_DashboardSession()),
+            patch('app.services.water_bos_service._sql_now', return_value=datetime(2026, 8, 5, 0, 20)),
+            patch('app.services.water_bos_service._safe_latest_row', side_effect=latest_row),
+            patch('app.services.water_bos_service.get_current_lavadoras', return_value=[]),
+            patch('app.services.water_bos_service.get_current_jarabes', return_value=[]),
+            patch('app.services.water_bos_service._sensor_catalog', return_value={}),
+            patch('app.services.water_bos_service._well_locations', return_value={}),
+            patch('app.services.water_bos_service._latest_quality_by_sensor', return_value={}),
+        ):
+            payload = get_bos_water_dashboard_payload(force_refresh=True)
+
+        self.assertEqual([item['sensor_id'] for item in payload['production_lines']], [2002, 2006, 2008, 2010])
+        self.assertEqual([item['sensor_id'] for item in payload['flows']], [2004])
+        self.assertEqual(payload['flows'][0]['name'], 'Lavadora Línea 2')
+        self.assertEqual(payload['flows'][0]['operational_key'], 'lavadora_linea_2')
+        self.assertEqual(payload['flows'][0]['module'], 'flow')
+        self.assertEqual(payload['flows'][0]['source_key'], 'LINEA_FLOW_IN[1]')
+
     def test_operational_contract_contains_only_confirmed_sources(self):
         self.assertEqual([(item['sensor_id'], item['source_key']) for item in WELLS], [
             (1001, 'POZO_FLOW_OUT[0]'),
             (1051, 'POZO_FLOW_OUT[1]'),
         ])
-        self.assertEqual([item['sensor_id'] for item in LINES], [2002, 2004, 2006, 2008, 2010])
+        self.assertEqual([item['sensor_id'] for item in LINES], [2002, 2006, 2008, 2010])
+        self.assertEqual([(item['sensor_id'], item['display_name']) for item in LINE_FLOWS], [(2004, 'Lavadora Línea 2')])
+        self.assertEqual([item['sensor_id'] for item in LINE_SOURCE_ITEMS], [2002, 2004, 2006, 2008, 2010])
         self.assertEqual([item['operational_key'] for item in LAVADORAS], [
             'lavadora_vidrio',
             'lavadora_ref_pet',
         ])
         self.assertTrue(all(item['sensor_id'] is None for item in LAVADORAS))
-        self.assertEqual(len(LINES), 5)
+        self.assertEqual(len(LINES), 4)
         self.assertEqual(len(LAVADORAS), 2)
         self.assertEqual([(item['sensor_id'], item['source_key']) for item in JARABES], [(3010, 'TANQUE_FLOW_IN[4]')])
-        self.assertEqual([item['operational_key'] for item in FLOWS], ['lavadora_vidrio', 'lavadora_ref_pet', 'jarabes'])
+        self.assertEqual([item['operational_key'] for item in FLOWS], ['lavadora_linea_2', 'lavadora_vidrio', 'lavadora_ref_pet', 'jarabes'])
+        self.assertEqual(len({item['operational_key'] for item in ALL_ITEMS}), len(ALL_ITEMS))
         self.assertFalse({3002, 3004, 3006} & {item.get('sensor_id') for item in ALL_ITEMS})
         self.assertIn(3010, {item.get('sensor_id') for item in ALL_ITEMS})
         self.assertNotIn('Tanques', ACTIVE_MODULES)
@@ -200,8 +234,9 @@ class DurangoScadaCutoverTests(unittest.TestCase):
         lines = _build_lines(row, {})
         self.assertEqual([item['sensor_id'] for item in lines], [2002, 2004, 2006, 2008, 2010])
         self.assertEqual([item['name'] for item in lines], [
-            'Línea 1', 'Línea 2', 'Línea 3', 'Línea 4', 'Línea 5',
+            'Línea 1', 'Lavadora Línea 2', 'Línea 3', 'Línea 4', 'Línea 5',
         ])
+        self.assertEqual([item['module'] for item in lines], ['line', 'flow', 'line', 'line', 'line'])
 
     def test_lavadoras_share_one_bounded_query_with_utc_parameters(self):
         session = _Session()

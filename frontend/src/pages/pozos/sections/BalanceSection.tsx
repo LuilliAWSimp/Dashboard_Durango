@@ -1,5 +1,6 @@
 import { Bar, BarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import KpiCard from '../../../components/KpiCard';
+import { DURANGO_CAPABILITIES } from '../../../config/plantCapabilities';
 import { defaultTodayRange } from '../dateUtils';
 import type { DashboardData, FlexibleRecord } from '../types';
 import ChartEmptyState from '../components/ChartEmptyState';
@@ -37,7 +38,9 @@ export default function BalanceSection() {
     { name: 'Flujos', value: Number(flows.total_m3 || 0), color: '#a855f7' },
   ];
   const coverage = Number(wells.coverage_available || 0) + Number(lines.coverage_available || 0) + Number(flows.coverage_available || 0);
-  const total = Number(wells.coverage_total || 2) + Number(lines.coverage_total || 5) + Number(flows.coverage_total || 3);
+  const total = Number(wells.coverage_total || DURANGO_CAPABILITIES.wells.length)
+    + Number(lines.coverage_total || DURANGO_CAPABILITIES.lines.length)
+    + Number(flows.coverage_total || DURANGO_CAPABILITIES.flows.length);
   const excluded = total - coverage;
   const comparison = Number(wells.total_m3 || 0) - Number(lines.total_m3 || 0) - Number(flows.total_m3 || 0);
 
