@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarDays } from 'lucide-react';
+import useAutoRefresh from '../../../hooks/useAutoRefresh';
 import { fetchWaterShifts } from '../../../services/waterService';
 import type { WaterShift, WaterShiftsResponse } from '../types';
 import ChartEmptyState from './ChartEmptyState';
@@ -89,7 +90,21 @@ export default function ShiftConsumptionPanel({ group = 'all', itemIdentity: sel
   const [selectedShift, setSelectedShift] = useState('all');
   const [data, setData] = useState<WaterShiftsResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+  const dataRef = useRef<WaterShiftsResponse | null>(null);
+  const mountedRef = useRef(true);
+  const requestIdRef = useRef(0);
+  const inFlightIdentityRef = useRef('');
+
+  useEffect(() => { dataRef.current = data; }, [data]);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      requestIdRef.current += 1;
+    };
+  }, []);
 
   useEffect(() => {
     if (!date) return;
@@ -97,20 +112,34 @@ export default function ShiftConsumptionPanel({ group = 'all', itemIdentity: sel
     setSelectedDate(date);
   }, [date]);
 
-  const load = async (forceRefresh = false) => {
-    setLoading(true);
-    setError('');
+  const load = useCallback(async (forceRefresh = false, background = false) => {
+    const identity = `${selectedDate}:${selectedShift}`;
+    if (inFlightIdentityRef.current === identity) return;
+    inFlightIdentityRef.current = identity;
+    const requestId = ++requestIdRef.current;
+    if (!dataRef.current) setLoading(true);
+    else if (background) setRefreshing(true);
+    if (!background) setError('');
     try {
-      setData(await fetchWaterShifts({ date: selectedDate, shift: selectedShift as 'all' | 'shift_1' | 'shift_2' | 'shift_3', forceRefresh }));
+      const response = await fetchWaterShifts({ date: selectedDate, shift: selectedShift as 'all' | 'shift_1' | 'shift_2' | 'shift_3', forceRefresh });
+      if (!mountedRef.current || requestId !== requestIdRef.current) return;
+      setData(response);
+      setError('');
     } catch (caught) {
+      if (!mountedRef.current || requestId !== requestIdRef.current) return;
       const candidate = caught as { response?: { data?: { detail?: string } }; message?: string };
       setError(candidate.response?.data?.detail || candidate.message || 'No fue posible consultar los cortes por turno.');
     } finally {
-      setLoading(false);
+      if (mountedRef.current && requestId === requestIdRef.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
+      if (inFlightIdentityRef.current === identity) inFlightIdentityRef.current = '';
     }
-  };
+  }, [selectedDate, selectedShift]);
 
-  useEffect(() => { void load(false); }, [selectedDate]);
+  useEffect(() => { void load(false, false); }, [load]);
+  useAutoRefresh(selectedDate === today(), () => { void load(true, true); });
 
   const visible = useMemo(() => {
     const shifts = data?.shifts || [];
@@ -124,10 +153,11 @@ export default function ShiftConsumptionPanel({ group = 'all', itemIdentity: sel
         <div className="date-range-fields">
           {showDateControls ? <label><span>Día</span><div className="date-input-with-icon"><CalendarDays size={16} /><input type="date" value={draftDate} onChange={(event) => setDraftDate(event.target.value)} /></div></label> : null}
           <label className="shift-selector-field"><span>Turno</span><select value={selectedShift} onChange={(event) => setSelectedShift(event.target.value)}><option value="all">Todos los turnos</option><option value="shift_1">Turno 1 · 00:00–07:00</option><option value="shift_2">Turno 2 · 07:00–15:00</option><option value="shift_3">Turno 3 · 15:00–24:00</option></select></label>
-          {showDateControls ? <button type="button" className="date-range-apply" onClick={() => { if (draftDate === selectedDate) void load(true); else setSelectedDate(draftDate); }}>Actualizar</button> : <button type="button" className="date-range-apply" onClick={() => void load(true)}>Actualizar turnos</button>}
+          {showDateControls ? <button type="button" className="date-range-apply" onClick={() => { if (draftDate === selectedDate) void load(true, true); else setSelectedDate(draftDate); }}>Actualizar</button> : <button type="button" className="date-range-apply" onClick={() => void load(true, true)}>Actualizar turnos</button>}
           {showDateControls ? <button type="button" className="date-range-reset" onClick={() => { const value = today(); setDraftDate(value); setSelectedDate(value); setSelectedShift('all'); }}>Restablecer</button> : null}
         </div>
       </div>
+      {refreshing ? <div className="status-pill auto-refresh-status">Actualizando cortes por turno…</div> : null}
       {error ? <div className="status-pill alert">{error}</div> : null}
       {loading && !data ? <ChartEmptyState message="Calculando cortes por turno..." /> : null}
       {data ? <>

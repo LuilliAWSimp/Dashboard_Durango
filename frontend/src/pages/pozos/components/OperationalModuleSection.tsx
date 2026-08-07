@@ -248,7 +248,7 @@ export default function OperationalModuleSection({
         {!rows.length && !controller.loading ? <ChartEmptyState message="Sin registros para el periodo seleccionado." /> : null}
       </section>
 
-      <ShiftConsumptionPanel group={module} title={`Cortes por turno · ${title}`} />
+      <ShiftConsumptionPanel group={module} date={String(controller.range.endDate || controller.range.startDate || '')} title={`Cortes por turno · ${title}`} />
 
       <section className="panel fade-up">
         <PanelHeader title="Tabla operativa" subtitle="La tabla y las tarjetas usan la misma respuesta del periodo" />

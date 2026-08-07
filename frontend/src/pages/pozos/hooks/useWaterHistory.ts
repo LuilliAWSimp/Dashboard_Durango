@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
+import useAutoRefresh from '../../../hooks/useAutoRefresh';
 import { fetchWaterHistory } from '../../../services/waterService';
-import { defaultTodayRange, recommendedHistoryAggregation, todayInputDate } from '../dateUtils';
+import { defaultTodayRange, rangeIncludesToday, recommendedHistoryAggregation } from '../dateUtils';
 import type { DateRange, HistoryAggregation, WaterHistoryResponse } from '../types';
 
-const AUTO_REFRESH_MS = 60_000;
 interface UseWaterHistoryOptions {
   module: 'well' | 'line' | 'flow';
   sensorId?: number | string | null;
@@ -12,7 +12,6 @@ interface UseWaterHistoryOptions {
   initialAggregation?: HistoryAggregation;
 }
 export interface UseWaterHistoryResult { draftRange: DateRange; setDraftRange: Dispatch<SetStateAction<DateRange>>; range: DateRange; aggregation: HistoryAggregation; setAggregation: (value: HistoryAggregation) => void; data: WaterHistoryResponse | null; error: string; loading: boolean; refreshing: boolean; apply: () => void; reset: () => void; }
-function includesToday(range: DateRange): boolean { const today = todayInputDate(); const start = String(range.startDate || range.endDate || ''); const end = String(range.endDate || range.startDate || ''); return Boolean(start && end && start <= today && today <= end); }
 function detailFromError(error: unknown): string { if (error && typeof error === 'object') { const candidate = error as { message?: unknown; code?: unknown; response?: { data?: { detail?: unknown }; status?: number } }; if (candidate.response?.status === 504 || candidate.code === 'ECONNABORTED' || String(candidate.message || '').toLowerCase().includes('timeout')) return 'La consulta tardó demasiado. Reduce el rango o utiliza agrupación diaria.'; const detail = candidate.response?.data?.detail; if (typeof detail === 'string' && detail.trim()) return detail; if (typeof candidate.message === 'string' && candidate.message.trim()) return candidate.message; } return 'No fue posible consultar el histórico de planta.'; }
 
 export default function useWaterHistory({
@@ -70,14 +69,7 @@ export default function useWaterHistory({
   }, [module, sensorId, range.startDate, range.endDate, aggregation]);
 
   useEffect(() => { load(Boolean(range.refreshKey), false); }, [load, range.refreshKey]);
-  useEffect(() => {
-    if (!includesToday(range) || !sensorId) return undefined;
-    const refresh = () => { if (!document.hidden) load(false, true); };
-    const interval = window.setInterval(refresh, AUTO_REFRESH_MS);
-    const onVisibility = () => { if (!document.hidden) load(true, true); };
-    document.addEventListener('visibilitychange', onVisibility);
-    return () => { window.clearInterval(interval); document.removeEventListener('visibilitychange', onVisibility); };
-  }, [load, sensorId, range.startDate, range.endDate]);
+  useAutoRefresh(Boolean(sensorId && rangeIncludesToday(range)), () => load(true, true));
 
   const setAggregation = (value: HistoryAggregation) => { manualAggregation.current = true; setAggregationState(value); };
   const apply = () => setRange((previous) => ({ ...draftRange, refreshKey: Number(previous.refreshKey || 0) + 1 }));

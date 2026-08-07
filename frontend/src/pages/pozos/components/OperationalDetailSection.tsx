@@ -216,7 +216,7 @@ export default function OperationalDetailSection({ module, sensorId, backPath }:
       <ShiftConsumptionPanel
         group={module}
         itemIdentity={sensorId}
-        date={String(history.range.startDate || '')}
+        date={String(history.range.endDate || history.range.startDate || '')}
         title={`Cortes por turno · ${name}`}
       />
     </>

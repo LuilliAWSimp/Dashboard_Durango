@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
+import useAutoRefresh from '../../../hooks/useAutoRefresh';
 import { fetchWaterDashboard } from '../../../services/waterService';
-import { dateRangePeriod, defaultTodayRange, todayInputDate } from '../dateUtils';
+import { dateRangePeriod, defaultTodayRange, rangeIncludesToday } from '../dateUtils';
 import type { DateRange } from '../types';
-
-const AUTO_REFRESH_MS = 60_000;
 
 function errorMessage(error: unknown): string | undefined {
   if (error && typeof error === 'object' && 'message' in error) {
@@ -12,13 +11,6 @@ function errorMessage(error: unknown): string | undefined {
     return typeof message === 'string' ? message : undefined;
   }
   return undefined;
-}
-
-function includesToday(range: DateRange): boolean {
-  const today = todayInputDate();
-  const start = String(range.startDate || range.endDate || '');
-  const end = String(range.endDate || range.startDate || '');
-  return Boolean(start && end && start <= today && today <= end);
 }
 
 export interface UseSqlChartDashboardOptions {
@@ -80,7 +72,7 @@ export default function useSqlChartDashboard(
         period: dateRangePeriod(range),
         include_history: Boolean(options.includeHistory),
         include_energy_water: Boolean(options.includeEnergyWater),
-        force_refresh: kind === 'manual',
+        force_refresh: kind !== 'initial',
       });
       if (!mountedRef.current || requestId !== requestIdRef.current) return;
       setDashboard(data);
@@ -104,21 +96,7 @@ export default function useSqlChartDashboard(
     load(Number(range.refreshKey || 0) > 0 ? 'manual' : 'initial');
   }, [load]);
 
-  useEffect(() => {
-    if (!options.autoRefresh || !includesToday(range)) return undefined;
-    const refreshIfVisible = () => {
-      if (!document.hidden) load('auto');
-    };
-    const interval = window.setInterval(refreshIfVisible, AUTO_REFRESH_MS);
-    const onVisibility = () => {
-      if (!document.hidden) load('manual');
-    };
-    document.addEventListener('visibilitychange', onVisibility);
-    return () => {
-      window.clearInterval(interval);
-      document.removeEventListener('visibilitychange', onVisibility);
-    };
-  }, [load, range.startDate, range.endDate, options.autoRefresh]);
+  useAutoRefresh(Boolean(options.autoRefresh && rangeIncludesToday(range)), () => load('auto'));
 
   const apply = () => {
     setRange((previous) => ({ ...draftRange, refreshKey: Number(previous.refreshKey || 0) + 1 }));

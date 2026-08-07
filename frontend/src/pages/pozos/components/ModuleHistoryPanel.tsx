@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { DURANGO_CAPABILITIES } from '../../../config/plantCapabilities';
+import useAutoRefresh from '../../../hooks/useAutoRefresh';
 import { fetchWaterModuleHistory } from '../../../services/waterService';
-import { recommendedHistoryAggregation, todayInputDate } from '../dateUtils';
+import { isHistoryPointVisible, rangeIncludesToday, recommendedHistoryAggregation } from '../dateUtils';
 import type { DateRange, HistoryAggregation, WaterModuleHistoryResponse } from '../types';
 import ChartEmptyState from './ChartEmptyState';
 import PanelHeader from './PanelHeader';
 
-const AUTO_REFRESH_MS = 60_000;
 const COLORS = ['#14b8ff', '#7dd3fc', '#a78bfa', '#34d399', '#f59e0b', '#fb7185'];
 type ModuleKey = 'well' | 'line' | 'flow';
 type OperationalIdentity = number | string;
@@ -15,12 +15,6 @@ interface Props { range: DateRange; }
 interface ChartRow extends Record<string, unknown> { timestamp: number; bucketStart: string; bucketEnd: string; tooltipAnchor: number; }
 const moduleItems = { well: DURANGO_CAPABILITIES.wells, line: DURANGO_CAPABILITIES.lines, flow: DURANGO_CAPABILITIES.flows };
 
-function includesToday(range: DateRange): boolean {
-  const today = todayInputDate();
-  const start = String(range.startDate || range.endDate || '');
-  const end = String(range.endDate || range.startDate || '');
-  return Boolean(start && end && start <= today && today <= end);
-}
 function intervalLabel(startValue: unknown, endValue: unknown, aggregation: HistoryAggregation): string {
   const start = new Date(String(startValue || ''));
   const end = new Date(String(endValue || ''));
@@ -121,21 +115,16 @@ export default function ModuleHistoryPanel({ range }: Props) {
   }, [module, range.startDate, range.endDate, aggregation]);
 
   useEffect(() => { load(Boolean(range.refreshKey), false); }, [load, range.refreshKey]);
-  useEffect(() => {
-    if (!includesToday(range)) return undefined;
-    const refresh = () => { if (!document.hidden) load(false, true); };
-    const interval = window.setInterval(refresh, AUTO_REFRESH_MS);
-    const onVisibility = () => { if (!document.hidden) load(true, true); };
-    document.addEventListener('visibilitychange', onVisibility);
-    return () => { window.clearInterval(interval); document.removeEventListener('visibilitychange', onVisibility); };
-  }, [load, module, range.startDate, range.endDate]);
+  useAutoRefresh(rangeIncludesToday(range), () => load(true, true));
 
   const rows = useMemo<ChartRow[]>(() => {
     if (!data?.series?.length) return [];
     const byTime = new Map<string, ChartRow>();
     data.series.forEach((series) => series.points.forEach((point) => {
+      const timestamp = new Date(point.bucket_start).getTime();
+      if (!isHistoryPointVisible(point.bucket_start, point.data_status)) return;
       const key = point.bucket_start;
-      const row = byTime.get(key) || { timestamp: new Date(point.bucket_start).getTime(), bucketStart: point.bucket_start, bucketEnd: point.bucket_end, tooltipAnchor: 0 };
+      const row = byTime.get(key) || { timestamp, bucketStart: point.bucket_start, bucketEnd: point.bucket_end, tooltipAnchor: 0 };
       const identity = seriesIdentity(series);
       row[`flow_${identity}`] = point.flow_avg_lps;
       row[`meta_${identity}`] = { flowMin: point.flow_min_lps, flowMax: point.flow_max_lps, samples: point.samples, status: point.data_status, discardedEvents: point.discarded_totalizer_events || 0, discardedVolume: point.discarded_volume_m3 || 0, hasDiscontinuities: Boolean(point.has_discontinuities) };

@@ -10,6 +10,7 @@ import {
   YAxis,
 } from 'recharts';
 import type { HistoryAggregation, WaterHistoryPoint } from '../types';
+import { isHistoryPointVisible } from '../dateUtils';
 import WaterHistoryTooltip from './WaterHistoryTooltip';
 
 const axisColor = '#b9e7ff';
@@ -53,7 +54,9 @@ function tickFormatter(value: number, aggregation: HistoryAggregation, spansMult
 }
 
 export default function WaterHistoryChart({ points, aggregation, height = 430, flowUnit = 'Unidad por confirmar' }: WaterHistoryChartProps) {
-  const data: ChartPoint[] = points.map((point) => ({
+  const data: ChartPoint[] = points
+    .filter((point) => isHistoryPointVisible(point.bucket_start, point.data_status))
+    .map((point) => ({
     timestamp: new Date(point.bucket_start).getTime(),
     bucketStart: point.bucket_start,
     bucketEnd: point.bucket_end,
@@ -70,7 +73,7 @@ export default function WaterHistoryChart({ points, aggregation, height = 430, f
     samples: point.samples,
     dataStatus: point.data_status,
     tooltipAnchor: 0,
-  }));
+    }));
   const validTimestamps = data.map((point) => point.timestamp).filter(Number.isFinite);
   const spansMultipleDays = validTimestamps.length > 1
     ? new Date(Math.min(...validTimestamps)).toDateString() !== new Date(Math.max(...validTimestamps)).toDateString()

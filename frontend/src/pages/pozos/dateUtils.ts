@@ -24,6 +24,18 @@ export function defaultTodayRange(): DateRange {
   return { startDate: today, endDate: today, refreshKey: 0 };
 }
 
+export function rangeIncludesToday(range: DateRange | null = {}): boolean {
+  const today = todayInputDate();
+  const start = String(range?.startDate || range?.endDate || '');
+  const end = String(range?.endDate || range?.startDate || '');
+  return Boolean(start && end && start <= today && today <= end);
+}
+
+export function isHistoryPointVisible(timestampValue: unknown, dataStatus?: unknown, now = Date.now()): boolean {
+  const timestamp = new Date(String(timestampValue || '')).getTime();
+  return Number.isFinite(timestamp) && timestamp <= now && String(dataStatus || '') !== 'future_interval';
+}
+
 export function formatDateRangeStatus(range?: DateRange | null, fallback = 'Datos actuales de planta'): string {
   if (!range?.startDate && !range?.endDate) return fallback;
   if (range.startDate && range.endDate && range.startDate === range.endDate) return range.startDate;

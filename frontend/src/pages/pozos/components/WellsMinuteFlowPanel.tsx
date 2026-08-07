@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import useAutoRefresh from '../../../hooks/useAutoRefresh';
 import { fetchWellsMinuteFlow } from '../../../services/waterService';
-import { todayInputDate } from '../dateUtils';
+import { isHistoryPointVisible, todayInputDate } from '../dateUtils';
 import type { WellsMinuteFlowResponse } from '../types';
 import ChartEmptyState from './ChartEmptyState';
 import PanelHeader from './PanelHeader';
 
-const AUTO_REFRESH_MS = 60_000;
 const COLORS: Record<number, string> = { 1001: '#14b8ff', 1051: '#a78bfa' };
 interface MinuteRange { date: string; from: string; to: string; }
 function defaultState(): MinuteRange { return { date: todayInputDate(), from: '00:00', to: '23:59' }; }
@@ -58,18 +58,11 @@ export default function WellsMinuteFlowPanel() {
   }, []);
 
   useEffect(() => { load(initial, false, false, [1001, 1051]); }, [initial, load]);
-  useEffect(() => {
-    if (activeRange.date !== todayInputDate() || !selected.length) return undefined;
-    const refresh = () => { if (!document.hidden) load(activeRange, false, true, selected); };
-    const interval = window.setInterval(refresh, AUTO_REFRESH_MS);
-    const onVisibility = () => { if (!document.hidden) load(activeRange, true, true, selected); };
-    document.addEventListener('visibilitychange', onVisibility);
-    return () => { window.clearInterval(interval); document.removeEventListener('visibilitychange', onVisibility); };
-  }, [activeRange, load, selected]);
+  useAutoRefresh(activeRange.date === todayInputDate() && selected.length > 0, () => load(activeRange, true, true, selected));
 
   const apply = () => { setActiveRange(draft); load(draft, true, false, selected); };
   const reset = () => { const next = defaultState(); setDraft(next); setActiveRange(next); setSelected([1001, 1051]); load(next, true, false, [1001, 1051]); };
-  const rows = useMemo(() => { if (!data?.series.length) return []; const map = new Map<string, Record<string, unknown>>(); data.series.forEach((series) => series.points.forEach((point) => { const row = map.get(point.timestamp) || { timestamp: new Date(point.timestamp).getTime(), tooltipAnchor: 0 }; row[`flow_${series.sensor_id}`] = point.flow_value; row[`status_${series.sensor_id}`] = point.data_status; map.set(point.timestamp, row); })); return [...map.values()].sort((a, b) => Number(a.timestamp) - Number(b.timestamp)); }, [data]);
+  const rows = useMemo(() => { if (!data?.series.length) return []; const map = new Map<string, Record<string, unknown>>(); data.series.forEach((series) => series.points.forEach((point) => { const timestamp = new Date(point.timestamp).getTime(); if (!isHistoryPointVisible(point.timestamp, point.data_status)) return; const row = map.get(point.timestamp) || { timestamp, tooltipAnchor: 0 }; row[`flow_${series.sensor_id}`] = point.flow_value; row[`status_${series.sensor_id}`] = point.data_status; map.set(point.timestamp, row); })); return [...map.values()].sort((a, b) => Number(a.timestamp) - Number(b.timestamp)); }, [data]);
   const hasData = data?.series.some((series) => series.has_data) || false;
   const hasFuture = Boolean(data?.has_future_intervals || data?.series.some((series) => series.has_future_intervals));
 
