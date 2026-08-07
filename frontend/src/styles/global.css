@@ -6001,21 +6001,42 @@ th { color: #c1d0e8; font-weight: 700; position: sticky; top: 0; background: #0f
   }
 }
 
+
 .durango-report-page {
   display: grid;
-  gap: 16px;
+  gap: 14px;
 }
 
 .durango-report-page .report-hero-panel {
   display: grid;
-  gap: 16px;
-  padding-bottom: 20px;
+  gap: 14px;
+  padding: 20px 22px 22px;
 }
 
 .report-center-heading {
   display: grid;
   gap: 6px;
-  padding: 4px 2px 2px;
+  padding: 0;
+}
+
+.report-center-heading .panel-header.compact {
+  margin: 0;
+  padding: 0;
+}
+
+.report-center-heading .panel-title {
+  color: #f4fbff;
+  font-size: clamp(24px, 2.2vw, 32px);
+  font-weight: 950;
+  line-height: 1.05;
+  letter-spacing: -.035em;
+}
+
+.report-center-heading .panel-subtitle {
+  margin-top: 4px;
+  color: #addbed;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .report-center-heading > span,
@@ -6028,92 +6049,162 @@ th { color: #c1d0e8; font-weight: 700; position: sticky; top: 0; background: #0f
 }
 
 .report-center-heading > p,
-.report-preview-heading p {
+.report-preview-heading p,
+.report-preview-section-heading p {
   margin: 0;
   color: #a9d5e8;
   font-size: 13px;
+  line-height: 1.45;
 }
 
-.report-controls-panel {
+.report-workflow-panel {
   display: grid;
-  grid-template-columns: minmax(220px, .7fr) minmax(560px, 2fr);
-  align-items: end;
-  gap: 24px;
-  padding: 16px 18px;
-  border: 1px solid rgba(56, 189, 248, .18);
-  border-radius: 16px;
-  background: rgba(3, 17, 29, .64);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .025);
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid rgba(56, 189, 248, .2);
+  border-radius: 18px;
+  background:
+    linear-gradient(135deg, rgba(3, 17, 29, .84), rgba(6, 24, 40, .62)),
+    radial-gradient(circle at 100% 0%, rgba(14, 165, 233, .11), transparent 34%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .035), 0 16px 36px rgba(0, 0, 0, .14);
 }
 
-.report-controls-copy {
-  display: grid;
-  gap: 4px;
-  align-self: center;
+.report-workflow-intro {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(125, 211, 252, .12);
 }
 
-.report-controls-copy strong {
+.report-workflow-intro strong {
   color: #f4fbff;
-  font-size: 14px;
-  font-weight: 850;
+  font-size: 15px;
+  font-weight: 900;
 }
 
-.report-controls-copy span {
+.report-workflow-intro span {
   color: #a9d5e8;
   font-size: 12px;
   line-height: 1.4;
+  text-align: right;
 }
 
-.report-period-fields {
+.report-workflow-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(380px, .85fr);
+  align-items: end;
+  gap: 16px 22px;
+}
+
+.report-controls-block,
+.report-actions-block {
+  min-width: 0;
+}
+
+.report-controls-block {
   display: flex;
   align-items: end;
-  justify-content: flex-end;
   flex-wrap: wrap;
   gap: 10px;
 }
 
-.report-period-fields > label {
-  min-width: 150px;
+.report-actions-block {
+  display: grid;
+  gap: 7px;
+}
+
+.report-field {
+  display: grid;
+  gap: 5px;
+  min-width: 160px;
+}
+
+.report-field-label {
+  color: #8bcce2;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .13em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.report-mode-field {
+  min-width: 200px;
+}
+
+.report-mode-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 42px;
+  padding: 4px;
+  border: 1px solid rgba(56, 189, 248, .26);
+  border-radius: 13px;
+  background: rgba(3, 15, 28, .86);
+}
+
+.report-mode-toggle button {
+  min-height: 32px;
+  min-width: 88px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: #a9d7e9;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 850;
+  cursor: pointer;
+  transition: background .18s ease, border-color .18s ease, color .18s ease, transform .18s ease;
+}
+
+.report-mode-toggle button:hover,
+.report-mode-toggle button:focus-visible {
+  border-color: rgba(125, 211, 252, .44);
+  color: #fff;
+  outline: none;
+}
+
+.report-mode-toggle button.active {
+  border-color: rgba(125, 211, 252, .58);
+  background: linear-gradient(135deg, rgba(14, 116, 144, .98), rgba(2, 132, 199, .94));
+  color: #fff;
+  box-shadow: 0 8px 18px rgba(2, 132, 199, .18);
+}
+
+.report-date-input {
+  min-width: 176px;
+}
+
+.report-date-input input {
+  min-height: 42px;
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .report-period-buttons {
   display: flex;
-  align-items: center;
+  align-items: end;
   gap: 9px;
 }
 
-.durango-report-page .report-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin: 0;
-}
-
-.report-actions-panel {
-  display: grid;
-  grid-template-columns: minmax(210px, .65fr) minmax(520px, 2fr);
+.report-period-buttons .date-range-apply,
+.report-period-buttons .date-range-reset {
+  display: inline-flex;
   align-items: center;
-  gap: 24px;
-  padding: 15px 18px;
-  border: 1px solid rgba(56, 189, 248, .14);
-  border-radius: 16px;
-  background: rgba(3, 17, 29, .42);
+  justify-content: center;
+  gap: 7px;
+  min-height: 42px;
+  border-radius: 12px;
 }
 
-.report-actions-panel > div:first-child {
+.durango-report-page .report-actions {
   display: grid;
-  gap: 4px;
-}
-
-.report-actions-panel strong {
-  color: #f4fbff;
-  font-size: 14px;
-}
-
-.report-actions-panel span {
-  color: #9fcfe2;
-  font-size: 12px;
-  line-height: 1.4;
+  grid-template-columns: repeat(4, minmax(132px, 1fr));
+  gap: 9px;
+  margin: 0;
 }
 
 .durango-report-page .report-action-button {
@@ -6122,15 +6213,16 @@ th { color: #c1d0e8; font-weight: 700; position: sticky; top: 0; background: #0f
   justify-content: center;
   gap: 8px;
   min-height: 42px;
-  padding: 0 16px;
+  padding: 0 15px;
   border: 1px solid rgba(56, 189, 248, .28);
   border-radius: 12px;
   background: #071827;
   color: #effbff;
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 850;
   cursor: pointer;
   transition: border-color .18s ease, background .18s ease, transform .18s ease;
+  white-space: nowrap;
 }
 
 .durango-report-page .report-action-button:hover:not(:disabled) {
@@ -6145,10 +6237,10 @@ th { color: #c1d0e8; font-weight: 700; position: sticky; top: 0; background: #0f
 }
 
 .durango-report-page .report-action-button.primary-action {
-  border-color: rgba(34, 211, 238, .6);
+  border-color: rgba(34, 211, 238, .62);
   background: linear-gradient(135deg, #0891b2, #0284c7);
   color: #fff;
-  box-shadow: 0 10px 24px rgba(2, 132, 199, .18);
+  box-shadow: 0 10px 24px rgba(2, 132, 199, .2);
 }
 
 .durango-report-page .report-action-button:disabled {
@@ -6164,12 +6256,12 @@ th { color: #c1d0e8; font-weight: 700; position: sticky; top: 0; background: #0f
 
 .report-summary-card {
   position: relative;
-  min-height: 132px;
+  min-height: 112px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  gap: 12px;
-  padding: 18px;
+  gap: 10px;
+  padding: 16px;
   overflow: hidden;
   border: 1px solid rgba(56, 189, 248, .18);
   border-radius: 18px;
@@ -6193,9 +6285,9 @@ th { color: #c1d0e8; font-weight: 700; position: sticky; top: 0; background: #0f
   position: relative;
   z-index: 1;
   color: #9fdcf4;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: .14em;
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: .13em;
   line-height: 1.35;
   text-transform: uppercase;
 }
@@ -6204,7 +6296,7 @@ th { color: #c1d0e8; font-weight: 700; position: sticky; top: 0; background: #0f
   position: relative;
   z-index: 1;
   color: #f4fbff;
-  font-size: clamp(24px, 2vw, 34px);
+  font-size: clamp(23px, 1.85vw, 32px);
   line-height: 1.05;
   word-break: normal;
 }
@@ -6218,7 +6310,7 @@ th { color: #c1d0e8; font-weight: 700; position: sticky; top: 0; background: #0f
 }
 
 .report-summary-card.review {
-  border-top: 3px solid rgba(245, 158, 11, .75);
+  border-top: 3px solid rgba(245, 158, 11, .66);
 }
 
 .report-summary-card.review strong small {
@@ -6229,19 +6321,25 @@ th { color: #c1d0e8; font-weight: 700; position: sticky; top: 0; background: #0f
 }
 
 .report-summary-note {
-  margin: -4px 0 0;
-  padding: 12px 14px;
+  margin: -2px 0 0;
+  padding: 10px 13px;
   border: 1px solid rgba(56, 189, 248, .16);
   border-left: 4px solid #0ea5e9;
   border-radius: 12px;
   background: rgba(3, 17, 29, .62);
   color: #b9dfef;
   font-size: 12px;
-  line-height: 1.5;
+  line-height: 1.45;
 }
 
 .report-data-panel {
   overflow: hidden;
+}
+
+.report-preview-panel {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
 }
 
 .report-preview-heading {
@@ -6249,57 +6347,85 @@ th { color: #c1d0e8; font-weight: 700; position: sticky; top: 0; background: #0f
   align-items: flex-end;
   justify-content: space-between;
   gap: 18px;
-  margin-bottom: 16px;
+  margin: 0;
 }
 
 .report-preview-heading h3 {
   margin: 4px 0;
   color: #f4fbff;
-  font-size: clamp(22px, 2.4vw, 32px);
+  font-size: clamp(22px, 2.2vw, 30px);
+  line-height: 1.05;
 }
 
-.report-section-tabs {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 7px;
-  padding: 5px;
-  border: 1px solid rgba(56, 189, 248, .2);
+.report-preview-sections {
+  display: grid;
+  gap: 18px;
+}
+
+.report-preview-section {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding-top: 16px;
+  border-top: 1px solid rgba(125, 211, 252, .12);
+}
+
+.report-preview-section:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.report-preview-section-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.report-preview-section-heading h4 {
+  margin: 0 0 3px;
+  color: #f4fbff;
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: -.015em;
+  text-transform: uppercase;
+}
+
+.report-preview-section-heading > span {
+  flex: 0 0 auto;
+  padding: 5px 10px;
+  border: 1px solid rgba(56, 189, 248, .18);
+  border-radius: 999px;
+  background: rgba(3, 17, 29, .55);
+  color: #9fdcf4;
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.report-preview-empty {
+  padding: 18px;
+  border: 1px dashed rgba(125, 211, 252, .2);
   border-radius: 14px;
-  background: rgba(3, 17, 29, .72);
-}
-
-.report-section-tabs button {
-  min-width: 96px;
-  min-height: 36px;
-  padding: 0 14px;
-  border: 0;
-  border-radius: 10px;
-  background: transparent;
+  background: rgba(3, 17, 29, .42);
   color: #a9d5e8;
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.report-section-tabs button.active {
-  background: linear-gradient(135deg, rgba(8, 145, 178, .9), rgba(2, 132, 199, .9));
-  color: #fff;
-  box-shadow: 0 8px 18px rgba(2, 132, 199, .18);
+  font-size: 13px;
 }
 
 .report-preview-skeleton {
   display: grid;
-  gap: 16px;
+  gap: 14px;
 }
 
 .report-skeleton-card,
-.report-skeleton-table {
+.report-skeleton-preview,
+.report-skeleton-section {
   overflow: hidden;
   position: relative;
 }
 
 .report-skeleton-card {
-  min-height: 132px;
-  padding: 20px;
+  min-height: 112px;
+  padding: 18px;
   border: 1px solid rgba(56, 189, 248, .14);
   border-radius: 18px;
   background: rgba(8, 23, 40, .86);
@@ -6307,7 +6433,9 @@ th { color: #c1d0e8; font-weight: 700; position: sticky; top: 0; background: #0f
 
 .report-skeleton-card i,
 .report-skeleton-card b,
-.report-skeleton-table i {
+.report-skeleton-heading i,
+.report-skeleton-heading b,
+.report-skeleton-section i {
   display: block;
   border-radius: 999px;
   background: linear-gradient(90deg, rgba(148, 213, 235, .08), rgba(148, 213, 235, .22), rgba(148, 213, 235, .08));
@@ -6316,9 +6444,14 @@ th { color: #c1d0e8; font-weight: 700; position: sticky; top: 0; background: #0f
 }
 
 .report-skeleton-card i { width: 70%; height: 12px; }
-.report-skeleton-card b { width: 48%; height: 28px; margin-top: 32px; }
-.report-skeleton-table { display: grid; gap: 14px; min-height: 260px; padding: 24px; }
-.report-skeleton-table i { width: 100%; height: 34px; }
+.report-skeleton-card b { width: 48%; height: 28px; margin-top: 28px; }
+.report-skeleton-preview { display: grid; gap: 16px; padding: 18px; }
+.report-skeleton-heading { display: grid; gap: 8px; }
+.report-skeleton-heading i { width: 150px; height: 11px; }
+.report-skeleton-heading b { width: min(360px, 70%); height: 28px; }
+.report-skeleton-section { display: grid; gap: 10px; padding-top: 14px; border-top: 1px solid rgba(125, 211, 252, .1); }
+.report-skeleton-section span { color: #8bcce2; font-size: 11px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
+.report-skeleton-section i { width: 100%; height: 32px; }
 
 @keyframes report-skeleton-pulse {
   from { background-position: 100% 0; }
@@ -6338,6 +6471,16 @@ th { color: #c1d0e8; font-weight: 700; position: sticky; top: 0; background: #0f
 .report-data-table td:nth-child(8),
 .report-data-table td:nth-child(9) {
   white-space: normal;
+}
+
+.report-data-table .status-pill {
+  min-height: 26px;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 9px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .03em;
 }
 
 .email-format-selector {
@@ -6372,53 +6515,75 @@ th { color: #c1d0e8; font-weight: 700; position: sticky; top: 0; background: #0f
   accent-color: #0ea5e9;
 }
 
+@media (max-width: 1440px) {
+  .report-workflow-body {
+    grid-template-columns: 1fr;
+  }
+
+  .durango-report-page .report-actions {
+    grid-template-columns: repeat(4, minmax(128px, 1fr));
+  }
+}
+
 @media (max-width: 1280px) {
   .report-summary-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .report-controls-panel {
-    grid-template-columns: 1fr;
-  }
-
-  .report-actions-panel {
-    grid-template-columns: 1fr;
-  }
-
-  .report-period-fields {
+  .report-controls-block {
     justify-content: flex-start;
+  }
+
+  .durango-report-page .report-actions {
+    grid-template-columns: repeat(2, minmax(150px, 1fr));
   }
 }
 
 @media (max-width: 760px) {
+  .durango-report-page .report-hero-panel,
+  .report-preview-panel {
+    padding: 16px;
+  }
+
+  .report-workflow-intro,
+  .report-preview-section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .report-workflow-intro span {
+    text-align: left;
+  }
+
   .report-summary-grid {
     grid-template-columns: 1fr;
   }
 
-  .report-period-fields,
+  .report-controls-block,
   .report-period-buttons,
-  .durango-report-page .report-actions {
+  .durango-report-page .report-actions,
+  .report-field,
+  .report-mode-toggle,
+  .report-date-input {
     width: 100%;
   }
 
-  .report-period-fields > label,
+  .report-mode-toggle button,
   .report-period-buttons > button,
   .durango-report-page .report-action-button {
     flex: 1 1 100%;
     width: 100%;
   }
 
-  .report-preview-heading {
-    align-items: stretch;
+  .report-period-buttons,
+  .durango-report-page .report-actions {
+    grid-template-columns: 1fr;
     flex-direction: column;
   }
 
-  .report-section-tabs {
-    width: 100%;
-  }
-
-  .report-section-tabs button {
-    flex: 1 1 90px;
+  .report-preview-heading {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
 
