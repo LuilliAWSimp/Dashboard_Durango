@@ -83,10 +83,10 @@ export default function DashboardBaseSection() {
         <KpiCard label="Última actualización" value={latest ? formatSqlDate(latest) : 'Sin lectura'} unit="" trend={controller.refreshing ? 'Actualizando información…' : 'Actualización automática cada 60 s'} accent="teal" />
       </section>
 
-      <OperationalAlertsPanel alerts={alerts} range={controller.range} aggregation={alertAggregation} />
-
       <ModuleHistoryPanel range={controller.range} />
       <WellsMinuteFlowPanel />
+
+      <OperationalAlertsPanel alerts={alerts} range={controller.range} aggregation={alertAggregation} />
 
       <section className="panel fade-up">
         <PanelHeader title="Accesos operativos" subtitle="Módulos confirmados y pendientes de validación" />
