@@ -64,7 +64,7 @@ function ConcesionSection() {
               <div className="alert-icon"><AlertTriangle size={16} /></div>
               <div>
                 <strong>Consumo acumulado oficial</strong>
-                <span>Falta confirmar si se debe calcular desde totalizadores BOS o desde una fuente administrativa.</span>
+                <span>Falta confirmar si se debe calcular desde totalizadores operativos o desde una fuente administrativa.</span>
               </div>
               <em>Pendiente</em>
             </article>

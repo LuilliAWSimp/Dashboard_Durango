@@ -1,341 +1,49 @@
-import { ClipboardCheck } from 'lucide-react';
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
+import { useMemo } from 'react';
 import KpiCard from '../../../components/KpiCard';
-import { buildWellPeriodRows } from '../chartBuilders';
-import { normalizeSqlWell } from '../normalizers';
-import type { DashboardData, FlexibleRecord, NormalizedWaterItem } from '../types';
-import ChartEmptyState from '../components/ChartEmptyState';
-import ChartTooltip from '../components/ChartTooltip';
 import PanelHeader from '../components/PanelHeader';
+import ShiftConsumptionPanel from '../components/ShiftConsumptionPanel';
 import SqlChartDateControls from '../components/SqlChartDateControls';
 import StatusBadge from '../components/StatusBadge';
+import { defaultTodayRange, formatSqlDate } from '../dateUtils';
 import useSqlChartDashboard from '../hooks/useSqlChartDashboard';
-import { defaultTodayRange } from '../dateUtils';
+import type { DashboardData, FlexibleRecord } from '../types';
 
-const axisColor = '#b9e7ff';
-const gridColor = 'rgba(56,189,248,0.14)';
+function array(value: unknown): FlexibleRecord[] { return Array.isArray(value) ? value as FlexibleRecord[] : []; }
+function num(value: unknown): number | null { if (value === null || value === undefined || value === '') return null; const n = Number(value); return Number.isFinite(n) ? n : null; }
+function fmt(value: unknown): string { const n = num(value); return n === null ? '—' : n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function statusType(value: unknown): string { const t = String(value || '').toLowerCase(); if (t.includes('revisión') || t.includes('atrasada')) return 'warning'; if (t.includes('sin registro') || t.includes('sin lectura')) return 'communication'; return t.includes('con actividad') ? 'normal' : 'idle'; }
+function group(summary: FlexibleRecord, key: string): FlexibleRecord { const value = summary[key]; return value && typeof value === 'object' && !Array.isArray(value) ? value as FlexibleRecord : {}; }
 
-type PriorityLevel = 'critical' | 'warning' | 'normal';
-type PriorityCategory = 'pozos' | 'lineas' | 'flujos' | 'balance' | 'general';
+export default function RevisionDiariaSection() {
+  const controller = useSqlChartDashboard('dashboard', defaultTodayRange, { forceRefresh: true, includeHistory: false, includeEnergyWater: false, autoRefresh: true });
+  const dashboard = controller.dashboard as DashboardData | null;
+  const rows = useMemo<Array<FlexibleRecord & { group: string }>>(() => [
+    ...array(dashboard?.wells).map((item): FlexibleRecord & { group: string } => ({ ...item, group: 'Pozo' })),
+    ...array(dashboard?.production_lines).map((item): FlexibleRecord & { group: string } => ({ ...item, group: 'Línea' })),
+    ...array(dashboard?.flows).map((item): FlexibleRecord & { group: string } => ({ ...item, group: 'Flujo' })),
+  ], [dashboard]);
+  const summary = (dashboard?.operational_summary || {}) as FlexibleRecord;
+  const wells = group(summary, 'wells');
+  const lines = group(summary, 'lines');
+  const flows = group(summary, 'flows');
+  const totals = [wells.total_m3, lines.total_m3, flows.total_m3].map(num).filter((value): value is number => value !== null);
+  const total = totals.length ? totals.reduce((sum, value) => sum + value, 0) : null;
+  const active = Number(wells.active_count || 0) + Number(lines.active_count || 0) + Number(flows.active_count || 0);
+  const inactive = Number(wells.inactive_count || 0) + Number(lines.inactive_count || 0) + Number(flows.inactive_count || 0);
+  const currentFlow = Number(wells.current_flow_count || 0) + Number(lines.current_flow_count || 0) + Number(flows.current_flow_count || 0);
+  const review = Number(wells.review_count || 0) + Number(lines.review_count || 0) + Number(flows.review_count || 0);
+  const selectedDate = controller.range.startDate || '';
 
-interface PriorityRow {
-  target: string;
-  type: string;
-  description: string;
-  metric: string;
-  owner: string;
-  priority: string;
-  level: PriorityLevel;
-  category: PriorityCategory;
+  return <>
+    <section className="panel fade-up"><PanelHeader title="Revisión diaria" subtitle="Cierres, volúmenes y estado de cada elemento por fecha" /><SqlChartDateControls controller={controller} title="Fecha de revisión" /></section>
+    <section className="cards-grid stagger-grid">
+      <KpiCard label="Volumen validado" value={total === null ? 'No disponible' : fmt(total)} unit={total === null ? '' : 'm³'} trend="Incluye incrementos validados parciales" accent="cyan" />
+      <KpiCard label="Con actividad en el periodo" value={String(active)} unit="elementos" trend="Movimiento validado" accent="teal" />
+      <KpiCard label="Con flujo actual" value={String(currentFlow)} unit="elementos" trend="Lectura reciente por encima del umbral" accent="teal" />
+      <KpiCard label="Sin actividad" value={String(inactive)} unit="elementos" trend="Cero confirmado" accent="blue" />
+      <KpiCard label="Validación parcial" value={String(review)} unit="elementos" trend="Con volumen utilizable y eventos descartados" accent="brown" />
+    </section>
+    <section className="panel fade-up"><PanelHeader title="Detalle del día" subtitle="Estado actual, actividad, validación, cobertura y valor operativo se muestran por separado" /><div className="pozos-table-scroll"><table className="pozos-operacion-table"><thead><tr><th>Grupo</th><th>Elemento</th><th>Estado actual</th><th>Flujo de cierre</th><th>Apertura</th><th>Totalizador de cierre</th><th>Volumen del día</th><th>Actividad</th><th>Validación</th><th>Tiempo activo</th><th>Cobertura</th><th>Comunicación</th><th>Última actualización</th></tr></thead><tbody>{rows.map((item, index) => { const validated = num(item.validated_volume_m3); const volumeText = validated === null ? 'Sin volumen validado' : `${fmt(validated)} m³`; const validation = String(item.validation || (validated === null ? 'Sin volumen validado' : item.has_discontinuities ? 'Validación parcial' : 'Validado')); return <tr key={`${item.group}-${item.sensor_id || index}`}><td>{String(item.group)}</td><td>{String(item.name || item.nombre || `Elemento ${index + 1}`)}</td><td>{String(item.current_state || 'Sin registros')}</td><td>{num(item.current_flow ?? item.flow_lps) === null ? '—' : `${fmt(item.current_flow ?? item.flow_lps)} ${String(item.flow_unit || 'L/s')}`}</td><td>{num(item.period_open_m3) === null ? '—' : `${fmt(item.period_open_m3)} m³`}</td><td>{num(item.period_close_m3 ?? item.current_totalizer_m3) === null ? '—' : `${fmt(item.period_close_m3 ?? item.current_totalizer_m3)} m³`}</td><td>{volumeText}</td><td><StatusBadge type={statusType(item.activity)}>{String(item.activity || 'Sin registros')}</StatusBadge></td><td><StatusBadge type={statusType(validation)}>{validation}</StatusBadge></td><td>{num(item.active_minutes) === null ? '—' : `${fmt(item.active_minutes)} min`}</td><td>{num(item.coverage_percent) === null ? '—' : `${fmt(item.coverage_percent)}% · ${String(item.coverage_status || '')}`}</td><td>{String(item.communication || item.estado_comunicacion || 'Sin lectura')}</td><td>{formatSqlDate(item.last_update || item.ultima_lectura)}</td></tr>; })}</tbody></table></div></section>
+    <ShiftConsumptionPanel group="all" date={selectedDate} showDateControls={false} reviewMode title="Cortes por turno del día seleccionado" />
+  </>;
 }
-
-interface DiagnosticRow {
-  well: string;
-  symptom: string;
-  cause: string;
-  action: string;
-  priority: string;
-  level: PriorityLevel;
-}
-
-interface ReviewRow {
-  name: string;
-  score: number;
-  reason: string;
-  action: string;
-}
-
-function toArray(value: unknown): FlexibleRecord[] {
-  return Array.isArray(value) ? value as FlexibleRecord[] : [];
-}
-
-function asNumber(value: unknown): number {
-  const number = Number(value ?? 0);
-  return Number.isFinite(number) ? number : 0;
-}
-
-function flowValue(row: FlexibleRecord): number {
-  return asNumber(row.flow_lps ?? row.flujo_lps ?? row.flow ?? row.flujo_salida ?? row.flujo_entrada ?? 0);
-}
-
-function periodVolume(row: FlexibleRecord): number {
-  return asNumber(row.volumen_periodo_m3 ?? row.period_m3 ?? row.period_delta_m3 ?? 0);
-}
-
-function hasCommunicationIssue(row: FlexibleRecord): boolean {
-  const type = String(row.communicationType || '').toLowerCase();
-  const label = String(row.estado_comunicacion || '').toLowerCase();
-  return ['communication', 'warning', 'offline'].includes(type) || label.includes('sin') || label.includes('antigua');
-}
-
-function hasReading(row: FlexibleRecord): boolean {
-  return [row.flow_lps, row.flujo_lps, row.flow, row.totalizador_m3, row.total_m3].some((value) => value !== null && value !== undefined && value !== '');
-}
-
-function formatNumber(value: unknown, decimals = 1): string {
-  const number = asNumber(value);
-  return number.toLocaleString('es-MX', { maximumFractionDigits: decimals, minimumFractionDigits: decimals });
-}
-
-function buildPriorities(dashboard: DashboardData | null): PriorityRow[] {
-  const priorities: PriorityRow[] = [];
-  const wells = toArray(dashboard?.wells).map(normalizeSqlWell) as NormalizedWaterItem[];
-  const lines = toArray(dashboard?.production_lines);
-  const flows = toArray(dashboard?.flows);
-  const entryExit = toArray(dashboard?.entry_vs_exit);
-
-  wells.forEach((well) => {
-    const name = String(well.name || well.nombre || `Pozo ${well.numero || ''}`);
-    const flow = asNumber(well.flow ?? well.flujo_salida ?? well.flujo_entrada);
-    const amps = well.amps === null || well.amps === undefined ? null : asNumber(well.amps);
-    if (hasCommunicationIssue(well as unknown as FlexibleRecord)) {
-      priorities.push({ target: name, type: 'Pozo sin lectura reciente', description: 'Validar comunicación con BOS/SCADA.', metric: String(well.ultima_lectura || 'Sin lectura'), owner: 'Operación', priority: 'Alta', level: 'warning', category: 'pozos' });
-    } else if (amps && amps > 0 && flow <= 0) {
-      priorities.push({ target: name, type: 'Pozo encendido sin flujo', description: 'Hay amperaje disponible y flujo instantáneo en 0 L/s.', metric: `${formatNumber(amps, 2)} A · ${formatNumber(flow)} L/s`, owner: 'Operación', priority: 'Crítica', level: 'critical', category: 'pozos' });
-    } else if (flow <= 0) {
-      priorities.push({ target: name, type: 'Pozo sin flujo', description: 'Última lectura disponible sin flujo actual.', metric: `${formatNumber(flow)} L/s`, owner: 'Operación', priority: 'Media', level: 'warning', category: 'pozos' });
-    }
-  });
-
-  lines.forEach((line, index) => {
-    const name = String(line.nombre || line.name || `Línea ${index + 1}`);
-    const flow = flowValue(line);
-    const total = asNumber(line.totalizador_m3 ?? line.total_m3);
-    if (!hasReading(line)) {
-      priorities.push({ target: name, type: 'Línea sin lectura', description: 'No hay flujo ni totalizador disponible.', metric: 'Sin lectura BOS', owner: 'Operación', priority: 'Alta', level: 'warning', category: 'lineas' });
-    } else if (hasCommunicationIssue(line)) {
-      priorities.push({ target: name, type: 'Línea con lectura no reciente', description: 'BOS reporta una última comunicación antigua para esta línea.', metric: String(line.ultima_lectura || line.updated || 'Fecha no disponible'), owner: 'Operación', priority: 'Media', level: 'warning', category: 'lineas' });
-    } else if (flow <= 0 && total > 0) {
-      priorities.push({ target: name, type: 'Línea sin flujo', description: 'Totalizador disponible con flujo actual en 0 L/s.', metric: `${formatNumber(total, 0)} m³`, owner: 'Operación', priority: 'Media', level: 'warning', category: 'lineas' });
-    }
-  });
-
-  flows.forEach((flow, index) => {
-    const name = String(flow.nombre || flow.name || `Flujo ${index + 1}`);
-    const sensorId = asNumber(flow.sensor_id);
-    const value = flowValue(flow);
-    const total = asNumber(flow.totalizador_m3 ?? flow.total_m3);
-    if (!hasReading(flow)) {
-      priorities.push({ target: name, type: 'Sensor sin comunicación', description: 'No hay lectura disponible para este punto.', metric: sensorId ? `Sensor ${sensorId}` : 'Sensor sin ID', owner: 'Operación', priority: 'Alta', level: 'warning', category: 'flujos' });
-    } else if (hasCommunicationIssue(flow)) {
-      priorities.push({ target: name, type: 'Lectura no reciente', description: 'BOS reporta una última comunicación antigua para este punto.', metric: String(flow.ultima_lectura || flow.updated || 'Fecha no disponible'), owner: 'Operación', priority: 'Media', level: 'warning', category: 'flujos' });
-    } else if (value <= 0 && Boolean(flow.period_data_available) && periodVolume(flow) <= 0) {
-      priorities.push({ target: name, type: 'Totalizador sin variación', description: 'Flujo instantáneo en 0 L/s y sin avance de totalizador en el periodo.', metric: `${formatNumber(total, 0)} m³`, owner: 'Operación', priority: 'Media', level: 'warning', category: 'flujos' });
-    }
-    if (sensorId === 3004) {
-      priorities.push({ target: name, type: 'Jarabes pendiente', description: 'Punto reportado como Jarabes; falta confirmar clasificación operativa.', metric: 'Sensor 3004', owner: 'Operación', priority: 'Media', level: 'warning', category: 'flujos' });
-    }
-  });
-
-  entryExit.forEach((row) => {
-    const entrada = asNumber(row.entrada);
-    const salida = asNumber(row.salida);
-    if (entrada > 0) {
-      const diffPct = Math.abs(entrada - salida) / entrada;
-      if (diffPct >= 0.25) {
-        priorities.push({ target: String(row.label || 'Balance de agua'), type: 'Diferencia relevante', description: 'Entrada y salida no coinciden dentro del margen básico de revisión.', metric: `${formatNumber(entrada - salida, 2)} L/s`, owner: 'Operación', priority: 'Media', level: 'warning', category: 'balance' });
-      }
-    }
-  });
-
-  if (!priorities.length) {
-    priorities.push({ target: 'Operación del día', type: 'Sin alertas críticas', description: 'No se detectaron incidencias básicas con los datos disponibles.', metric: 'Lecturas BOS disponibles', owner: 'Operación', priority: 'Normal', level: 'normal', category: 'general' });
-  }
-  return priorities.slice(0, 8);
-}
-
-
-function priorityBreakdown(priorities: PriorityRow[]): string {
-  const counts = priorities.reduce((acc, item) => {
-    acc[item.category] = (acc[item.category] || 0) + 1;
-    return acc;
-  }, {} as Record<PriorityCategory, number>);
-  const parts = [
-    counts.pozos ? `${counts.pozos} pozos` : '',
-    counts.lineas ? `${counts.lineas} líneas` : '',
-    counts.flujos ? `${counts.flujos} lavadoras/Jarabes` : '',
-    counts.balance ? `${counts.balance} balance` : '',
-  ].filter(Boolean);
-  return parts.length ? parts.join(' · ') : 'Sin alertas operativas abiertas';
-}
-
-function buildDiagnostics(dashboard: DashboardData | null): DiagnosticRow[] {
-  const wells = toArray(dashboard?.wells).map(normalizeSqlWell) as NormalizedWaterItem[];
-  return wells.map((well) => {
-    const name = String(well.name || well.nombre || `Pozo ${well.numero || ''}`);
-    const flow = asNumber(well.flow ?? well.flujo_salida ?? well.flujo_entrada);
-    const amps = well.amps === null || well.amps === undefined ? null : asNumber(well.amps);
-    if (hasCommunicationIssue(well as unknown as FlexibleRecord)) {
-      return { well: name, symptom: 'Sin lectura reciente.', cause: 'Fuente BOS/SCADA no entregó lectura válida en el payload actual.', action: 'Revisar comunicación o disponibilidad del sensor.', priority: 'Alta', level: 'warning' as PriorityLevel };
-    }
-    if (amps && amps > 0 && flow <= 0) {
-      return { well: name, symptom: 'Pozo encendido sin flujo.', cause: 'Hay amperaje disponible, pero no flujo instantáneo.', action: 'Validar operación o lectura de flujo.', priority: 'Crítica', level: 'critical' as PriorityLevel };
-    }
-    if (flow <= 0) {
-      return { well: name, symptom: 'Flujo actual en 0 L/s.', cause: 'Dato operativo recibido desde BOS.', action: 'Confirmar si el pozo debe estar operando.', priority: 'Media', level: 'warning' as PriorityLevel };
-    }
-    return { well: name, symptom: 'Operación normal dentro de datos disponibles.', cause: 'Flujo actual disponible.', action: 'Continuar monitoreo operativo.', priority: 'Normal', level: 'normal' as PriorityLevel };
-  });
-}
-
-function RevisionDiariaSection() {
-  const reviewChart = useSqlChartDashboard('dashboard', defaultTodayRange, { forceRefresh: true, includeHistory: false, includeEnergyWater: false });
-  const dashboard = reviewChart.dashboard as DashboardData | null;
-  const priorities = buildPriorities(dashboard);
-  const diagnostics = buildDiagnostics(dashboard);
-  const criticalCount = priorities.filter((item) => item.level === 'critical').length;
-  const highCount = priorities.filter((item) => item.priority === 'Alta' || item.priority === 'Crítica').length;
-  const flows = toArray(dashboard?.flows);
-  const reportReady = String(dashboard?.source_status || '').startsWith('sqlserver');
-  const reviewRows: ReviewRow[] = buildWellPeriodRows(dashboard).map((row) => ({
-    name: row.name as string,
-    score: asNumber(row.flujo),
-    reason: (row.fullName || row.name) as string,
-    action: 'Ranking por flujo real; la eficiencia energética queda pendiente de fuente confiable.',
-  })).filter((row) => row.score || row.reason);
-  const alertBreakdown = priorityBreakdown(priorities);
-  const cards = [
-    { label: 'Alertas operativas', value: String(priorities.filter((item) => item.level !== 'normal').length), unit: '', trend: alertBreakdown, accent: 'red' },
-    { label: 'Pozos revisados', value: String(toArray(dashboard?.wells).length), unit: 'pozos', trend: 'Datos reales BOS', accent: 'cyan' },
-    { label: 'Líneas revisadas', value: String(toArray(dashboard?.production_lines).length), unit: 'líneas', trend: 'Datos reales BOS', accent: 'teal' },
-    { label: 'Lavadoras/Jarabes', value: String(flows.length), unit: 'puntos', trend: 'Jarabes pendiente si aparece sensor 3004', accent: 'blue' },
-  ];
-
-  return (
-    <>
-      <section className="daily-review-hero panel fade-up">
-        <div>
-          <h2>Revisión Diaria</h2>
-          <p>Prioridades automáticas basadas en datos reales disponibles de Durango. No sustituye validación operativa.</p>
-        </div>
-        <div className="daily-review-status-card">
-          <div className="daily-review-icon"><ClipboardCheck size={24} /></div>
-          <div>
-            <span>Atención requerida</span>
-            <strong>{criticalCount} críticas · {highCount} altas</strong>
-          </div>
-        </div>
-      </section>
-
-      <section className="cards-grid stagger-grid daily-review-kpi-grid">
-        {cards.map((card, index) => (
-          <KpiCard key={card.label} {...card} style={{ animationDelay: `${index * 60}ms` }} />
-        ))}
-      </section>
-
-      <section className="content-grid daily-review-main-grid">
-        <div className="panel fade-up daily-priority-panel">
-          <PanelHeader title="Prioridades del día" subtitle={`Alertas derivadas por tipo de activo: ${alertBreakdown}`} />
-          <div className="daily-priority-list">
-            {priorities.map((item, index) => (
-              <article className={item.level} key={`${item.type}-${item.target}-${index}`}>
-                <div className="priority-rank">{index + 1}</div>
-                <div className="priority-body">
-                  <div className="priority-topline">
-                    <strong>{item.target}</strong>
-                    <span>{item.type}</span>
-                  </div>
-                  <p>{item.description}</p>
-                  <div className="priority-meta-row">
-                    <em>{item.metric}</em>
-                    <b>{item.owner}</b>
-                  </div>
-                </div>
-                <StatusBadge type={item.level === 'critical' ? 'critical' : item.level === 'warning' ? 'warning' : 'normal'}>{item.priority}</StatusBadge>
-              </article>
-            ))}
-          </div>
-        </div>
-
-        <div className="panel chart-panel fade-up daily-ranking-panel">
-          <PanelHeader title="Ranking de suministro/flujo real" subtitle="Ranking operativo sin fuente energética confirmada" />
-          <SqlChartDateControls controller={reviewChart} />
-          {reviewRows.length ? (
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={reviewRows} layout="vertical" margin={{ left: 12, right: 24 }}>
-                <CartesianGrid stroke={gridColor} strokeDasharray="3 3" />
-                <XAxis type="number" stroke={axisColor} />
-                <YAxis type="category" dataKey="name" stroke={axisColor} width={86} />
-                <Tooltip content={<ChartTooltip />} cursor={{ fill: 'transparent' }} />
-                <Bar dataKey="score" name="Flujo actual (L/s)" radius={[0, 10, 10, 0]}>
-                  {reviewRows.map((item) => (
-                    <Cell key={item.name} fill={item.score <= 0 ? '#f87171' : item.score < 5 ? '#f59e0b' : '#38bdf8'} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          ) : <ChartEmptyState message="Sin datos de suministro/flujo por pozo para este rango." />}
-          <div className="daily-ranking-table-wrap">
-            <table className="pozos-table daily-ranking-table">
-              <thead>
-                <tr>
-                  <th>Elemento</th>
-                  <th>Motivo</th>
-                  <th>Flujo</th>
-                  <th>Acción</th>
-                </tr>
-              </thead>
-              <tbody>
-                {reviewRows.map((item) => (
-                  <tr key={item.name}>
-                    <td>{item.name}</td>
-                    <td>{item.reason}</td>
-                    <td>{formatNumber(item.score)} L/s</td>
-                    <td>{item.action}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <section className="panel fade-up daily-diagnostics-panel">
-        <PanelHeader title="Diagnósticos resumidos por pozo" subtitle="Diagnósticos básicos; no se infieren causas mecánicas sin fuente real" />
-        <div className="daily-diagnostics-grid">
-          {diagnostics.length ? diagnostics.map((item) => (
-            <article className={item.level} key={item.well}>
-              <div className="diagnostic-card-head">
-                <strong>{item.well}</strong>
-                <StatusBadge type={item.level}>{item.priority}</StatusBadge>
-              </div>
-              <div className="diagnostic-mini-row"><span>Síntoma</span><p>{item.symptom}</p></div>
-              <div className="diagnostic-mini-row"><span>Lectura</span><p>{item.cause}</p></div>
-              <div className="diagnostic-mini-row"><span>Acción sugerida</span><p>{item.action}</p></div>
-            </article>
-          )) : <ChartEmptyState message="Sin pozos disponibles para diagnóstico." />}
-        </div>
-      </section>
-
-      <section className="content-grid daily-review-bottom-grid">
-        <div className="panel summary-panel fade-up daily-export-panel">
-          <PanelHeader title="Resumen diario preparado" subtitle="Checklist operativo sin simulación de validación manual" />
-          <div className="daily-export-list">
-            <article><div className="export-check-icon"><ClipboardCheck size={15} /></div><div><strong>Datos BOS</strong><span>{reportReady ? 'Reporte disponible con fuente SQL Server/BOS.' : 'Pendiente: fuente BOS no disponible.'}</span></div></article>
-            <article><div className="export-check-icon"><ClipboardCheck size={15} /></div><div><strong>Concesión</strong><span>Sin fuente confirmada; no se calcula porcentaje usado.</span></div></article>
-            <article><div className="export-check-icon"><ClipboardCheck size={15} /></div><div><strong>Eficiencia energética</strong><span>Pendiente de fuente confiable.</span></div></article>
-          </div>
-        </div>
-
-        <div className="panel summary-panel fade-up daily-review-note-panel">
-          <PanelHeader title="Criterio de priorización" subtitle="Reglas operativas automáticas" />
-          <div className="review-rule-stack">
-            <article><span>Crítico</span><p>Pozo con amperaje disponible y flujo actual en cero.</p></article>
-            <article><span>Revisar</span><p>Sensor sin lectura, línea sin flujo o totalizador sin flujo instantáneo.</p></article>
-          </div>
-        </div>
-      </section>
-    </>
-  );
-}
-
-export default RevisionDiariaSection;

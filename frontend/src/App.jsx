@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useParams } from 'react-router-dom';
 import Header from './components/Header';
+import BrandLogo from './components/BrandLogo';
 import { DASHBOARD_TITLE, PLANT_NAME } from './config/plant';
 import Sidebar from './components/Sidebar';
 import LoginPage from './pages/LoginPage';
 import PozosDashboardPage from './pages/PozosDashboardPage';
 import { getAuth, logout } from './services/authService';
+import { fetchWaterDashboard } from './services/waterService';
 
 const DEFAULT_POZOS_SECTION = 'dashboard';
 
@@ -17,9 +19,8 @@ const POZOS_MENU = [
       { key: 'pozos', label: 'Pozos', iconKey: 'pozos-pozos' },
       { key: 'lineas', label: 'Líneas', iconKey: 'pozos-lineas' },
       { key: 'flujos', label: 'Flujos', iconKey: 'pozos-flujos' },
-      { key: 'tanques', label: 'Tanques', iconKey: 'pozos-tanques' },
       { key: 'balance', label: 'Balance de Agua', iconKey: 'pozos-balance' },
-      { key: 'concesion', label: 'Concesión', iconKey: 'pozos-concesion' },
+      { key: 'concesion', label: 'Concesión · Pendiente', iconKey: 'pozos-concesion' },
       { key: 'revision', label: 'Revisión Diaria', iconKey: 'pozos-revision' },
       { key: 'reportes', label: 'Reportes', iconKey: 'pozos-reportes' },
     ],
@@ -33,6 +34,58 @@ function nowText() {
     second: '2-digit',
     hour12: false,
   });
+}
+
+
+function preloadWithTimeout(timeoutMs = 12000) {
+  const preload = fetchWaterDashboard('dashboard', {
+    include_history: false,
+    include_energy_water: false,
+  }).then((data) => {
+    if (String(data?.source_status || '').toLowerCase() === 'sql_error') {
+      throw new Error('No se pudo preparar la información de planta.');
+    }
+    return data;
+  });
+  const timeout = new Promise((_, reject) => {
+    window.setTimeout(() => reject(new Error('Tiempo de espera agotado al preparar los datos de planta.')), timeoutMs);
+  });
+  return Promise.race([preload, timeout]);
+}
+
+
+function InitialPlantLoader({ status, error, onRetry, onSkip }) {
+  const hasError = status === 'error';
+  return (
+    <div className="initial-loader-screen" role="status" aria-live="polite">
+      <div className="initial-loader-card">
+        <div className="initial-loader-brand" aria-hidden="true">
+          <div className="login-brand-frame initial-loader-logo-frame">
+            <div className="login-brand-glow" />
+            <div className="login-brand-inner initial-loader-logo-inner">
+              <BrandLogo className="brand-logo login-logo initial-loader-logo" />
+            </div>
+          </div>
+        </div>
+        <div className="initial-loader-copy">
+          <span>{PLANT_NAME}</span>
+          <h1>Cargando Dashboard ARCA</h1>
+          <p>{hasError ? 'No se pudo preparar la información de planta.' : 'Preparando datos de planta...'}</p>
+        </div>
+        {hasError ? (
+          <>
+            <div className="initial-loader-error">{error || 'La información operativa no respondió dentro del tiempo esperado.'}</div>
+            <div className="initial-loader-actions">
+              <button type="button" onClick={onRetry}>Reintentar</button>
+              <button type="button" className="secondary" onClick={onSkip}>Abrir dashboard sin precarga</button>
+            </div>
+          </>
+        ) : (
+          <div className="initial-loader-progress" aria-hidden="true"><span /></div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function Shell({ user, onLogout, sidebarProps, children, headerMeta, shellClass = '' }) {
@@ -68,12 +121,39 @@ function Shell({ user, onLogout, sidebarProps, children, headerMeta, shellClass 
 function PozosShell({ user, onLogout }) {
   const { section = DEFAULT_POZOS_SECTION, itemId } = useParams();
   const [collapsed, setCollapsed] = useState(true);
+  const [preloadState, setPreloadState] = useState({ status: 'loading', error: '' });
   const [headerMeta, setHeaderMeta] = useState({
-    title: 'Resumen de Pozos',
+    title: 'Resumen hídrico',
     subtitle: '',
     onExport: () => {},
     onEmail: () => {},
   });
+
+  const runPreload = () => {
+    setPreloadState({ status: 'loading', error: '' });
+    preloadWithTimeout()
+      .then(() => {
+        setPreloadState({ status: 'ready', error: '' });
+      })
+      .catch((error) => {
+        setPreloadState({ status: 'error', error: error?.message || 'No se pudo preparar la información de planta.' });
+      });
+  };
+
+  useEffect(() => {
+    runPreload();
+  }, []);
+
+  if (preloadState.status !== 'ready') {
+    return (
+      <InitialPlantLoader
+        status={preloadState.status}
+        error={preloadState.error}
+        onRetry={runPreload}
+        onSkip={() => setPreloadState({ status: 'ready', error: '' })}
+      />
+    );
+  }
 
   return (
     <Shell

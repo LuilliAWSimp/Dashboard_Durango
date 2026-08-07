@@ -1,4 +1,4 @@
-import type { DateRange } from '../types';
+import type { DateRange, HistoryAggregation } from '../types';
 import DateRangeControls, { rangeMeta } from './DateRangeControls';
 
 interface SqlChartDateController {
@@ -7,8 +7,12 @@ interface SqlChartDateController {
   setDraftRange: (range: DateRange) => void;
   apply: () => void;
   reset: () => void;
+  aggregation?: HistoryAggregation;
+  setAggregation?: (value: HistoryAggregation) => void;
   error?: string;
   loading?: boolean;
+  refreshing?: boolean;
+  lastRefreshAt?: number | null;
 }
 
 interface SqlChartDateControlsProps {
@@ -18,8 +22,8 @@ interface SqlChartDateControlsProps {
 }
 
 function SqlChartDateControls({ controller, title = 'Fechas de la gráfica', subtitle = 'Este rango solo afecta esta gráfica y no modifica los estados actuales.' }: SqlChartDateControlsProps) {
-  const meta = rangeMeta(controller.range);
-  const status = controller.error || (controller.loading ? 'Cargando SQL Server...' : `${meta.periodTitle} · ${meta.rangeLabel}`);
+  const meta = rangeMeta(controller.range, controller.aggregation);
+  const status = controller.error || (controller.loading ? 'Cargando datos...' : controller.refreshing ? 'Actualizando información…' : `${meta.periodTitle} · ${meta.rangeLabel}`);
   return (
     <DateRangeControls
       className="chart-date-range-panel"
@@ -31,6 +35,8 @@ function SqlChartDateControls({ controller, title = 'Fechas de la gráfica', sub
       onApply={controller.apply}
       onReset={controller.reset}
       status={status}
+      aggregation={controller.aggregation}
+      onAggregationChange={controller.setAggregation}
     />
   );
 }

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import api from '../services/api';
 
 const fallbackPlants = [
-  { id: 'gdl-demo', name: 'ARCA CONTINENTAL', state: 'Jalisco', description: 'Tablero conectado a SQL Server.', connections: [] },
+  { id: 'gdl-demo', name: 'ARCA CONTINENTAL', state: 'Jalisco', description: 'Tablero conectado a monitoreo de planta.', connections: [] },
   { id: 'mt-demo', name: 'Planta MTY Demo', state: 'Nuevo León', description: 'Demo multi-planta.', connections: [] },
 ];
 

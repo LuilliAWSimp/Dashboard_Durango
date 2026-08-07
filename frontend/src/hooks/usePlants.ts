@@ -16,7 +16,7 @@ export interface UsePlantsResult {
 }
 
 const fallbackPlants: UsePlantsPlant[] = [
-  { id: 'gdl-demo', name: 'ARCA CONTINENTAL', state: 'Jalisco', description: 'Tablero conectado a SQL Server.', connections: [] },
+  { id: 'gdl-demo', name: 'ARCA CONTINENTAL', state: 'Jalisco', description: 'Tablero conectado a monitoreo de planta.', connections: [] },
   { id: 'mt-demo', name: 'Planta MTY Demo', state: 'Nuevo León', description: 'Demo multi-planta.', connections: [] },
 ];
 

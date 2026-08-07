@@ -7,7 +7,6 @@ import PozosSection from './pozos/sections/PozosSection';
 import WellDetailSection from './pozos/sections/WellDetailSection';
 import LineasSection from './pozos/sections/LineasSection';
 import FlujosSection from './pozos/sections/FlujosSection';
-import TanquesSection from './pozos/sections/TanquesSection';
 import ConcesionSection from './pozos/sections/ConcesionSection';
 import ReportesSection from './pozos/sections/ReportesSection';
 
@@ -23,7 +22,7 @@ function emptyChartRange() {
 
 const sectionMap = {
   dashboard: {
-    title: 'Resumen de Pozos',
+    title: 'Resumen hídrico',
     render: () => <DashboardBaseSection />,
   },
   pozos: {
@@ -37,10 +36,6 @@ const sectionMap = {
   flujos: {
     title: 'Flujos',
     render: ({ itemId } = {}) => <FlujosSection itemId={itemId} />,
-  },
-  tanques: {
-    title: 'Tanques',
-    render: () => <TanquesSection />,
   },
   balance: {
     title: 'Balance de Agua',
