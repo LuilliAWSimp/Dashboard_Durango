@@ -6,12 +6,12 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 5173,
-    allowedHosts: ['.dashboardrsrc.com.mx', '.ngrok-free.dev', '.ngrok-free.app'],
+    allowedHosts: ['.Durango.dashboardrsrc.com.mx', '.ngrok-free.dev', '.ngrok-free.app'],
     proxy: { '/api': { target: 'http://127.0.0.1:8000', changeOrigin: true } },
   },
   preview: {
     host: '0.0.0.0',
     port: 5173,
-    allowedHosts: ['.dashboardrsrc.com.mx', '.ngrok-free.dev', '.ngrok-free.app'],
+    allowedHosts: ['Durango.dashboardrsrc.com.mx', '.ngrok-free.dev', '.ngrok-free.app'],
   },
 });
