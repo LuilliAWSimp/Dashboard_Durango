@@ -1,11 +1,18 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import KpiCard from '../../../components/KpiCard';
-import { DURANGO_CAPABILITIES } from '../../../config/plantCapabilities';
-import { defaultTodayRange, formatSqlDate } from '../dateUtils';
+import { formatSqlDate } from '../dateUtils';
+import {
+  buildOperationalDetailPath,
+  buildOperationalNavigationSearch,
+  configuredOperationalIdentity,
+  configuredOperationalItems,
+  readOperationalNavigationContext,
+  resolveOperationalIdentity,
+} from '../operationalNavigation';
+import type { OperationalIdentity, OperationalModule } from '../operationalNavigation';
 import type { DashboardData, FlexibleRecord } from '../types';
 import ChartEmptyState from './ChartEmptyState';
-import ElementHistoryPanel from './ElementHistoryPanel';
 import MetricPair from './MetricPair';
 import PanelHeader from './PanelHeader';
 import ShiftConsumptionPanel from './ShiftConsumptionPanel';
@@ -13,8 +20,7 @@ import SqlChartDateControls from './SqlChartDateControls';
 import StatusBadge from './StatusBadge';
 import useSqlChartDashboard from '../hooks/useSqlChartDashboard';
 
-export type OperationalModule = 'well' | 'line' | 'flow';
-export type OperationalIdentity = number | string;
+export type { OperationalIdentity, OperationalModule } from '../operationalNavigation';
 
 interface Props {
   module: OperationalModule;
@@ -39,42 +45,6 @@ function fmt(value: unknown): string {
   return parsed === null
     ? '—'
     : parsed.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function numericIdentity(value: unknown): number | null {
-  const direct = number(value);
-  if (direct !== null) return Math.trunc(direct);
-  const digits = String(value || '').match(/\d+/g)?.join('');
-  return digits ? Number(digits) : null;
-}
-
-function configuredItems(module: OperationalModule) {
-  if (module === 'well') return DURANGO_CAPABILITIES.wells;
-  if (module === 'line') return DURANGO_CAPABILITIES.lines;
-  return DURANGO_CAPABILITIES.flows;
-}
-
-function configuredIdentity(item: { sensorId: number | null; operationalKey: string }): OperationalIdentity {
-  return item.sensorId ?? item.operationalKey;
-}
-
-function resolveSensorId(row: FlexibleRecord, index: number, module: OperationalModule): OperationalIdentity {
-  for (const key of ['sensor_id', 'water_sensor_id', 'flow_out_sensor_id']) {
-    const candidate = numericIdentity(row[key]);
-    if (candidate) return candidate;
-  }
-  const operationalKey = String(row.operational_key || '').trim();
-  if (operationalKey) return operationalKey;
-
-  const items = configuredItems(module);
-  const wellPosition = numericIdentity(row.well_id ?? row.numero ?? row.id);
-  if (module === 'well' && wellPosition) {
-    const match = items[wellPosition - 1];
-    if (match) return configuredIdentity(match);
-  }
-
-  const configured = items[index];
-  return configured ? configuredIdentity(configured) : numericIdentity(row.id) || String(row.id || `elemento_${index + 1}`);
 }
 
 function itemName(row: FlexibleRecord, index: number): string {
@@ -138,11 +108,11 @@ function uniqueModuleRows(
   const rawRows = rawModuleRows(dashboard, module);
   const confirmed = confirmedSensorIds?.length
     ? confirmedSensorIds
-    : configuredItems(module).map(configuredIdentity);
+    : configuredOperationalItems(module).map(configuredOperationalIdentity);
   const bySensor = new Map<OperationalIdentity, FlexibleRecord>();
 
   rawRows.forEach((row, index) => {
-    const sensorId = resolveSensorId(row, index, module);
+    const sensorId = resolveOperationalIdentity(row, index, module);
     if (!confirmed.includes(sensorId)) return;
     bySensor.set(sensorId, mergeDuplicateRows(bySensor.get(sensorId), {
       ...row,
@@ -164,7 +134,10 @@ export default function OperationalModuleSection({
   confirmedSensorIds,
 }: Props) {
   const navigate = useNavigate();
-  const controller = useSqlChartDashboard('dashboard', defaultTodayRange, {
+  const location = useLocation();
+  const [initialContext] = useState(() => readOperationalNavigationContext(location.search, module));
+  const initialRangeFactory = useCallback(() => ({ ...initialContext.range }), [initialContext.range]);
+  const controller = useSqlChartDashboard('dashboard', initialRangeFactory, {
     forceRefresh: true,
     includeHistory: false,
     includeEnergyWater: false,
@@ -175,13 +148,13 @@ export default function OperationalModuleSection({
     () => uniqueModuleRows(dashboard, module, confirmedSensorIds),
     [dashboard, module, confirmedSensorIds],
   );
-  const [selectedSensor, setSelectedSensor] = useState<OperationalIdentity | null>(null);
+  const aggregation = initialContext.aggregation;
 
   useEffect(() => {
-    if (rows.length && !rows.some((row, index) => resolveSensorId(row, index, module) === selectedSensor)) {
-      setSelectedSensor(resolveSensorId(rows[0], 0, module));
-    }
-  }, [module, rows, selectedSensor]);
+    const search = buildOperationalNavigationSearch(controller.range, aggregation, module);
+    if (location.search === search) return;
+    navigate({ pathname: location.pathname, search }, { replace: true, state: location.state });
+  }, [aggregation, controller.range, location.pathname, location.search, location.state, module, navigate]);
 
   const summaryKey = module === 'well' ? 'wells' : module === 'line' ? 'lines' : 'flows';
   const rawSummary = dashboard?.operational_summary?.[summaryKey];
@@ -195,7 +168,11 @@ export default function OperationalModuleSection({
   const review = Number(moduleSummary.review_count || 0);
   const noHistory = Number(moduleSummary.no_history_count || 0);
   const hasPartial = Boolean(moduleSummary.has_partial_volume);
-  const selected = rows.find((row, index) => resolveSensorId(row, index, module) === selectedSensor);
+  const openDetail = (sensorId: OperationalIdentity) => {
+    navigate(buildOperationalDetailPath(route, sensorId, controller.range, aggregation, module), {
+      state: { fromOperationalModule: true },
+    });
+  };
 
   return (
     <>
@@ -219,65 +196,57 @@ export default function OperationalModuleSection({
       </section>
 
       <section className="panel fade-up">
-        <PanelHeader title={`Detalle de ${title.toLowerCase()}`} subtitle="Lectura actual y métricas del periodo seleccionado" />
+        <PanelHeader title={`Elementos de ${title.toLowerCase()}`} subtitle="Lectura actual y métricas generales; selecciona una tarjeta para abrir su análisis" />
         {controller.error ? <div className="status-pill alert">{controller.error}</div> : null}
 
         {/* Single canonical card block. Legacy well cards are intentionally not rendered. */}
         <div className={`operational-card-grid ${module === 'well' ? 'operational-well-grid' : ''}`}>
           {rows.map((row, index) => {
-            const sensorId = resolveSensorId(row, index, module);
+            const sensorId = resolveOperationalIdentity(row, index, module);
             const activity = periodMessage(row);
             const communication = String(row.communication || row.estado_comunicacion || 'Sin lectura');
             const volume = number(row.period_m3);
             const flow = number(row.current_flow ?? row.flow_lps ?? row.flow);
             const totalizer = number(row.current_totalizer_m3 ?? row.totalizador_m3);
-            const isSelected = sensorId === selectedSensor;
             return (
-              <article key={`${module}-${sensorId}`} className={`operational-element-card ${isSelected ? 'selected' : ''}`}>
+              <article key={`${module}-${sensorId}`} className="operational-element-card">
                 <button
                   type="button"
-                  className="operational-card-main"
-                  onClick={() => setSelectedSensor(sensorId)}
-                  aria-pressed={isSelected}
+                  className="operational-card-action"
+                  onClick={() => openDetail(sensorId)}
+                  aria-label={`Abrir detalle de ${itemName(row, index)}`}
                 >
-                  <div className="operational-card-head">
-                    <div>
-                      <span>{title}</span>
-                      <strong>{itemName(row, index)}</strong>
+                  <div className="operational-card-main">
+                    <div className="operational-card-head">
+                      <div>
+                        <span>{title}</span>
+                        <strong>{itemName(row, index)}</strong>
+                      </div>
+                      <StatusBadge type={statusType(activity)}>{activity}</StatusBadge>
                     </div>
-                    <StatusBadge type={statusType(activity)}>{activity}</StatusBadge>
+                    <div className="metric-pairs-grid operational-metric-grid">
+                      <MetricPair label="Flujo actual" value={flow === null ? 'Sin dato' : fmt(flow)} unit={flow === null ? '' : String(row.flow_unit || 'L/s')} />
+                      <MetricPair label="Totalizador actual" value={totalizer === null ? 'Sin totalizador' : fmt(totalizer)} unit={totalizer === null ? '' : 'm³'} />
+                      <MetricPair
+                        label={row.has_discontinuities ? 'Volumen validado parcial' : 'Volumen del periodo'}
+                        value={volume === null ? 'No disponible' : fmt(volume)}
+                        unit={volume === null ? '' : 'm³'}
+                      />
+                      <MetricPair label="Muestras del periodo" value={row.samples == null || Number(row.samples) === 0 ? '—' : String(row.samples)} />
+                    </div>
                   </div>
-                  <div className="metric-pairs-grid operational-metric-grid">
-                    <MetricPair label="Flujo actual" value={flow === null ? 'Sin dato' : fmt(flow)} unit={flow === null ? '' : String(row.flow_unit || 'L/s')} />
-                    <MetricPair label="Totalizador actual" value={totalizer === null ? 'Sin totalizador' : fmt(totalizer)} unit={totalizer === null ? '' : 'm³'} />
-                    <MetricPair
-                      label={row.has_discontinuities ? 'Volumen validado parcial' : 'Volumen del periodo'}
-                      value={volume === null ? 'No disponible' : fmt(volume)}
-                      unit={volume === null ? '' : 'm³'}
-                    />
-                    <MetricPair label="Muestras del periodo" value={row.samples == null || Number(row.samples) === 0 ? '—' : String(row.samples)} />
+                  <div className="operational-card-footer">
+                    <span className={communication.toLowerCase().includes('actual') ? 'online' : 'warning'}><i />{communication}</span>
+                    <strong>{formatSqlDate(row.last_update || row.ultima_lectura)}</strong>
+                    <span className="open-detail-link">Abrir detalle</span>
                   </div>
                 </button>
-                <div className="operational-card-footer">
-                  <span className={communication.toLowerCase().includes('actual') ? 'online' : 'warning'}><i />{communication}</span>
-                  <strong>{formatSqlDate(row.last_update || row.ultima_lectura)}</strong>
-                  <button type="button" className="open-detail-link" onClick={() => navigate(`${route}/${encodeURIComponent(String(sensorId))}`)}>Abrir detalle</button>
-                </div>
               </article>
             );
           })}
         </div>
         {!rows.length && !controller.loading ? <ChartEmptyState message="Sin registros para el periodo seleccionado." /> : null}
       </section>
-
-      {selectedSensor ? (
-        <ElementHistoryPanel
-          module={module}
-          sensorId={selectedSensor}
-          name={String(selected?.name || selected?.nombre || `Elemento ${selectedSensor}`)}
-          flowUnit={String(selected?.flow_unit || 'L/s')}
-        />
-      ) : null}
 
       <ShiftConsumptionPanel group={module} title={`Cortes por turno · ${title}`} />
 
@@ -290,7 +259,7 @@ export default function OperationalModuleSection({
             </thead>
             <tbody>
               {rows.map((row, index) => {
-                const sensorId = resolveSensorId(row, index, module);
+                const sensorId = resolveOperationalIdentity(row, index, module);
                 return (
                   <tr key={`table-${module}-${sensorId}`}>
                     <td>{itemName(row, index)}</td>

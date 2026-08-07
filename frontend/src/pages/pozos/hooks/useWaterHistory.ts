@@ -5,21 +5,33 @@ import { defaultTodayRange, recommendedHistoryAggregation, todayInputDate } from
 import type { DateRange, HistoryAggregation, WaterHistoryResponse } from '../types';
 
 const AUTO_REFRESH_MS = 60_000;
-interface UseWaterHistoryOptions { module: 'well' | 'line' | 'flow'; sensorId?: number | string | null; initialRangeFactory?: () => DateRange; }
+interface UseWaterHistoryOptions {
+  module: 'well' | 'line' | 'flow';
+  sensorId?: number | string | null;
+  initialRangeFactory?: () => DateRange;
+  initialAggregation?: HistoryAggregation;
+}
 export interface UseWaterHistoryResult { draftRange: DateRange; setDraftRange: Dispatch<SetStateAction<DateRange>>; range: DateRange; aggregation: HistoryAggregation; setAggregation: (value: HistoryAggregation) => void; data: WaterHistoryResponse | null; error: string; loading: boolean; refreshing: boolean; apply: () => void; reset: () => void; }
 function includesToday(range: DateRange): boolean { const today = todayInputDate(); const start = String(range.startDate || range.endDate || ''); const end = String(range.endDate || range.startDate || ''); return Boolean(start && end && start <= today && today <= end); }
 function detailFromError(error: unknown): string { if (error && typeof error === 'object') { const candidate = error as { message?: unknown; code?: unknown; response?: { data?: { detail?: unknown }; status?: number } }; if (candidate.response?.status === 504 || candidate.code === 'ECONNABORTED' || String(candidate.message || '').toLowerCase().includes('timeout')) return 'La consulta tardó demasiado. Reduce el rango o utiliza agrupación diaria.'; const detail = candidate.response?.data?.detail; if (typeof detail === 'string' && detail.trim()) return detail; if (typeof candidate.message === 'string' && candidate.message.trim()) return candidate.message; } return 'No fue posible consultar el histórico de planta.'; }
 
-export default function useWaterHistory({ module, sensorId, initialRangeFactory = defaultTodayRange }: UseWaterHistoryOptions): UseWaterHistoryResult {
+export default function useWaterHistory({
+  module,
+  sensorId,
+  initialRangeFactory = defaultTodayRange,
+  initialAggregation,
+}: UseWaterHistoryOptions): UseWaterHistoryResult {
   const initialRange = useMemo(() => initialRangeFactory(), [initialRangeFactory]);
   const [draftRange, setDraftRange] = useState<DateRange>(initialRange);
   const [range, setRange] = useState<DateRange>(initialRange);
-  const [aggregation, setAggregationState] = useState<HistoryAggregation>(() => recommendedHistoryAggregation(initialRange));
+  const [aggregation, setAggregationState] = useState<HistoryAggregation>(
+    () => initialAggregation || recommendedHistoryAggregation(initialRange),
+  );
   const [data, setData] = useState<WaterHistoryResponse | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const manualAggregation = useRef(false);
+  const manualAggregation = useRef(Boolean(initialAggregation));
   const dataRef = useRef<WaterHistoryResponse | null>(null);
   const requestIdRef = useRef(0);
   const inFlightIdentityRef = useRef('');
@@ -69,6 +81,6 @@ export default function useWaterHistory({ module, sensorId, initialRangeFactory 
 
   const setAggregation = (value: HistoryAggregation) => { manualAggregation.current = true; setAggregationState(value); };
   const apply = () => setRange((previous) => ({ ...draftRange, refreshKey: Number(previous.refreshKey || 0) + 1 }));
-  const reset = () => { const next = initialRangeFactory(); manualAggregation.current = false; setDraftRange(next); setAggregationState(recommendedHistoryAggregation(next)); setRange((previous) => ({ ...next, refreshKey: Number(previous.refreshKey || 0) + 1 })); };
+  const reset = () => { const next = initialRangeFactory(); manualAggregation.current = Boolean(initialAggregation); setDraftRange(next); setAggregationState(initialAggregation || recommendedHistoryAggregation(next)); setRange((previous) => ({ ...next, refreshKey: Number(previous.refreshKey || 0) + 1 })); };
   return { draftRange, setDraftRange, range, aggregation, setAggregation, data, error, loading, refreshing, apply, reset };
 }

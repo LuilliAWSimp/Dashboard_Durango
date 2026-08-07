@@ -10,6 +10,7 @@ type GroupMode = 'well' | 'line' | 'flow' | 'all';
 
 interface Props {
   group?: GroupMode;
+  itemIdentity?: number | string;
   date?: string;
   showDateControls?: boolean;
   reviewMode?: boolean;
@@ -27,17 +28,24 @@ function fmt(value: unknown): string {
   return Number.isFinite(parsed) ? parsed.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
 }
 
-function rows(shift: WaterShift, group: Exclude<GroupMode, 'all'>) {
-  return group === 'well' ? shift.wells : group === 'line' ? shift.lines : shift.flows;
+function itemIdentity(item: { sensor_id: number | null; operational_key?: string }): string {
+  return String(item.sensor_id ?? item.operational_key ?? '');
+}
+
+function rows(shift: WaterShift, group: Exclude<GroupMode, 'all'>, selectedIdentity?: number | string) {
+  const groupRows = group === 'well' ? shift.wells : group === 'line' ? shift.lines : shift.flows;
+  if (selectedIdentity === undefined) return groupRows;
+  return groupRows.filter((item) => itemIdentity(item) === String(selectedIdentity));
 }
 
 function summary(shift: WaterShift, group: Exclude<GroupMode, 'all'>) {
   return group === 'well' ? shift.summary.wells : group === 'line' ? shift.summary.lines : shift.summary.flows;
 }
 
-function shiftTotal(shift: WaterShift, group: GroupMode): number | null {
+function shiftTotal(shift: WaterShift, group: GroupMode, selectedIdentity?: number | string): number | null {
   if (shift.cut_status === 'Pendiente') return null;
   if (group === 'all') return shift.summary.total_operational_m3;
+  if (selectedIdentity !== undefined) return rows(shift, group, selectedIdentity)[0]?.period_m3 ?? null;
   return summary(shift, group).total_m3;
 }
 
@@ -48,8 +56,8 @@ function statusType(value: string): string {
   return 'normal';
 }
 
-function DetailTable({ shift, group }: { shift: WaterShift; group: Exclude<GroupMode, 'all'> }) {
-  const detailRows = rows(shift, group);
+function DetailTable({ shift, group, selectedIdentity }: { shift: WaterShift; group: Exclude<GroupMode, 'all'>; selectedIdentity?: number | string }) {
+  const detailRows = rows(shift, group, selectedIdentity);
   return (
     <div className="pozos-table-scroll shift-detail-table-wrap">
       <table className="pozos-operacion-table shift-detail-table">
@@ -75,7 +83,7 @@ function DetailTable({ shift, group }: { shift: WaterShift; group: Exclude<Group
   );
 }
 
-export default function ShiftConsumptionPanel({ group = 'all', date, showDateControls = true, reviewMode = false, title = 'Consumo por turno' }: Props) {
+export default function ShiftConsumptionPanel({ group = 'all', itemIdentity: selectedIdentity, date, showDateControls = true, reviewMode = false, title = 'Consumo por turno' }: Props) {
   const [draftDate, setDraftDate] = useState(date || today());
   const [selectedDate, setSelectedDate] = useState(date || today());
   const [selectedShift, setSelectedShift] = useState('all');
@@ -125,13 +133,17 @@ export default function ShiftConsumptionPanel({ group = 'all', date, showDateCon
       {data ? <>
         <div className="shift-summary-cards">
           {data.shifts.map((shift) => {
-            const value = shiftTotal(shift, group);
+            const value = shiftTotal(shift, group, selectedIdentity);
             const groupSummary = group === 'all' ? null : summary(shift, group);
-            return <article key={shift.id} className={`shift-summary-card ${shift.cut_status === 'Corte parcial' ? 'partial' : shift.cut_status === 'Pendiente' ? 'pending' : 'completed'}`}><span>{shift.name}</span><small>{shift.schedule}</small><strong>{shift.cut_status === 'Pendiente' ? 'Pendiente' : `${shift.cut_status === 'Corte parcial' ? 'Corte parcial: ' : ''}${value == null ? 'Dato en revisión' : `${fmt(value)} m³`}`}</strong><p>{groupSummary ? `Con actividad ${groupSummary.active_count} · Sin actividad ${groupSummary.inactive_count} · En revisión ${groupSummary.review_count}` : 'Pozos, Líneas y Lavadoras'}</p><em>{shift.cut_status}</em></article>;
+            const selectedRow = group === 'all' || selectedIdentity === undefined ? null : rows(shift, group, selectedIdentity)[0];
+            const summaryText = selectedIdentity !== undefined
+              ? selectedRow ? `${selectedRow.activity} · ${selectedRow.communication}` : 'Sin registros para este elemento'
+              : groupSummary ? `Con actividad ${groupSummary.active_count} · Sin actividad ${groupSummary.inactive_count} · En revisión ${groupSummary.review_count}` : 'Pozos, Líneas y Lavadoras';
+            return <article key={shift.id} className={`shift-summary-card ${shift.cut_status === 'Corte parcial' ? 'partial' : shift.cut_status === 'Pendiente' ? 'pending' : 'completed'}`}><span>{shift.name}</span><small>{shift.schedule}</small><strong>{shift.cut_status === 'Pendiente' ? 'Pendiente' : `${shift.cut_status === 'Corte parcial' ? 'Corte parcial: ' : ''}${value == null ? 'Dato en revisión' : `${fmt(value)} m³`}`}</strong><p>{summaryText}</p><em>{shift.cut_status}</em></article>;
           })}
         </div>
         {reviewMode ? <div className="pozos-table-scroll shift-overview-table-wrap"><table className="pozos-operacion-table shift-overview-table"><thead><tr><th>Turno</th><th>Horario</th><th>Pozos</th><th>Líneas</th><th>Lavadoras</th><th>Total operativo</th><th>Estado</th></tr></thead><tbody>{visible.map((shift) => <tr key={shift.id}><td>{shift.name}</td><td>{shift.schedule}</td><td>{shift.cut_status === 'Pendiente' ? 'Pendiente' : `${fmt(shift.summary.wells.total_m3)} m³`}</td><td>{shift.cut_status === 'Pendiente' ? 'Pendiente' : `${fmt(shift.summary.lines.total_m3)} m³`}</td><td>{shift.cut_status === 'Pendiente' ? 'Pendiente' : `${fmt(shift.summary.flows.total_m3)} m³`}</td><td>{shift.cut_status === 'Pendiente' ? 'Pendiente' : `${fmt(shift.summary.total_operational_m3)} m³`}</td><td><StatusBadge type={statusType(shift.cut_status)}>{shift.cut_status}</StatusBadge></td></tr>)}</tbody></table></div> : null}
-        <div className="shift-detail-list">{visible.map((shift) => <details key={`${shift.id}-${group}`} className="shift-detail-disclosure"><summary><span><strong>{shift.name}</strong><small>{shift.schedule}</small></span><StatusBadge type={statusType(shift.cut_status)}>{shift.cut_status}</StatusBadge></summary>{group === 'all' ? <div className="shift-detail-groups"><section><h4>Pozos</h4><DetailTable shift={shift} group="well" /></section><section><h4>Líneas</h4><DetailTable shift={shift} group="line" /></section><section><h4>Lavadoras</h4><DetailTable shift={shift} group="flow" /></section></div> : <DetailTable shift={shift} group={group} />}</details>)}</div>
+        <div className="shift-detail-list">{visible.map((shift) => <details key={`${shift.id}-${group}`} className="shift-detail-disclosure"><summary><span><strong>{shift.name}</strong><small>{shift.schedule}</small></span><StatusBadge type={statusType(shift.cut_status)}>{shift.cut_status}</StatusBadge></summary>{group === 'all' ? <div className="shift-detail-groups"><section><h4>Pozos</h4><DetailTable shift={shift} group="well" /></section><section><h4>Líneas</h4><DetailTable shift={shift} group="line" /></section><section><h4>Lavadoras</h4><DetailTable shift={shift} group="flow" /></section></div> : <DetailTable shift={shift} group={group} selectedIdentity={selectedIdentity} />}</details>)}</div>
       </> : null}
     </section>
   );
