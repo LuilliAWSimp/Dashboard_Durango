@@ -104,7 +104,7 @@ class DurangoIntermittentOperationTests(unittest.TestCase):
 
         self.assertEqual(item['current_flow'], 0.0)
         self.assertEqual(item['current_state'], 'Apagado con datos')
-        self.assertEqual(item['period_activity'], 'Con actividad en el periodo')
+        self.assertEqual(item['period_activity'], 'Con actividad')
         self.assertGreater(item['validated_volume_m3'], 0.0)
 
     def test_case_f_invalid_totalizer_jump_is_not_added(self):
@@ -113,7 +113,8 @@ class DurangoIntermittentOperationTests(unittest.TestCase):
         point = _build_points(1051, 'quarter_hour', START, END, [aggregate_row(flows, totals)], minute_rows(flows, totals))[0]
 
         self.assertEqual(point['data_status'], 'invalid_totalizer')
-        self.assertEqual(point['interval_state'], 'Dato en revisión')
+        self.assertEqual(point['interval_state'], 'Apagado con datos')
+        self.assertEqual(point['validation'], 'Validación parcial')
         self.assertEqual(point['validated_volume_m3'], 0.0)
         self.assertGreater(point['discarded_volume_m3'], 0.0)
         self.assertFalse(point['volume_reliable'])

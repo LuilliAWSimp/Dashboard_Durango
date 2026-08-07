@@ -75,7 +75,7 @@ export default function DashboardBaseSection() {
         <KpiCard label="Pozos con flujo actual" value={`${Number(wells.current_flow_count || 0)}/${wellCount}`} unit="pozos" trend="Lectura reciente por encima del umbral operativo" accent="teal" />
         <KpiCard label="Líneas con flujo actual" value={`${Number(lines.current_flow_count || 0)}/${lineCount}`} unit="líneas" trend="Independiente de la actividad del periodo" accent="teal" />
         <KpiCard label="Flujos con flujo actual" value={`${Number(flows.current_flow_count || 0)}/${flowCount}`} unit="flujos" trend="Lectura actual y comunicación válida" accent="teal" />
-        <KpiCard label="Datos en revisión" value={String(review)} unit="elementos" trend="Pueden conservar volumen validado parcial" accent="brown" />
+        <KpiCard label="Validación parcial" value={String(review)} unit="elementos" trend="Con volumen utilizable y eventos descartados" accent="brown" />
         <KpiCard label="Última actualización" value={latest ? formatSqlDate(latest) : 'Sin lectura'} unit="" trend={controller.refreshing ? 'Actualizando información…' : 'Actualización automática cada 60 s'} accent="teal" />
       </section>
 

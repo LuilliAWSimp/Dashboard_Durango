@@ -25,6 +25,8 @@ class IntervalOperationMetrics:
     active_minutes: float
     interval_state: str
     data_status: str
+    validation: str
+    validation_status: str
 
     def payload(self) -> dict[str, Any]:
         return asdict(self)
@@ -60,21 +62,31 @@ def interval_operation_metrics(
 
     if received == 0:
         interval_state = 'Sin registros'
-        data_status = 'no_data'
-    elif has_discontinuities:
-        interval_state = 'Dato en revisión'
-        data_status = 'invalid_totalizer'
+        operational_status = 'no_data'
     else:
         has_activity = active > 0 or float(validated_volume_m3 or 0.0) > 0.0
         if not has_activity:
             interval_state = 'Apagado con datos'
-            data_status = 'zero_consumption'
+            operational_status = 'zero_consumption'
         elif 0 < active < received:
             interval_state = 'Actividad parcial'
-            data_status = 'partial_activity'
+            operational_status = 'partial_activity'
         else:
             interval_state = 'Activo'
-            data_status = 'operational'
+            operational_status = 'operational'
+
+    # Keep the technical discontinuity status available to diagnostics without
+    # replacing the independent operational activity shown to users.
+    data_status = 'invalid_totalizer' if received > 0 and has_discontinuities else operational_status
+    if validated_volume_m3 is None:
+        validation = 'Sin volumen validado'
+        validation_status = 'unavailable'
+    elif has_discontinuities:
+        validation = 'Validación parcial'
+        validation_status = 'partial'
+    else:
+        validation = 'Validado'
+        validation_status = 'validated'
 
     return IntervalOperationMetrics(
         samples_received=received,
@@ -93,4 +105,15 @@ def interval_operation_metrics(
         active_minutes=float(active),
         interval_state=interval_state,
         data_status=data_status,
+        validation=validation,
+        validation_status=validation_status,
     )
+
+
+def period_activity_label(*, samples_received: int, active_samples: int, validated_volume_m3: float | None) -> str:
+    """Present period activity independently from totalizer validation."""
+    if max(int(samples_received or 0), 0) == 0:
+        return 'Sin registros'
+    if max(int(active_samples or 0), 0) > 0 or float(validated_volume_m3 or 0.0) > 0.0:
+        return 'Con actividad'
+    return 'Sin actividad'

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { buildDailyWaterReportHtml } from '../src/services/dailyWaterReportExportService.ts';
+import { buildDailyWaterReportHtml as buildDailyWaterReportHtmlJs } from '../src/services/dailyWaterReportExportService.js';
 
 function row(name: string, volume: number | null = 1) {
   return {
@@ -82,4 +83,8 @@ test('HTML conserva cero medido, huecos y excluye intervalos futuros', () => {
   assert.match(html, /Cero:<\/strong> lectura válida/);
   assert.match(html, /Hueco:<\/strong> intervalo sin registros/);
   assert.doesNotMatch(html, /10:45/);
+});
+
+test('las implementaciones JS y TypeScript generan el mismo HTML', () => {
+  assert.equal(buildDailyWaterReportHtmlJs(report), buildDailyWaterReportHtml(report));
 });

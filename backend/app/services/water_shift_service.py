@@ -67,9 +67,10 @@ def _summary(items: list[dict[str, Any]]) -> dict[str, Any]:
     expected = sum(int(item.get('samples_expected') or 0) for item in items)
     return {
         'total_m3': round(sum(float(item['validated_volume_m3']) for item in reliable), 6) if reliable else None,
-        'active_count': sum(1 for item in items if item.get('data_status') in {'operational', 'partial_activity'}),
-        'inactive_count': sum(1 for item in items if item.get('data_status') == 'zero_consumption'),
+        'active_count': sum(1 for item in items if str(item.get('activity') or '').lower().startswith('con actividad')),
+        'inactive_count': sum(1 for item in items if str(item.get('activity') or '').lower().startswith('sin actividad')),
         'review_count': sum(1 for item in items if item.get('data_status') == 'invalid_totalizer'),
+        'partial_validation_count': sum(1 for item in items if item.get('validation_status') == 'partial'),
         'coverage_available': len(reliable),
         'coverage_total': len(items),
         'samples_received': received,

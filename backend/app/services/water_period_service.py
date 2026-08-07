@@ -24,7 +24,7 @@ from app.services.durango_capabilities import (
 from app.services.durango_lavadoras_service import get_lavadora_period_items
 from app.services.durango_jarabes_service import get_jarabes_period_items
 from app.services.durango_well_history_fallback import query_bos_well_rows
-from app.services.operation_semantics import expected_minute_samples, interval_operation_metrics
+from app.services.operation_semantics import expected_minute_samples, interval_operation_metrics, period_activity_label
 from app.services.plant_time import effective_local_end, local_now_naive, local_to_source_naive, source_to_local_naive
 from app.services.totalizer_quality import TotalizerAnalysis, analyze_totalizer_series
 
@@ -262,14 +262,11 @@ def build_period_item(
         validated_volume_m3=period_volume,
         has_discontinuities=analysis.has_discontinuities,
     ).payload()
-    if operation['data_status'] == 'no_data':
-        activity = 'Sin registros en el periodo'
-    elif operation['data_status'] == 'invalid_totalizer':
-        activity = 'Dato en revisión'
-    elif operation['data_status'] in {'operational', 'partial_activity'}:
-        activity = 'Con actividad en el periodo'
-    else:
-        activity = 'Sin actividad en el periodo'
+    activity = period_activity_label(
+        samples_received=operation['samples_received'],
+        active_samples=operation['active_samples'],
+        validated_volume_m3=period_volume,
+    )
     data_status = str(operation['data_status'])
     volume_data_status = (
         'invalid_totalizer' if analysis.has_discontinuities
@@ -338,6 +335,8 @@ def build_period_item(
         'activity_status': activity,
         'data_status': data_status,
         'volume_data_status': volume_data_status,
+        'validation': operation['validation'],
+        'validation_status': operation['validation_status'],
         'period_activity': activity,
         'period_data_status': data_status,
         'current_state': current_state,
@@ -366,12 +365,14 @@ def summarize_period_items(group_items: list[dict[str, Any]]) -> dict[str, Any]:
     total = round(sum(float(item.get('validated_volume_m3') or 0.0) for item in calculable), 6) if calculable else None
     active_count = sum(
         1 for item in group_items
-        if str(item.get('data_status') or item.get('period_data_status') or '') in {'operational', 'partial_activity'}
+        if str(item.get('activity') or item.get('period_activity') or '').lower().startswith('con actividad')
+        or str(item.get('data_status') or item.get('period_data_status') or '') in {'operational', 'partial_activity'}
         or float(item.get('validated_volume_m3') or 0.0) > 0.0
     )
     inactive_count = sum(
         1 for item in group_items
-        if str(item.get('data_status') or item.get('period_data_status') or '') == 'zero_consumption'
+        if str(item.get('activity') or item.get('period_activity') or '').lower().startswith('sin actividad')
+        or str(item.get('data_status') or item.get('period_data_status') or '') == 'zero_consumption'
     )
     review_count = sum(
         1 for item in group_items
@@ -399,6 +400,7 @@ def summarize_period_items(group_items: list[dict[str, Any]]) -> dict[str, Any]:
         'validated_volume_m3': total,
         'has_partial_volume': partial_count > 0,
         'partial_count': partial_count,
+        'partial_validation_count': partial_count,
         'active_count': active_count,
         'inactive_count': inactive_count,
         'current_flow_count': current_flow_count,
@@ -408,7 +410,7 @@ def summarize_period_items(group_items: list[dict[str, Any]]) -> dict[str, Any]:
         'coverage_total': len(group_items),
         'coverage_status': (
             'No disponible' if not calculable
-            else 'Volumen validado parcial' if partial_count
+            else 'Validación parcial' if partial_count
             else 'Completa' if len(calculable) == len(group_items)
             else 'Cobertura parcial'
         ),

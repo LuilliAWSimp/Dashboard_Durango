@@ -19,7 +19,7 @@ const POZOS_MENU = [
       { key: 'pozos', label: 'Pozos', iconKey: 'pozos-pozos' },
       { key: 'lineas', label: 'Líneas', iconKey: 'pozos-lineas' },
       { key: 'flujos', label: 'Flujos', iconKey: 'pozos-flujos' },
-      { key: 'balance', label: 'Comparativo Operativo', iconKey: 'pozos-balance' },
+      { key: 'balance', label: 'Balance de Agua', iconKey: 'pozos-balance' },
       { key: 'concesion', label: 'Concesión · Pendiente', iconKey: 'pozos-concesion' },
       { key: 'revision', label: 'Revisión Diaria', iconKey: 'pozos-revision' },
       { key: 'reportes', label: 'Reportes', iconKey: 'pozos-reportes' },

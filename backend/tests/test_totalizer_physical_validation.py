@@ -104,7 +104,9 @@ class TotalizerPhysicalValidationTests(unittest.TestCase):
             {'operational_ts': datetime(2026, 8, 4, 10, 33), 'instant_value': 0.0, 'total_value': 73136.539063},
         ]
         item = build_period_item(WELLS[0], rows, (datetime(2026, 8, 3, 23, 59), 62043.0), date(2026, 8, 4))
-        self.assertEqual(item['activity'], 'Dato en revisión')
+        self.assertEqual(item['activity'], 'Sin actividad')
+        self.assertEqual(item['validation'], 'Validación parcial')
+        self.assertEqual(item['validation_status'], 'partial')
         self.assertFalse(item['period_m3_reliable'])
         self.assertFalse(item['today_accumulated_reliable'])
         self.assertEqual(item['today_accumulated_m3'], 0.0)
@@ -149,7 +151,9 @@ class TotalizerPhysicalValidationTests(unittest.TestCase):
         report_row = _report_row(item)
         self.assertFalse(report_row['volume_reliable'])
         self.assertTrue(report_row['has_discontinuities'])
-        self.assertEqual(_report_volume_display(report_row), 'Volumen validado parcial: 0.00 m³')
+        self.assertEqual(report_row['activity'], 'Sin actividad')
+        self.assertEqual(report_row['validation'], 'Validación parcial')
+        self.assertEqual(_report_volume_display(report_row), '0.00 m³')
 
 
 
@@ -201,8 +205,8 @@ class TotalizerPhysicalValidationTests(unittest.TestCase):
             },
         ]
         period = [
-            {'sensor_id': 1001, 'name': 'Pozo 1', 'period_m3': 0.0, 'period_m3_reliable': False, 'activity': 'Dato en revisión'},
-            {'sensor_id': 1051, 'name': 'Pozo 2', 'period_m3': 27.0, 'period_m3_reliable': True, 'activity': 'Con actividad en el periodo'},
+            {'sensor_id': 1001, 'name': 'Pozo 1', 'period_m3': 0.0, 'period_m3_reliable': False, 'activity': 'Sin actividad', 'validation': 'Validación parcial'},
+            {'sensor_id': 1051, 'name': 'Pozo 2', 'period_m3': 27.0, 'period_m3_reliable': True, 'activity': 'Con actividad', 'validation': 'Validado'},
         ]
         merged = _merge_period(current, period)
         self.assertEqual([row['sensor_id'] for row in merged], [1001, 1051])

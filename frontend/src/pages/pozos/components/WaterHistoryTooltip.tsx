@@ -45,7 +45,7 @@ const STATUS_LABELS: Record<string, string> = {
   zero_consumption: 'Apagado con datos',
   no_data: 'Sin registros',
   no_history: 'Sin histórico para el periodo',
-  invalid_totalizer: 'Dato en revisión',
+  invalid_totalizer: 'Validación parcial',
   missing_totalizer: 'Sin totalizador disponible',
   stale_data: 'Lectura atrasada',
   frozen_flow: 'Lectura de flujo congelada',
@@ -150,8 +150,12 @@ export default function WaterHistoryTooltip({ active, payload, aggregation, flow
           <span className="chart-tooltip-value">{formatNumber(row.coveragePercent)}% · {String(row.coverageStatus || 'Sin registros')}</span>
         </div>
         <div className="chart-tooltip-row">
-          <span className="chart-tooltip-name">Estado</span>
+          <span className="chart-tooltip-name">Actividad</span>
           <span className="chart-tooltip-value">{String(row.intervalState || STATUS_LABELS[dataStatus] || 'Sin registros')}</span>
+        </div>
+        <div className="chart-tooltip-row">
+          <span className="chart-tooltip-name">Validación</span>
+          <span className="chart-tooltip-value">{dataStatus === 'invalid_totalizer' ? 'Validación parcial' : row.volume === null ? 'Sin volumen validado' : 'Validado'}</span>
         </div>
       </div>
     </div>

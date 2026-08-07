@@ -8,6 +8,7 @@ from openpyxl import load_workbook
 
 from app.services.water_daily_report_service import (
     SUMMARY_NOTE,
+    _flow_history_drawing,
     build_daily_water_report_excel,
     build_daily_water_report_pdf,
     get_daily_water_report,
@@ -47,11 +48,11 @@ class DurangoReportValidatedSummaryTests(unittest.TestCase):
     def setUp(self) -> None:
         self.period = {
             'wells': [
-                period_item('Pozo 1', validated=0.67, reliable=False, discarded=11093.519532, discontinuity=True, activity='Dato en revisión'),
-                period_item('Pozo 2', validated=174.98, reliable=False, discarded=4357.320313, discontinuity=True, activity='Dato en revisión'),
+                period_item('Pozo 1', validated=0.67, reliable=False, discarded=11093.519532, discontinuity=True, activity='Con actividad'),
+                period_item('Pozo 2', validated=174.98, reliable=False, discarded=4357.320313, discontinuity=True, activity='Con actividad'),
             ],
             'lines': [
-                period_item('Línea 1', validated=24.21, reliable=False, discarded=500.0, discontinuity=True, activity='Dato en revisión'),
+                period_item('Línea 1', validated=24.21, reliable=False, discarded=500.0, discontinuity=True, activity='Con actividad'),
             ],
             'flows': [
                 period_item('Lavadora Línea 2', validated=0.0, reliable=True, activity='Sin actividad en el periodo'),
@@ -92,6 +93,7 @@ class DurangoReportValidatedSummaryTests(unittest.TestCase):
         self.assertAlmostEqual(summary['total_validated_operational_m3'], 199.86, places=6)
         self.assertAlmostEqual(summary['discarded_volume_m3'], 15950.839845, places=6)
         self.assertEqual(summary['review_count'], 3)
+        self.assertEqual(summary['partial_validation_count'], 3)
         self.assertEqual(summary['note'], SUMMARY_NOTE)
         self.assertEqual(report['notes'], [])
         self.assertNotIn('Lavadora Línea 2', [item['name'] for item in report['production_lines']['rows']])
@@ -108,16 +110,65 @@ class DurangoReportValidatedSummaryTests(unittest.TestCase):
         self.assertEqual(summary_values['Volumen validado de flujos (m³)'], 0)
         self.assertAlmostEqual(summary_values['Total validado operativo (m³)'], 199.86, places=6)
         wells_sheet = workbook['Pozos']
-        self.assertIsInstance(wells_sheet['F2'].value, (int, float))
-        self.assertAlmostEqual(wells_sheet['F2'].value, 0.67, places=6)
-        self.assertAlmostEqual(wells_sheet['G2'].value, 11093.519532, places=6)
-        self.assertEqual(wells_sheet['H2'].value, 'Volumen validado parcial')
+        self.assertIsInstance(wells_sheet['E2'].value, (int, float))
+        self.assertAlmostEqual(wells_sheet['E2'].value, 0.67, places=6)
+        self.assertEqual(wells_sheet['F2'].value, 'Validación parcial')
+        self.assertEqual(wells_sheet['G2'].value, 'Con actividad')
+        self.assertEqual(workbook.sheetnames[:5], ['Resumen', 'Pozos', 'Líneas', 'Flujos', 'Turnos'])
 
     def test_pdf_is_generated_from_same_report_object(self) -> None:
         report = self.build_report()
         content, filename = build_daily_water_report_pdf(report)
         self.assertTrue(content.startswith(b'%PDF'))
         self.assertEqual(filename, 'reporte-diario-control-hidrico-durango-2026-08-04.pdf')
+
+    def test_preview_skips_histories_and_shifts(self) -> None:
+        with patch('app.services.water_daily_report_service.get_period_data', return_value=self.period), patch(
+            'app.services.water_daily_report_service.get_shift_consumption_data'
+        ) as shifts, patch('app.services.water_daily_report_service.get_water_history_module') as history:
+            report = get_daily_water_report('2026-08-04', include_history=False, include_shifts=False)
+        shifts.assert_not_called()
+        history.assert_not_called()
+        self.assertFalse(report['includes_history'])
+        self.assertFalse(report['includes_shifts'])
+        self.assertEqual(report['shifts'], [])
+        self.assertEqual(report['history']['wells'], {})
+
+    def test_full_report_obtains_all_histories_and_shifts(self) -> None:
+        with patch('app.services.water_daily_report_service.get_period_data', return_value=self.period), patch(
+            'app.services.water_daily_report_service.get_shift_consumption_data', return_value={'shifts': []}
+        ) as shifts, patch(
+            'app.services.water_daily_report_service.get_water_history_module',
+            return_value={'series': [], 'aggregation': 'quarter_hour'},
+        ) as history:
+            report = get_daily_water_report('2026-08-04')
+        shifts.assert_called_once()
+        self.assertEqual(history.call_count, 3)
+        self.assertTrue(report['includes_history'])
+        self.assertTrue(report['includes_shifts'])
+
+    def test_pdf_flow_axis_unit_is_vertical_and_separated_from_ticks(self) -> None:
+        drawing = _flow_history_drawing(
+            {
+                'aggregation': 'quarter_hour',
+                'series': [{
+                    'name': 'Pozo 1',
+                    'points': [
+                        {'bucket_start': '2026-08-04T00:00:00', 'samples': 15, 'flow_avg_lps': 0.0},
+                        {'bucket_start': '2026-08-04T00:15:00', 'samples': 15, 'flow_avg_lps': 224.9},
+                    ],
+                }],
+            },
+            width=527,
+            height=181,
+            single_day=True,
+        )
+        strings = [item for item in drawing.contents if item.__class__.__name__ == 'String']
+        axis = next(item for item in strings if item.text == 'L/s')
+        numeric_ticks = [item for item in strings if item.text in {'0.0', '56.2', '112.4', '168.7', '251.9'}]
+        self.assertEqual(axis.angle, 90)
+        self.assertTrue(numeric_ticks)
+        self.assertLess(axis.x, min(item.x for item in numeric_ticks) - 10)
 
 
 if __name__ == '__main__':

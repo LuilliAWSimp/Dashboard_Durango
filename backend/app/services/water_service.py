@@ -14,7 +14,7 @@ WATER_SECTION_META = {
     'pozos': ('Pozos', 'Dos pozos confirmados'),
     'lineas': ('Líneas', 'Elementos operativos clasificados como líneas'),
     'flujos': ('Flujos', 'Lavadoras y Jarabes confirmados'),
-    'balance': ('Comparativo Operativo de Agua', 'Comparación matemática de volúmenes confiables'),
+    'balance': ('Balance de Agua', 'Referencia operativa de volúmenes registrados'),
     'concesion': ('Concesión', 'Pendiente de fuente confirmada'),
     'revision': ('Revisión diaria', 'Cierres y consumos por fecha'),
     'reportes': ('Reportes', 'PDF, Excel, vista y correo'),
@@ -173,7 +173,7 @@ def _cards(payload: dict[str, Any]) -> list[KpiCard]:
         KpiCard(label='Volumen validado de pozos', value=value(wells), unit=unit(wells), trend=trend(wells, len(WELLS)), accent='blue'),
         KpiCard(label='Volumen validado de líneas', value=value(lines), unit=unit(lines), trend=trend(lines, len(LINES)), accent='cyan'),
         KpiCard(label='Volumen validado de flujos', value=value(flows), unit=unit(flows), trend=trend(flows, len(FLOWS)), accent='indigo'),
-        KpiCard(label='Datos en revisión', value=str(int(wells.get('review_count', 0)) + int(lines.get('review_count', 0)) + int(flows.get('review_count', 0))), unit='elementos', trend='Pueden conservar volumen validado parcial', accent='brown'),
+        KpiCard(label='Validación parcial', value=str(int(wells.get('partial_count', 0)) + int(lines.get('partial_count', 0)) + int(flows.get('partial_count', 0))), unit='elementos', trend='Con volumen utilizable y eventos descartados', accent='brown'),
     ]
 
 

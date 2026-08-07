@@ -7,7 +7,7 @@ from fastapi import APIRouter, File, HTTPException, Query, Response, UploadFile
 
 from app.schemas.export import DailyWaterReportEmailRequest
 from app.schemas.water import WaterDashboardPayload, WaterSourceActivateResponse, WaterSourceInfo, WaterSourceValidation
-from app.services.email_service import EmailDeliveryError, EmailNotConfiguredError, ensure_smtp_configured, send_email_with_bytes_attachment
+from app.services.email_service import EmailDeliveryError, EmailNotConfiguredError, ensure_smtp_configured, send_email_with_bytes_attachments
 from app.services.water_daily_report_service import ReportDataUnavailableError, build_daily_water_report_excel, build_daily_water_report_pdf, get_daily_water_report
 from app.services.water_history_service import WaterHistoryError, get_water_history, get_water_history_module, get_wells_minute_flow
 from app.services.water_service import WATER_SECTION_META, get_water_dashboard_payload, get_water_report_catalog
@@ -95,9 +95,22 @@ def read_water_report_catalog():
     return get_water_report_catalog()
 
 
-def _report_or_error(date: str | None, start_date: str | None, end_date: str | None):
+def _report_or_error(
+    date: str | None,
+    start_date: str | None,
+    end_date: str | None,
+    *,
+    include_history: bool = True,
+    include_shifts: bool = True,
+):
     try:
-        return get_daily_water_report(report_date=date, start_date=start_date, end_date=end_date)
+        return get_daily_water_report(
+            report_date=date,
+            start_date=start_date,
+            end_date=end_date,
+            include_history=include_history,
+            include_shifts=include_shifts,
+        )
     except ReportDataUnavailableError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except Exception as exc:
@@ -106,8 +119,20 @@ def _report_or_error(date: str | None, start_date: str | None, end_date: str | N
 
 
 @router.get('/reports/daily')
-def read_daily_water_report(date: Optional[str] = Query(None), start_date: Optional[str] = Query(None), end_date: Optional[str] = Query(None)):
-    return _report_or_error(date, start_date, end_date)
+def read_daily_water_report(
+    date: Optional[str] = Query(None),
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
+    include_history: bool = Query(True),
+    include_shifts: bool = Query(True),
+):
+    return _report_or_error(
+        date,
+        start_date,
+        end_date,
+        include_history=include_history,
+        include_shifts=include_shifts,
+    )
 
 
 @router.get('/reports/daily/pdf')
@@ -132,16 +157,42 @@ def email_daily_water_report(request: DailyWaterReportEmailRequest):
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     report = _report_or_error(request.date, request.start_date, request.end_date)
     try:
-        pdf_bytes, filename = build_daily_water_report_pdf(report)
+        attachments = []
+        filenames = []
+        if 'pdf' in request.formats:
+            pdf_bytes, pdf_filename = build_daily_water_report_pdf(report)
+            attachments.append({'bytes': pdf_bytes, 'filename': pdf_filename, 'maintype': 'application', 'subtype': 'pdf'})
+            filenames.append(pdf_filename)
+        if 'xlsx' in request.formats:
+            excel_bytes, excel_filename = build_daily_water_report_excel(report)
+            attachments.append({
+                'bytes': excel_bytes,
+                'filename': excel_filename,
+                'maintype': 'application',
+                'subtype': 'vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            })
+            filenames.append(excel_filename)
         subject = request.subject or f"Reporte Diario de Control Hídrico Durango - {report.get('period_label')}"
         message = request.message or 'Se adjunta el Reporte Diario de Control Hídrico Durango generado desde el dashboard.'
-        result = send_email_with_bytes_attachment(to=request.to, cc=request.cc, subject=subject, message=message, attachment_bytes=pdf_bytes, filename=filename, maintype='application', subtype='pdf')
+        result = send_email_with_bytes_attachments(
+            to=request.to,
+            cc=request.cc,
+            subject=subject,
+            message=message,
+            attachments=attachments,
+        )
     except EmailDeliveryError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     except Exception as exc:
         logger.exception('No fue posible generar o enviar el reporte: %s', exc)
-        raise HTTPException(status_code=500, detail='No fue posible generar el PDF para adjuntarlo al correo.') from exc
-    return {'status': 'smtp_accepted', 'message': result.message, 'message_id': result.message_id, 'attachment': filename}
+        raise HTTPException(status_code=500, detail='No fue posible generar o adjuntar los formatos seleccionados.') from exc
+    return {
+        'status': 'smtp_accepted',
+        'message': result.message,
+        'message_id': result.message_id,
+        'attachment': filenames[0],
+        'attachments': filenames,
+    }
 
 
 @router.get('/sources', response_model=list[WaterSourceInfo])

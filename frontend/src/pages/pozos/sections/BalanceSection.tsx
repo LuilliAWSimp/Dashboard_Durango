@@ -46,7 +46,7 @@ export default function BalanceSection() {
 
   return <>
     <section className="water-balance-hero panel fade-up">
-      <div><h2>Comparativo Operativo de Agua</h2><p>Comparación matemática de volúmenes validados; la clasificación hidráulica integral está pendiente de validación.</p></div>
+      <div><h2>Balance de Agua</h2><p>Referencia operativa de los volúmenes registrados durante el periodo seleccionado.</p></div>
       <div className="water-balance-hero-grid">
         <article><span>Volumen de pozos</span><strong>{fmt(wells.total_m3)} <small>m³</small></strong></article>
         <article><span>Volumen de líneas</span><strong>{fmt(lines.total_m3)} <small>m³</small></strong></article>
@@ -55,8 +55,8 @@ export default function BalanceSection() {
       </div>
     </section>
     <section className="cards-grid water-balance-kpi-grid">
-      <KpiCard label="Comparación matemática" value={`${comparison >= 0 ? '+' : ''}${fmt(comparison)}`} unit="m³" trend="Pozos − Líneas − Flujos" accent="cyan" />
-      <KpiCard label="Elementos excluidos" value={String(excluded)} unit="elementos" trend="Dato en revisión o sin totalizador" accent="brown" />
+      <KpiCard label="Balance del periodo" value={`${comparison >= 0 ? '+' : ''}${fmt(comparison)}`} unit="m³" trend="Pozos − Líneas − Flujos" accent="cyan" />
+      <KpiCard label="Elementos sin volumen validado" value={String(excluded)} unit="elementos" trend={excluded === 0 ? 'Todos cuentan con información utilizable' : 'Sin volumen validado para el periodo'} accent="brown" />
     </section>
     <section className="panel chart-panel fade-up">
       <PanelHeader title="Volúmenes validados del periodo" subtitle="No se utilizan flujos instantáneos como sustituto de volumen" />
@@ -70,7 +70,7 @@ export default function BalanceSection() {
           <Bar dataKey="value" radius={[0, 10, 10, 0]}>{data.map((item) => <Cell key={item.name} fill={item.color} />)}<LabelList dataKey="value" position="right" formatter={(value) => `${fmt(value)} m³`} fill="#effbff" /></Bar>
         </BarChart>
       </ResponsiveContainer> : <ChartEmptyState message="Sin volúmenes validados para el periodo seleccionado." />}
-      <div className="operational-comparison-difference"><span>Nota operativa</span><strong>Comparativo operativo; clasificación hidráulica pendiente de validación.</strong><small>No representa pérdida, fuga, desperdicio ni eficiencia.</small></div>
+      <div className="operational-comparison-difference"><span>Referencia operativa</span><strong>La diferencia compara los volúmenes registrados en Pozos − Líneas − Flujos.</strong><small>No representa por sí misma pérdida, fuga, desperdicio ni eficiencia.</small></div>
     </section>
   </>;
 }

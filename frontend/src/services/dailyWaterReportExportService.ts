@@ -32,13 +32,16 @@ function fmtDate(value: unknown): string {
 }
 
 function volumeDisplay(row: any): string {
-  if (row?.has_discontinuities && row?.validated_volume_m3 !== null && row?.validated_volume_m3 !== undefined) {
-    return `Volumen validado parcial: ${fmt(row.validated_volume_m3)} m³`;
-  }
   if (row?.validated_volume_m3 !== null && row?.validated_volume_m3 !== undefined) {
     return `${fmt(row.validated_volume_m3)} m³`;
   }
-  return String(row?.activity || 'No disponible');
+  return 'Sin volumen validado';
+}
+
+function validationLabel(row: any): string {
+  if (row?.validation) return String(row.validation);
+  if (row?.validated_volume_m3 === null || row?.validated_volume_m3 === undefined) return 'Sin volumen validado';
+  return row?.has_discontinuities ? 'Validación parcial' : 'Validado';
 }
 
 const CHART_COLORS = ['#1597d4', '#7047eb', '#f59e0b', '#10b981', '#e84a5f'];
@@ -129,7 +132,7 @@ function volumeChart(rows: any[]): string {
     const top = 20 + index * rowHeight;
     const color = row.has_discontinuities ? '#f59e0b' : '#1597d4';
     const bar = value != null && value > 0 ? `<rect x="${labelWidth}" y="${top}" width="${plotWidth * value / max}" height="18" rx="4" fill="${color}"/>` : '';
-    const label = value == null ? (Number(row.samples || 0) <= 0 ? 'Sin registros' : row.activity || 'Dato en revisión') : `${fmt(value)} m³${row.has_discontinuities ? ' · parcial' : ''}`;
+    const label = value == null ? (Number(row.samples || 0) <= 0 ? 'Sin registros' : 'Sin volumen validado') : `${fmt(value)} m³${row.has_discontinuities ? ' · parcial' : ''}`;
     return `<text x="0" y="${top + 14}">${escapeHtml(row.name)}</text><rect x="${labelWidth}" y="${top}" width="${plotWidth}" height="18" rx="4" class="bar-track"/>${bar}<text x="${labelWidth + plotWidth + 12}" y="${top + 14}">${escapeHtml(label)}</text>`;
   }).join('');
   return `<svg class="report-chart volume-chart" role="img" aria-label="Volumen validado por elemento" viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid meet">${bars}</svg>`;
@@ -141,7 +144,7 @@ export function buildDailyWaterReportHtml(report: any): string {
       <h2>${escapeHtml(title)}</h2>
       <p class="section-meta">Periodo ${escapeHtml(report.period_label)} · Agrupación histórica: ${escapeHtml(aggregationLabel(history?.aggregation))}</p>
       <div class="table-wrap"><table>
-        <thead><tr><th>Elemento</th><th>Flujo actual</th><th>Apertura</th><th>Cierre</th><th>Volumen</th><th>Actividad</th><th>Comunicación</th><th>Última actualización</th></tr></thead>
+        <thead><tr><th>Elemento</th><th>Flujo actual</th><th>Apertura</th><th>Cierre</th><th>Volumen</th><th>Actividad</th><th>Validación</th><th>Comunicación</th><th>Última actualización</th></tr></thead>
         <tbody>${rows.map((row) => `<tr>
           <td>${escapeHtml(row.name)}</td>
           <td>${row.flow == null ? 'No disponible' : `${fmt(row.flow)} ${escapeHtml(row.flow_unit || 'L/s')}`}</td>
@@ -149,6 +152,7 @@ export function buildDailyWaterReportHtml(report: any): string {
           <td>${row.closing_m3 == null ? 'No disponible' : `${fmt(row.closing_m3)} m³`}</td>
           <td>${escapeHtml(volumeDisplay(row))}</td>
           <td>${escapeHtml(row.activity)}</td>
+          <td>${escapeHtml(validationLabel(row))}</td>
           <td>${escapeHtml(row.communication)}</td>
           <td>${escapeHtml(fmtDate(row.last_update))}</td>
         </tr>`).join('')}</tbody>
@@ -172,7 +176,7 @@ export function buildDailyWaterReportHtml(report: any): string {
       <div><span>Pozos con actividad</span><strong>${Number(summary.wells_active || 0)}/${report.wells?.rows?.length || 0}</strong></div>
       <div><span>Líneas con actividad</span><strong>${Number(summary.lines_active || 0)}/${report.production_lines?.rows?.length || 0}</strong></div>
       <div><span>Flujos con actividad</span><strong>${Number(summary.flows_active || 0)}/${report.operational_flows?.rows?.length || 0}</strong></div>
-      <div><span>Datos en revisión</span><strong>${Number(summary.review_count || 0).toLocaleString('es-MX')}</strong></div>
+      <div><span>Elementos con validación parcial</span><strong>${Number(summary.partial_validation_count ?? summary.review_count ?? 0).toLocaleString('es-MX')}</strong></div>
     </div>
     <p class="note">${escapeHtml(summary.note || 'Los volúmenes mostrados consideran únicamente incrementos validados. Los eventos descartados no se incluyen en los totales.')}<br><strong>Cero:</strong> lectura válida sin flujo. <strong>Hueco:</strong> intervalo sin registros suficientes. Los gráficos no generan intervalos futuros.</p>
     ${section('Pozos', report.wells?.rows || [], report.history?.wells)}

@@ -17,7 +17,7 @@ from app.services.durango_capabilities import (
     current_flow_threshold_for_sensor,
     normalize_flow_lps,
 )
-from app.services.operation_semantics import expected_minute_samples, interval_operation_metrics
+from app.services.operation_semantics import expected_minute_samples, interval_operation_metrics, period_activity_label
 from app.services.plant_time import local_now_naive, local_to_source_naive, source_to_local_naive
 from app.services.totalizer_quality import analyze_totalizer_series
 
@@ -188,14 +188,11 @@ def build_lavadora_period_item(
         validated_volume_m3=analysis.validated_volume_m3,
         has_discontinuities=analysis.has_discontinuities,
     ).payload()
-    if operation['data_status'] == 'no_data':
-        activity = 'Sin registros en el periodo'
-    elif operation['data_status'] == 'invalid_totalizer':
-        activity = 'Dato en revisión'
-    elif operation['data_status'] in {'operational', 'partial_activity'}:
-        activity = 'Con actividad en el periodo'
-    else:
-        activity = 'Sin actividad en el periodo'
+    activity = period_activity_label(
+        samples_received=operation['samples_received'],
+        active_samples=operation['active_samples'],
+        validated_volume_m3=analysis.validated_volume_m3,
+    )
     data_status = str(operation['data_status'])
     volume_data_status = (
         'invalid_totalizer' if analysis.has_discontinuities
@@ -258,6 +255,8 @@ def build_lavadora_period_item(
         'activity_status': activity,
         'data_status': data_status,
         'volume_data_status': volume_data_status,
+        'validation': operation['validation'],
+        'validation_status': operation['validation_status'],
         'period_activity': activity,
         'period_data_status': data_status,
         'current_state': current_state,
@@ -331,6 +330,9 @@ def get_current_lavadoras(*, session: Any = None) -> list[dict[str, Any]]:
             'period_activity': 'Sin histórico para el periodo',
             'data_status': 'no_history',
             'period_data_status': 'no_history',
+            'volume_data_status': 'no_totalizer',
+            'validation': 'Sin volumen validado',
+            'validation_status': 'unavailable',
             'samples': 0,
             'samples_received': 0,
             'samples_expected': 0,

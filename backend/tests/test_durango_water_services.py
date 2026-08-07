@@ -205,7 +205,7 @@ def test_activity_uses_totalizer_movement_even_when_latest_flow_is_zero():
     item = build_period_item(contract, rows, None, date(2026, 8, 1))
     assert item['current_flow'] == 0.0
     assert item['period_m3'] == 5.0
-    assert item['activity'] == 'Con actividad en el periodo'
+    assert item['activity'] == 'Con actividad'
 
 
 def test_recent_samples_without_totalizer_movement_are_inactive_not_offline():
@@ -217,5 +217,5 @@ def test_recent_samples_without_totalizer_movement_are_inactive_not_offline():
     ]
     item = build_period_item(contract, rows, None, datetime.now().date())
     assert item['period_m3'] == 0.0
-    assert item['activity'] == 'Sin actividad en el periodo'
+    assert item['activity'] == 'Sin actividad'
     assert item['communication'] == 'Actualizado'

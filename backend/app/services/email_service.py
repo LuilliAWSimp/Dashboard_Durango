@@ -201,10 +201,35 @@ def send_email_with_bytes_attachment(
     maintype: str = 'application',
     subtype: str = 'pdf',
 ) -> EmailSendResult:
+    return send_email_with_bytes_attachments(
+        to=to,
+        subject=subject,
+        message=message,
+        cc=cc,
+        attachments=[{
+            'bytes': attachment_bytes,
+            'filename': filename,
+            'maintype': maintype,
+            'subtype': subtype,
+        }],
+    )
+
+
+def send_email_with_bytes_attachments(
+    to: str | Iterable[str],
+    subject: str,
+    message: str,
+    attachments: Iterable[dict],
+    *,
+    cc: str | Iterable[str] | None = None,
+) -> EmailSendResult:
     recipients = _normalize_recipients(to)
     cc_recipients = _normalize_recipients(cc)
     if not recipients:
         raise EmailDeliveryError('Debes indicar al menos un destinatario válido.')
+    normalized_attachments = list(attachments)
+    if not normalized_attachments:
+        raise EmailDeliveryError('Selecciona al menos un archivo para adjuntar.')
 
     email = EmailMessage()
     email['From'] = settings.smtp_from
@@ -216,9 +241,21 @@ def send_email_with_bytes_attachment(
     email['Message-ID'] = make_msgid(domain=_message_id_domain())
     email['X-Report-Source'] = 'Dashboard ARCA Durango'
     email.set_content(message or 'Se adjunta reporte generado desde el dashboard.')
-    email.add_attachment(attachment_bytes, maintype=maintype, subtype=subtype, filename=filename)
+    filenames: list[str] = []
+    for attachment in normalized_attachments:
+        filename = str(attachment.get('filename') or '').strip()
+        content = attachment.get('bytes')
+        if not filename or not isinstance(content, bytes):
+            raise EmailDeliveryError('Uno de los archivos adjuntos no es válido.')
+        filenames.append(filename)
+        email.add_attachment(
+            content,
+            maintype=str(attachment.get('maintype') or 'application'),
+            subtype=str(attachment.get('subtype') or 'octet-stream'),
+            filename=filename,
+        )
 
-    message_id = _send_message(email, recipients, cc_recipients, filename)
+    message_id = _send_message(email, recipients, cc_recipients, ', '.join(filenames))
     return EmailSendResult(message='El servidor SMTP aceptó el correo para entrega.', message_id=message_id)
 
 

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, EmailStr, field_validator
+from typing import Literal
+
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 class EmailReportRequest(BaseModel):
@@ -20,6 +22,7 @@ class DailyWaterReportEmailRequest(BaseModel):
     date: str | None = None
     start_date: str | None = None
     end_date: str | None = None
+    formats: list[Literal['pdf', 'xlsx']] = Field(default_factory=lambda: ['pdf', 'xlsx'], min_length=1)
 
     @field_validator('to')
     @classmethod
@@ -40,3 +43,11 @@ class DailyWaterReportEmailRequest(BaseModel):
             return None
         normalized = value.strip()
         return normalized or None
+
+    @field_validator('formats')
+    @classmethod
+    def normalize_formats(cls, value: list[str]):
+        normalized = list(dict.fromkeys(value))
+        if not normalized:
+            raise ValueError('Selecciona al menos un formato para adjuntar.')
+        return normalized

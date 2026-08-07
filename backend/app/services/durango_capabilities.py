@@ -184,7 +184,7 @@ SENSORS_BY_MODULE = {
     'flow': [item['sensor_id'] if item.get('sensor_id') is not None else str(item['operational_key']) for item in FLOWS],
 }
 
-ACTIVE_MODULES = ['Resumen', 'Pozos', 'Líneas', 'Flujos', 'Comparativo Operativo de Agua', 'Revisión diaria', 'Reportes']
+ACTIVE_MODULES = ['Resumen', 'Pozos', 'Líneas', 'Flujos', 'Balance de Agua', 'Revisión diaria', 'Reportes']
 PENDING_MODULES = ['Concesión']
 DISABLED_MODULES = ['Energía']
 

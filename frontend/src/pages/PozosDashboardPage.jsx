@@ -38,7 +38,7 @@ const sectionMap = {
     render: ({ itemId } = {}) => <FlujosSection itemId={itemId} />,
   },
   balance: {
-    title: 'Comparativo Operativo de Agua',
+    title: 'Balance de Agua',
     render: () => <BalanceSection />,
   },
   concesion: {
