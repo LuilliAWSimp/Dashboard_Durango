@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarDays, Eye, FileDown, FileSpreadsheet, Mail, RefreshCw, RotateCcw } from 'lucide-react';
 import {
   fetchDailyWaterReport,
@@ -8,6 +8,7 @@ import {
 } from '../../../services/waterReportService';
 import { exportDailyWaterReportHtml } from '../../../services/dailyWaterReportExportService';
 import { todayInputDate } from '../dateUtils';
+import useAutoRefresh from '../../../hooks/useAutoRefresh';
 import ChartEmptyState from '../components/ChartEmptyState';
 import PanelHeader from '../components/PanelHeader';
 import StatusBadge from '../components/StatusBadge';
@@ -69,6 +70,8 @@ export default function ReportesSection() {
   const [endDate, setEndDate] = useState(today);
   const [report, setReport] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const inFlightRef = useRef(false);
   const [error, setError] = useState('');
   const [emailOpen, setEmailOpen] = useState(false);
   const [sending, setSending] = useState(false);
@@ -85,16 +88,22 @@ export default function ReportesSection() {
     [mode, date, startDate, endDate],
   );
 
-  const load = async (nextFilters: ReportFilters = filters) => {
-    setLoading(true);
-    setError('');
+  const load = async (nextFilters: ReportFilters = filters, background = false) => {
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
+    if (background && report) setRefreshing(true);
+    else setLoading(true);
+    if (!background) setError('');
     try {
       setReport(await fetchDailyWaterReport(nextFilters));
+      setError('');
     } catch (caught) {
       const candidate = caught as { response?: { data?: { detail?: string } }; message?: string };
       setError(candidate.response?.data?.detail || candidate.message || 'No fue posible consultar el reporte.');
     } finally {
+      inFlightRef.current = false;
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -114,6 +123,11 @@ export default function ReportesSection() {
   useEffect(() => {
     void load({ date: today });
   }, []);
+
+  const includesToday = mode === 'day'
+    ? date === today
+    : [startDate, endDate].sort()[0] <= today && today <= [startDate, endDate].sort()[1];
+  useAutoRefresh(includesToday, () => { void load(filters, true); });
 
   const send = async () => {
     setSending(true);
@@ -142,7 +156,7 @@ export default function ReportesSection() {
   const summaryCards = [
     { label: 'Volumen validado de pozos', value: summary.well_validated_volume_m3 ?? summary.well_volume_m3 },
     { label: 'Volumen validado de líneas', value: summary.line_validated_volume_m3 ?? summary.line_volume_m3 },
-    { label: 'Volumen validado de lavadoras', value: summary.washer_validated_volume_m3 ?? summary.flow_validated_volume_m3 ?? summary.flow_volume_m3 },
+    { label: 'Volumen validado de flujos', value: summary.washer_validated_volume_m3 ?? summary.flow_validated_volume_m3 ?? summary.flow_volume_m3 },
     { label: 'Total validado operativo', value: summary.total_validated_operational_m3 ?? summary.total_operational_m3 },
   ];
 
@@ -219,6 +233,7 @@ export default function ReportesSection() {
             <Mail size={17} /> Enviar por correo
           </button>
         </div>
+        {refreshing ? <div className="status-pill auto-refresh-status">Actualizando reporte…</div> : null}
         {error ? <div className="status-pill alert">{error}</div> : null}
       </section>
 
@@ -243,7 +258,7 @@ export default function ReportesSection() {
           {[
             ['Pozos', 'wells'],
             ['Líneas', 'production_lines'],
-            ['Lavadoras', 'operational_flows'],
+            ['Flujos', 'operational_flows'],
           ].map(([title, key]) => (
             <section key={key} className="panel fade-up report-data-panel">
               <PanelHeader title={title} subtitle={`Periodo ${report.period_label}`} />

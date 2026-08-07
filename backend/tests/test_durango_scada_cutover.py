@@ -10,6 +10,8 @@ from app.services.durango_capabilities import (
     ALL_ITEMS,
     DURANGO_SCADA_CUTOVER_LOCAL,
     DURANGO_SCADA_CUTOVER_UTC,
+    FLOWS,
+    JARABES,
     LAVADORAS,
     LINES,
     WELLS,
@@ -110,6 +112,7 @@ class DurangoScadaCutoverTests(unittest.TestCase):
             patch('app.services.water_bos_service._sql_now', return_value=datetime(2026, 8, 5, 0, 20)),
             patch('app.services.water_bos_service._safe_latest_row', side_effect=latest_row),
             patch('app.services.water_bos_service.get_current_lavadoras', return_value=[]),
+            patch('app.services.water_bos_service.get_current_jarabes', return_value=[]),
             patch('app.services.water_bos_service._sensor_catalog', return_value={}),
             patch('app.services.water_bos_service._well_locations', return_value={}),
             patch('app.services.water_bos_service._latest_quality_by_sensor', return_value={}),
@@ -141,7 +144,10 @@ class DurangoScadaCutoverTests(unittest.TestCase):
         self.assertTrue(all(item['sensor_id'] is None for item in LAVADORAS))
         self.assertEqual(len(LINES), 5)
         self.assertEqual(len(LAVADORAS), 2)
-        self.assertFalse({3002, 3004, 3006, 3010} & {item.get('sensor_id') for item in ALL_ITEMS})
+        self.assertEqual([(item['sensor_id'], item['source_key']) for item in JARABES], [(3010, 'TANQUE_FLOW_IN[4]')])
+        self.assertEqual([item['operational_key'] for item in FLOWS], ['lavadora_vidrio', 'lavadora_ref_pet', 'jarabes'])
+        self.assertFalse({3002, 3004, 3006} & {item.get('sensor_id') for item in ALL_ITEMS})
+        self.assertIn(3010, {item.get('sensor_id') for item in ALL_ITEMS})
         self.assertNotIn('Tanques', ACTIVE_MODULES)
         self.assertFalse(CAPABILITIES['tanks'])
 

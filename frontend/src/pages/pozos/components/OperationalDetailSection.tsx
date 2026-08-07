@@ -27,10 +27,6 @@ interface Props {
   backPath: string;
 }
 
-interface DetailLocationState {
-  fromOperationalModule?: boolean;
-}
-
 function array(value: unknown): FlexibleRecord[] {
   return Array.isArray(value) ? value as FlexibleRecord[] : [];
 }
@@ -147,11 +143,9 @@ export default function OperationalDetailSection({ module, sensorId, backPath }:
     });
   };
   const goBack = () => {
-    const state = location.state as DetailLocationState | null;
-    if (state?.fromOperationalModule) {
-      navigate(-1);
-      return;
-    }
+    // Always rebuild the module URL from the *current* detail context. Using
+    // navigate(-1) returned to the stale range that was active before the
+    // user changed dates or aggregation inside the detail view.
     navigate(`${backPath}${activeSearch}`);
   };
 
@@ -162,7 +156,7 @@ export default function OperationalDetailSection({ module, sensorId, backPath }:
           <button type="button" className="back-inline-button" onClick={goBack}>
             <ArrowLeft size={16} /> Volver
           </button>
-          <nav className="operational-sibling-navigation" aria-label={`Navegación entre ${module === 'well' ? 'pozos' : module === 'line' ? 'líneas' : 'lavadoras'}`}>
+          <nav className="operational-sibling-navigation" aria-label={`Navegación entre ${module === 'well' ? 'pozos' : module === 'line' ? 'líneas' : 'flujos'}`}>
             {previous ? (
               <button type="button" onClick={() => navigateToSibling(previous.identity)}>
                 <ChevronLeft size={15} /> {previous.name}

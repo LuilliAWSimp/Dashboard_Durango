@@ -1,9 +1,11 @@
 """Durango plant-clock helpers.
 
-The operational sources currently expose timestamps in UTC while the dashboard
-contract is expressed in the local plant clock.  This module centralizes the
-conversion and the rule that current-day queries may never extend beyond the
-local plant time.
+Durango mixes timestamp conventions by source:
+- dbo.SensorsBOS_Pozo and dbo.SensorsBOS_Linea expose local plant wall-clock time.
+- dbo.SensorsBOS_Lavadoras and dbo.SensorsBOS_Tanque expose UTC.
+
+These helpers keep the conversion explicit so local sources are never shifted by
+six hours and UTC sources are converted exactly once.
 """
 from __future__ import annotations
 
@@ -41,27 +43,37 @@ def local_now_naive() -> datetime:
     return local_now().replace(tzinfo=None)
 
 
-def source_to_local_naive(value: Any) -> datetime | None:
-    """Convert a source timestamp to naive Durango local time.
+def _is_local_source(source_timezone: str | None) -> bool:
+    normalized = str(source_timezone or 'UTC').strip().lower()
+    return normalized in {'local', 'plant', 'localtime', LOCAL_TIMEZONE.lower()}
 
-    Naive values from the operational sources are interpreted as UTC.  Aware
-    values retain their declared offset and are converted to the plant zone.
+
+def source_to_local_naive(value: Any, source_timezone: str | None = 'UTC') -> datetime | None:
+    """Normalize a source timestamp to naive Durango local time.
+
+    Naive UTC-source values are interpreted as UTC. Naive local-source values are
+    preserved as the plant wall clock. Aware values retain their declared offset.
     """
     parsed = parse_datetime(value)
     if parsed is None:
         return None
-    aware = parsed.replace(tzinfo=SOURCE_ZONE) if parsed.tzinfo is None else parsed
-    return aware.astimezone(LOCAL_ZONE).replace(tzinfo=None)
+    if parsed.tzinfo is not None:
+        return parsed.astimezone(LOCAL_ZONE).replace(tzinfo=None)
+    if _is_local_source(source_timezone):
+        return parsed.replace(tzinfo=None)
+    return parsed.replace(tzinfo=SOURCE_ZONE).astimezone(LOCAL_ZONE).replace(tzinfo=None)
 
 
-def local_to_source_naive(value: datetime) -> datetime:
-    """Convert a naive/aware Durango-local datetime to naive UTC for SQL bounds."""
+def local_to_source_naive(value: datetime, source_timezone: str | None = 'UTC') -> datetime:
+    """Convert a Durango-local datetime to the wall clock used by a source."""
     aware = value.replace(tzinfo=LOCAL_ZONE) if value.tzinfo is None else value.astimezone(LOCAL_ZONE)
+    if _is_local_source(source_timezone):
+        return aware.replace(tzinfo=None)
     return aware.astimezone(SOURCE_ZONE).replace(tzinfo=None)
 
 
-def source_iso_local(value: Any) -> str | None:
-    parsed = source_to_local_naive(value)
+def source_iso_local(value: Any, source_timezone: str | None = 'UTC') -> str | None:
+    parsed = source_to_local_naive(value, source_timezone)
     return parsed.isoformat(timespec='seconds') if parsed is not None else None
 
 

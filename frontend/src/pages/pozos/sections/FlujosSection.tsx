@@ -9,8 +9,8 @@ export default function FlujosSection({ itemId }: Props) {
     ? <OperationalDetailSection module="flow" sensorId={identity} backPath="/pozos/flujos" />
     : <OperationalModuleSection
         module="flow"
-        title="Lavadoras"
-        subtitle="Lavadora Vidrio y Lavadora Ref Pet"
+        title="Flujos"
+        subtitle="Lavadora Vidrio, Lavadora Ref Pet y Jarabes"
         route="/pozos/flujos"
       />;
 }

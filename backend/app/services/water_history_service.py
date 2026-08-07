@@ -20,8 +20,10 @@ from app.services.durango_capabilities import (
     identity_key,
     normalize_flow_lps,
     sensor_contract,
+    source_timezone_for_identity,
 )
 from app.services.durango_lavadoras_service import query_lavadora_rows
+from app.services.durango_jarabes_service import query_jarabes_rows
 from app.services.durango_well_history_fallback import query_bos_well_rows
 from app.services.operation_semantics import expected_minute_samples, interval_operation_metrics
 from app.services.plant_time import effective_local_end, local_now_naive, local_to_source_naive, source_to_local_naive
@@ -116,14 +118,20 @@ def _dt(value: Any) -> datetime | None:
             return None
 
 
-def _localized_rows(rows: list[dict[str, Any]], *timestamp_keys: str) -> list[dict[str, Any]]:
+def _localized_rows(
+    rows: list[dict[str, Any]],
+    *timestamp_keys: str,
+    identity_hint: Any = None,
+    source_timezone: str | None = None,
+) -> list[dict[str, Any]]:
     normalized: list[dict[str, Any]] = []
     for row in rows:
         item = dict(row)
+        identity = item.get('sensor_id') or item.get('operational_key') or identity_hint
+        row_timezone = source_timezone or source_timezone_for_identity(identity)
         for key in timestamp_keys:
             if item.get(key) is not None:
-                item[key] = source_to_local_naive(item[key])
-        identity = item.get('sensor_id') or item.get('operational_key')
+                item[key] = source_to_local_naive(item[key], row_timezone)
         for key in ('instant_value', 'flow_value', 'flow_avg', 'flow_active_avg', 'flow_min', 'flow_max'):
             if key in item:
                 item[key] = normalize_flow_lps(identity, item.get(key))
@@ -193,10 +201,10 @@ def _query_15m(sensor_id: int, start_dt: datetime, end_dt: datetime) -> list[dic
                 raise WaterHistoryError('La fuente histórica no está disponible.', status='no_history_source')
             rows = [dict(row._mapping) for row in session.execute(sql, {
                 'sensor_id': sensor_id,
-                'start_dt': local_to_source_naive(start_dt),
-                'end_dt': local_to_source_naive(end_dt),
+                'start_dt': local_to_source_naive(start_dt, source_timezone_for_identity(sensor_id)),
+                'end_dt': local_to_source_naive(end_dt, source_timezone_for_identity(sensor_id)),
             }).fetchall()]
-            return _localized_rows(rows, 'bucket_start')
+            return _localized_rows(rows, 'bucket_start', identity_hint=sensor_id)
     except WaterHistoryError:
         raise
     except OperationalError as exc:
@@ -221,8 +229,8 @@ def _query_physical_validation_rows(sensor_ids: list[int], start_dt: datetime, e
     if not sensor_ids or end_dt <= start_dt or end_dt - start_dt > timedelta(days=MAX_PHYSICAL_VALIDATION_DAYS):
         return []
     params: dict[str, Any] = {
-        'start_dt': local_to_source_naive(start_dt),
-        'end_dt': local_to_source_naive(end_dt),
+        'start_dt': local_to_source_naive(start_dt, LOCAL_TIMEZONE),
+        'end_dt': local_to_source_naive(end_dt, LOCAL_TIMEZONE),
         'max_rows': MAX_PHYSICAL_VALIDATION_ROWS,
     }
     placeholders: list[str] = []
@@ -248,7 +256,7 @@ def _query_physical_validation_rows(sensor_ids: list[int], start_dt: datetime, e
             if not exists:
                 return []
             rows = [dict(row._mapping) for row in session.execute(sql, params).fetchall()]
-            return _localized_rows(rows, 'operational_ts')
+            return _localized_rows(rows, 'operational_ts', source_timezone=LOCAL_TIMEZONE)
     except SQLAlchemyError:
         logger.exception('physical totalizer validation query failed sensors=%s start=%s end=%s', sensor_ids, start_dt, end_dt)
         return []
@@ -583,10 +591,14 @@ def get_water_history(*, module: str, sensor_id: Any, start_date: str, end_date:
     rows: list[dict[str, Any]] = []
     validation_rows: list[dict[str, Any]] = []
     if not legacy_only and module == 'flow':
-        raw_rows = query_lavadora_rows(query_start_dt, query_end_dt).get(str(identity), [])
+        if str(identity) == '3010':
+            raw_rows = query_jarabes_rows(query_start_dt, query_end_dt)
+            source = 'dbo.SensorsBOS_Tanque' if raw_rows else 'no_data'
+        else:
+            raw_rows = query_lavadora_rows(query_start_dt, query_end_dt).get(str(identity), [])
+            source = 'dbo.SensorsBOS_Lavadoras' if raw_rows else 'no_data'
         rows = _bos_rows_to_15m(identity, raw_rows)
         validation_rows = raw_rows
-        source = 'dbo.SensorsBOS_Lavadoras' if raw_rows else 'no_data'
     elif not legacy_only:
         try:
             rows = _query_15m(int(identity), query_start_dt, query_end_dt) if query_end_dt > query_start_dt else []
@@ -638,7 +650,7 @@ def _validate_module_request(module: str, start_date: str, end_date: str, aggreg
 
 
 def _query_15m_multi(sensor_ids: list[int], start_dt: datetime, end_dt: datetime) -> list[dict[str, Any]]:
-    params: dict[str, Any] = {'start_dt': local_to_source_naive(start_dt), 'end_dt': local_to_source_naive(end_dt)}
+    params: dict[str, Any] = {'start_dt': local_to_source_naive(start_dt, LOCAL_TIMEZONE), 'end_dt': local_to_source_naive(end_dt, LOCAL_TIMEZONE)}
     placeholders = []
     for index, sensor_id in enumerate(sensor_ids):
         key = f'sensor_{index}'
@@ -691,7 +703,7 @@ def _query_15m_multi(sensor_ids: list[int], start_dt: datetime, end_dt: datetime
             if not exists:
                 raise WaterHistoryError('La fuente histórica no está disponible.', status='no_history_source')
             rows = [dict(row._mapping) for row in session.execute(sql, params).fetchall()]
-            return _localized_rows(rows, 'bucket_start')
+            return _localized_rows(rows, 'bucket_start', source_timezone=LOCAL_TIMEZONE)
     except WaterHistoryError:
         raise
     except OperationalError as exc:
@@ -764,8 +776,9 @@ def get_water_history_module(*, module: str, start_date: str, end_date: str, agg
     validation_grouped: dict[Any, list[dict[str, Any]]] = {identity: [] for identity in identities}
     if not legacy_only and module == 'flow':
         washer_rows = query_lavadora_rows(query_start_dt, query_end_dt)
+        jarabes_rows = query_jarabes_rows(query_start_dt, query_end_dt) if 3010 in identities else []
         for identity in identities:
-            raw_rows = washer_rows.get(str(identity), [])
+            raw_rows = jarabes_rows if str(identity) == '3010' else washer_rows.get(str(identity), [])
             grouped[identity] = _bos_rows_to_15m(identity, raw_rows)
             validation_grouped[identity] = raw_rows
     elif not legacy_only:
@@ -789,7 +802,7 @@ def get_water_history_module(*, module: str, start_date: str, end_date: str, agg
     series = []
     for identity in identities:
         sensor_rows = grouped[identity]
-        source_status = 'legacy_configuration_pending' if legacy_only else ('dbo.SensorsBOS_Lavadoras' if module == 'flow' else 'readings_minute')
+        source_status = 'legacy_configuration_pending' if legacy_only else ('dbo.SensorsBOS_Tanque' if module == 'flow' and str(identity) == '3010' else 'dbo.SensorsBOS_Lavadoras' if module == 'flow' else 'readings_minute')
         sensor_validation_rows = validation_grouped.get(identity, [])
         if not sensor_rows and module == 'well' and start == end and query_end_dt > query_start_dt:
             bos_rows = query_bos_well_rows(int(identity), query_start_dt, query_end_dt)
@@ -841,7 +854,7 @@ def _parse_local_datetime(value: str) -> datetime:
 
 
 def _query_minute_rows(sensor_ids: list[int], start_dt: datetime, end_dt: datetime) -> list[dict[str, Any]]:
-    params: dict[str, Any] = {'start_dt': local_to_source_naive(start_dt), 'end_dt': local_to_source_naive(end_dt)}
+    params: dict[str, Any] = {'start_dt': local_to_source_naive(start_dt, LOCAL_TIMEZONE), 'end_dt': local_to_source_naive(end_dt, LOCAL_TIMEZONE)}
     placeholders = []
     for index, sensor_id in enumerate(sensor_ids):
         key = f'sensor_{index}'; params[key] = sensor_id; placeholders.append(f':{key}')
@@ -859,7 +872,7 @@ def _query_minute_rows(sensor_ids: list[int], start_dt: datetime, end_dt: dateti
             exists = session.execute(text("SELECT CASE WHEN OBJECT_ID('iot.readings_minute','U') IS NULL THEN 0 ELSE 1 END")).scalar()
             if not exists: return []
             rows = [dict(row._mapping) for row in session.execute(sql, params).fetchall()]
-            return _localized_rows(rows, 'reading_ts')
+            return _localized_rows(rows, 'reading_ts', source_timezone=LOCAL_TIMEZONE)
     except SQLAlchemyError:
         logger.exception('minute well flow query failed')
         return []

@@ -30,16 +30,16 @@ export default function BalanceSection() {
   const summary = (dashboard?.operational_summary || {}) as FlexibleRecord;
   const wells = group(summary, 'wells');
   const lines = group(summary, 'lines');
-  const washers = group(summary, 'flows');
+  const flows = group(summary, 'flows');
   const data = [
     { name: 'Pozos', value: Number(wells.total_m3 || 0), color: '#0ea5e9' },
     { name: 'Líneas', value: Number(lines.total_m3 || 0), color: '#7dd3fc' },
-    { name: 'Lavadoras', value: Number(washers.total_m3 || 0), color: '#a855f7' },
+    { name: 'Flujos', value: Number(flows.total_m3 || 0), color: '#a855f7' },
   ];
-  const coverage = Number(wells.coverage_available || 0) + Number(lines.coverage_available || 0) + Number(washers.coverage_available || 0);
-  const total = Number(wells.coverage_total || 2) + Number(lines.coverage_total || 5) + Number(washers.coverage_total || 2);
+  const coverage = Number(wells.coverage_available || 0) + Number(lines.coverage_available || 0) + Number(flows.coverage_available || 0);
+  const total = Number(wells.coverage_total || 2) + Number(lines.coverage_total || 5) + Number(flows.coverage_total || 3);
   const excluded = total - coverage;
-  const comparison = Number(wells.total_m3 || 0) - Number(lines.total_m3 || 0) - Number(washers.total_m3 || 0);
+  const comparison = Number(wells.total_m3 || 0) - Number(lines.total_m3 || 0) - Number(flows.total_m3 || 0);
 
   return <>
     <section className="water-balance-hero panel fade-up">
@@ -47,12 +47,12 @@ export default function BalanceSection() {
       <div className="water-balance-hero-grid">
         <article><span>Volumen de pozos</span><strong>{fmt(wells.total_m3)} <small>m³</small></strong></article>
         <article><span>Volumen de líneas</span><strong>{fmt(lines.total_m3)} <small>m³</small></strong></article>
-        <article><span>Lavadoras</span><strong>{fmt(washers.total_m3)} <small>m³</small></strong></article>
+        <article><span>Flujos</span><strong>{fmt(flows.total_m3)} <small>m³</small></strong></article>
         <article><span>Cobertura</span><strong>{coverage}/{total}</strong></article>
       </div>
     </section>
     <section className="cards-grid water-balance-kpi-grid">
-      <KpiCard label="Comparación matemática" value={`${comparison >= 0 ? '+' : ''}${fmt(comparison)}`} unit="m³" trend="Pozos − Líneas − Lavadoras" accent="cyan" />
+      <KpiCard label="Comparación matemática" value={`${comparison >= 0 ? '+' : ''}${fmt(comparison)}`} unit="m³" trend="Pozos − Líneas − Flujos" accent="cyan" />
       <KpiCard label="Elementos excluidos" value={String(excluded)} unit="elementos" trend="Dato en revisión o sin totalizador" accent="brown" />
     </section>
     <section className="panel chart-panel fade-up">

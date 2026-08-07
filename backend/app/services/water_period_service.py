@@ -22,6 +22,7 @@ from app.services.durango_capabilities import (
     normalize_flow_lps,
 )
 from app.services.durango_lavadoras_service import get_lavadora_period_items
+from app.services.durango_jarabes_service import get_jarabes_period_items
 from app.services.durango_well_history_fallback import query_bos_well_rows
 from app.services.operation_semantics import expected_minute_samples, interval_operation_metrics
 from app.services.plant_time import effective_local_end, local_now_naive, local_to_source_naive, source_to_local_naive
@@ -108,7 +109,7 @@ def _sensor_params(sensor_ids: Iterable[int]) -> tuple[str, dict[str, Any]]:
 
 def query_readings_window(sensor_ids: list[int], start_dt: datetime, end_dt: datetime) -> list[dict[str, Any]]:
     placeholders, params = _sensor_params(sensor_ids)
-    params.update({'start_dt': local_to_source_naive(start_dt), 'end_dt': local_to_source_naive(end_dt), 'max_rows': MAX_ROWS})
+    params.update({'start_dt': local_to_source_naive(start_dt, LOCAL_TIMEZONE), 'end_dt': local_to_source_naive(end_dt, LOCAL_TIMEZONE), 'max_rows': MAX_ROWS})
     sql = text(f"""
         SELECT TOP (:max_rows)
             reading.sensor_id,
@@ -129,7 +130,7 @@ def query_readings_window(sensor_ids: list[int], start_dt: datetime, end_dt: dat
                 raise WaterPeriodError('La fuente histórica no está disponible.', status='no_history_source')
             rows = [dict(row._mapping) for row in session.execute(sql, params).fetchall()]
             for row in rows:
-                row['operational_ts'] = source_to_local_naive(row.get('operational_ts'))
+                row['operational_ts'] = source_to_local_naive(row.get('operational_ts'), LOCAL_TIMEZONE)
                 row['instant_value'] = normalize_flow_lps(row.get('sensor_id'), row.get('instant_value'))
             return rows
     except WaterPeriodError:
@@ -145,7 +146,7 @@ def query_readings_window(sensor_ids: list[int], start_dt: datetime, end_dt: dat
 
 def query_previous_closes(sensor_ids: list[int], before_dt: datetime) -> dict[int, tuple[datetime | None, float | None]]:
     placeholders, params = _sensor_params(sensor_ids)
-    params['before_dt'] = local_to_source_naive(before_dt)
+    params['before_dt'] = local_to_source_naive(before_dt, LOCAL_TIMEZONE)
     sql = text(f"""
         WITH ranked AS (
             SELECT
@@ -172,7 +173,7 @@ def query_previous_closes(sensor_ids: list[int], before_dt: datetime) -> dict[in
                 return {}
             rows = session.execute(sql, params).fetchall()
         return {
-            int(row._mapping['sensor_id']): (source_to_local_naive(row._mapping.get('operational_ts')), _num(row._mapping.get('total_value')))
+            int(row._mapping['sensor_id']): (source_to_local_naive(row._mapping.get('operational_ts'), LOCAL_TIMEZONE), _num(row._mapping.get('total_value')))
             for row in rows
         }
     except SQLAlchemyError:
@@ -509,8 +510,15 @@ def get_period_data(start_date: Any = None, end_date: Any = None, *, force_refre
             window_start=query_start_dt,
             window_end=query_end_dt,
         ))
+        items.extend(get_jarabes_period_items(
+            query_start_dt,
+            query_end_dt,
+            end_day,
+            window_start=query_start_dt,
+            window_end=query_end_dt,
+        ))
     except SQLAlchemyError as exc:
-        raise WaterPeriodError('No fue posible consultar el histórico de lavadoras.', status='sql_error') from exc
+        raise WaterPeriodError('No fue posible consultar el histórico de flujos operativos.', status='sql_error') from exc
 
     groups: dict[str, list[dict[str, Any]]] = {'well': [], 'line': [], 'flow': []}
     for item in items:

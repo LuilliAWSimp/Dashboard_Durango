@@ -92,7 +92,7 @@ class DurangoReportValidatedSummaryTests(unittest.TestCase):
         summary_values = {summary_sheet.cell(row, 1).value: summary_sheet.cell(row, 2).value for row in range(2, summary_sheet.max_row + 1)}
         self.assertAlmostEqual(summary_values['Volumen validado de pozos (m³)'], 175.65, places=6)
         self.assertAlmostEqual(summary_values['Volumen validado de líneas (m³)'], 24.21, places=6)
-        self.assertIsNone(summary_values['Volumen validado de lavadoras (m³)'])
+        self.assertIsNone(summary_values['Volumen validado de flujos (m³)'])
         self.assertAlmostEqual(summary_values['Total validado operativo (m³)'], 199.86, places=6)
         wells_sheet = workbook['Pozos']
         self.assertIsInstance(wells_sheet['F2'].value, (int, float))

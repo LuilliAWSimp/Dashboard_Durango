@@ -34,7 +34,7 @@ const sectionMap = {
     render: ({ itemId } = {}) => <LineasSection itemId={itemId} />,
   },
   flujos: {
-    title: 'Lavadoras',
+    title: 'Flujos',
     render: ({ itemId } = {}) => <FlujosSection itemId={itemId} />,
   },
   balance: {

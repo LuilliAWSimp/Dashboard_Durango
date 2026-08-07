@@ -13,7 +13,7 @@ WATER_SECTION_META = {
     'dashboard': ('Resumen', 'Monitoreo hídrico operativo de Planta Durango'),
     'pozos': ('Pozos', 'Dos pozos confirmados'),
     'lineas': ('Líneas', 'Cinco líneas confirmadas'),
-    'flujos': ('Lavadoras', 'Lavadora Vidrio y Lavadora Ref Pet'),
+    'flujos': ('Flujos', 'Lavadora Vidrio, Lavadora Ref Pet y Jarabes'),
     'balance': ('Comparativo Operativo de Agua', 'Comparación matemática de volúmenes confiables'),
     'concesion': ('Concesión', 'Pendiente de fuente confirmada'),
     'revision': ('Revisión diaria', 'Cierres y consumos por fecha'),
@@ -24,7 +24,7 @@ WATER_SECTION_META = {
     'fuentes': ('Fuentes', 'Administración de fuentes hidráulicas'),
 }
 
-WATER_REPORT_MODULES = ['Pozos', 'Líneas', 'Lavadoras', 'Cortes por turno', 'Comparativo operativo']
+WATER_REPORT_MODULES = ['Pozos', 'Líneas', 'Flujos', 'Cortes por turno', 'Comparativo operativo']
 
 
 def _empty(section: str, status: str, message: str) -> WaterDashboardPayload:
@@ -172,7 +172,7 @@ def _cards(payload: dict[str, Any]) -> list[KpiCard]:
     return [
         KpiCard(label='Volumen validado de pozos', value=value(wells), unit=unit(wells), trend=trend(wells, 2), accent='blue'),
         KpiCard(label='Volumen validado de líneas', value=value(lines), unit=unit(lines), trend=trend(lines, 5), accent='cyan'),
-        KpiCard(label='Volumen validado de lavadoras', value=value(flows), unit=unit(flows), trend=trend(flows, 2), accent='indigo'),
+        KpiCard(label='Volumen validado de flujos', value=value(flows), unit=unit(flows), trend=trend(flows, 3), accent='indigo'),
         KpiCard(label='Datos en revisión', value=str(int(wells.get('review_count', 0)) + int(lines.get('review_count', 0)) + int(flows.get('review_count', 0))), unit='elementos', trend='Pueden conservar volumen validado parcial', accent='brown'),
     ]
 

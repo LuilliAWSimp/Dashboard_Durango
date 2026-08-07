@@ -62,8 +62,8 @@ def _query_rows(start_local: datetime, end_local: datetime, *, session: Any = No
         ORDER BY Time_Stamp ASC
     """)
     params = {
-        'start_utc': local_to_source_naive(start_local),
-        'end_utc': local_to_source_naive(end_local),
+        'start_utc': local_to_source_naive(start_local, 'UTC'),
+        'end_utc': local_to_source_naive(end_local, 'UTC'),
     }
     try:
         with _session_scope(session) as active_session:
@@ -90,7 +90,7 @@ def _query_latest(*, session: Any = None) -> dict[str, Any] | None:
         with _session_scope(session) as active_session:
             row = active_session.execute(
                 sql,
-                {'cutover_utc': local_to_source_naive(DURANGO_SCADA_CUTOVER_LOCAL)},
+                {'cutover_utc': local_to_source_naive(DURANGO_SCADA_CUTOVER_LOCAL, 'UTC')},
             ).fetchone()
             return _mapping(row) if row is not None else None
     except SQLAlchemyError as exc:
@@ -102,7 +102,7 @@ def normalize_lavadora_rows(rows: list[dict[str, Any]]) -> dict[str, list[dict[s
     """Convert each UTC timestamp exactly once and expose stable text keys."""
     grouped = {str(item['operational_key']): [] for item in LAVADORAS}
     for raw in rows:
-        local_stamp = source_to_local_naive(raw.get('source_timestamp') or raw.get('Time_Stamp'))
+        local_stamp = source_to_local_naive(raw.get('source_timestamp') or raw.get('Time_Stamp'), 'UTC')
         if local_stamp is None or local_stamp < DURANGO_SCADA_CUTOVER_LOCAL:
             continue
         for contract in LAVADORAS:
@@ -217,7 +217,7 @@ def build_lavadora_period_item(
     return {
         'operational_key': key,
         'id': key,
-        'sensor_id': None,
+        'sensor_id': contract.get('sensor_id'),
         'name': contract['display_name'],
         'nombre': contract['display_name'],
         'module': 'flow',
@@ -268,8 +268,8 @@ def build_lavadora_period_item(
         'communication_status': communication_status,
         'last_update': latest_stamp.isoformat(timespec='seconds') if latest_stamp else None,
         'ultima_lectura': latest_stamp.isoformat(timespec='seconds') if latest_stamp else None,
-        'period_source': 'dbo.SensorsBOS_Lavadoras' if ordered else 'no_history',
-        'source_table': 'dbo.SensorsBOS_Lavadoras',
+        'period_source': str(contract.get('table') or 'dbo.SensorsBOS_Lavadoras') if ordered else 'no_history',
+        'source_table': str(contract.get('table') or 'dbo.SensorsBOS_Lavadoras'),
         'source_key': contract['source_key'],
         'presentation_order': contract['presentation_order'],
     }

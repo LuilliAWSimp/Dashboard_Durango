@@ -20,7 +20,7 @@ export default function RevisionDiariaSection() {
   const rows = useMemo<Array<FlexibleRecord & { group: string }>>(() => [
     ...array(dashboard?.wells).map((item): FlexibleRecord & { group: string } => ({ ...item, group: 'Pozo' })),
     ...array(dashboard?.production_lines).map((item): FlexibleRecord & { group: string } => ({ ...item, group: 'Línea' })),
-    ...array(dashboard?.flows).map((item): FlexibleRecord & { group: string } => ({ ...item, group: 'Lavadora' })),
+    ...array(dashboard?.flows).map((item): FlexibleRecord & { group: string } => ({ ...item, group: 'Flujo' })),
   ], [dashboard]);
   const summary = (dashboard?.operational_summary || {}) as FlexibleRecord;
   const wells = group(summary, 'wells');

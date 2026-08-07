@@ -24,6 +24,7 @@ export const DURANGO_CAPABILITIES = {
   flows: [
     { operationalKey: 'lavadora_vidrio', sensorId: null, name: 'Lavadora Vidrio', flowUnit: 'L/s', sourceKey: 'LAVADORAS_0' },
     { operationalKey: 'lavadora_ref_pet', sensorId: null, name: 'Lavadora Ref Pet', flowUnit: 'L/s', sourceKey: 'LAVADORAS_1' },
+    { operationalKey: 'jarabes', sensorId: 3010, name: 'Jarabes', flowUnit: 'L/s', sourceKey: 'TANQUE_FLOW_IN[4]' },
   ],
   scadaCutoverLocal: '2026-08-04T18:16:00',
 } as const;

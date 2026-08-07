@@ -5,7 +5,7 @@ from io import BytesIO
 
 from openpyxl import load_workbook
 
-from app.services.durango_capabilities import LAVADORAS, LINES, WELLS
+from app.services.durango_capabilities import JARABES, LAVADORAS, LINES, WELLS
 from app.services.totalizer_quality import analyze_totalizer_series
 from app.services.water_history_service import _build_points
 from app.services.water_shift_service import SHIFT_DEFINITIONS, _window
@@ -21,6 +21,7 @@ def test_confirmed_mappings_keep_durango_order():
     assert [(item['operational_key'], item['name']) for item in LAVADORAS] == [
         ('lavadora_vidrio', 'Lavadora Vidrio'), ('lavadora_ref_pet', 'Lavadora Ref Pet')
     ]
+    assert [(item['sensor_id'], item['name']) for item in JARABES] == [(3010, 'Jarabes')]
 
 
 def test_totalizer_ignores_intermittent_zero_without_double_counting():
@@ -73,7 +74,7 @@ def test_shift_windows_are_non_overlapping():
 
 
 def _period_fixture():
-    contracts = [*WELLS, *LINES, *LAVADORAS]
+    contracts = [*WELLS, *LINES, *LAVADORAS, *JARABES]
     rows = []
     for index, contract in enumerate(contracts, start=1):
         rows.append({
@@ -127,10 +128,10 @@ def test_pdf_excel_and_email_attachment_use_same_report_structure(monkeypatch):
     assert pdf_name == 'reporte-diario-control-hidrico-durango-2026-08-01.pdf'
     assert excel_name == 'reporte-diario-control-hidrico-durango-2026-08-01.xlsx'
     workbook = load_workbook(BytesIO(excel_bytes), data_only=True)
-    assert workbook.sheetnames[:4] == ['Resumen', 'Pozos', 'Líneas', 'Lavadoras']
+    assert workbook.sheetnames[:4] == ['Resumen', 'Pozos', 'Líneas', 'Flujos']
     assert workbook['Pozos'].max_row == 3
     assert workbook['Líneas'].max_row == 6
-    assert workbook['Lavadoras'].max_row == 3
+    assert workbook['Flujos'].max_row == 4
 
 
 def test_shift_boundary_minutes_belong_to_expected_turn():

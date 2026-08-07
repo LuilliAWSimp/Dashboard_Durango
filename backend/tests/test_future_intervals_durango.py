@@ -68,12 +68,13 @@ if __name__ == '__main__':
     unittest.main()
 
 class DurangoPeriodClampTests(unittest.TestCase):
+    @patch('app.services.water_period_service.get_jarabes_period_items', return_value=[])
     @patch('app.services.water_period_service.get_lavadora_period_items', return_value=[])
     @patch('app.services.water_period_service.query_bos_well_rows', return_value=[])
     @patch('app.services.water_period_service.query_previous_closes', return_value={})
     @patch('app.services.water_period_service.query_readings_window', return_value=[])
     @patch('app.services.water_period_service.local_now_naive')
-    def test_current_day_period_query_stops_at_local_now(self, now_mock, query_mock, _previous_mock, _fallback_mock, _lavadoras_mock):
+    def test_current_day_period_query_stops_at_local_now(self, now_mock, query_mock, _previous_mock, _fallback_mock, _lavadoras_mock, _jarabes_mock):
         from app.services.water_period_service import get_period_data
 
         now_mock.return_value = datetime(2026, 8, 5, 13, 6)

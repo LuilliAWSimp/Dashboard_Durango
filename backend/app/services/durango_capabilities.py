@@ -7,6 +7,8 @@ segmento validado posterior.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import math
+import struct
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -14,7 +16,7 @@ PLANT_KEY = 'durango'
 PLANT_NAME = 'Planta Durango'
 PLANT_TITLE = 'Durango'
 LOCAL_TIMEZONE = 'America/Mexico_City'
-SOURCE_TIMESTAMP_TIMEZONE = 'UTC'
+UTC_TIMEZONE = 'UTC'
 
 DURANGO_SCADA_CUTOVER_LOCAL = datetime(2026, 8, 4, 18, 16, 0)
 DURANGO_SCADA_CUTOVER_UTC = (
@@ -29,6 +31,7 @@ CAPABILITIES: dict[str, str | bool] = {
     'lines': True,
     'flows': True,
     'washers': True,
+    'jarabes': True,
     'tanks': False,
     'concession': 'pending_validation',
     'energy': False,
@@ -64,6 +67,7 @@ WELLS: list[dict[str, Any]] = [
         'raw_flow_unit': 'm3/h',
         'flow_normalization_factor': 1 / 3.6,
         'totalizer_unit': 'm3',
+        'source_timestamp_timezone': LOCAL_TIMEZONE,
         'require_flow_validation': True,
     },
     {
@@ -75,6 +79,7 @@ WELLS: list[dict[str, Any]] = [
         'raw_flow_unit': 'L/s',
         'flow_normalization_factor': 1.0,
         'totalizer_unit': 'm3',
+        'source_timestamp_timezone': LOCAL_TIMEZONE,
         'require_flow_validation': True,
     },
 ]
@@ -89,6 +94,7 @@ LINES: list[dict[str, Any]] = [
         'raw_flow_unit': 'L/s',
         'flow_normalization_factor': 1.0,
         'totalizer_unit': 'm3',
+        'source_timestamp_timezone': LOCAL_TIMEZONE,
         'require_flow_validation': False,
     }
     for index, sensor_id in enumerate((2002, 2004, 2006, 2008, 2010))
@@ -105,7 +111,7 @@ LAVADORAS: list[dict[str, Any]] = [
         'raw_flow_unit': 'L/s',
         'flow_normalization_factor': 1.0,
         'totalizer_unit': 'm3',
-        'source_timestamp_timezone': 'UTC',
+        'source_timestamp_timezone': UTC_TIMEZONE,
         'require_flow_validation': True,
     },
     {
@@ -118,30 +124,46 @@ LAVADORAS: list[dict[str, Any]] = [
         'raw_flow_unit': 'L/s',
         'flow_normalization_factor': 1.0,
         'totalizer_unit': 'm3',
-        'source_timestamp_timezone': 'UTC',
+        'source_timestamp_timezone': UTC_TIMEZONE,
         'require_flow_validation': True,
     },
 ]
 
-# FLOWS se conserva como alias de respuesta para no romper el contrato HTTP ni
-# los componentes existentes. Sus elementos son exclusivamente las lavadoras.
-FLOWS = LAVADORAS
+JARABES: list[dict[str, Any]] = [
+    {
+        **_common(key='jarabes', name='Jarabes', group='flow', order=3),
+        'sensor_id': 3010,
+        'table': 'dbo.SensorsBOS_Tanque',
+        'source_key': 'TANQUE_FLOW_IN[4]',
+        'slot_index': 4,
+        'instant_column': 'TANQUE_FLOW_IN_4_instant_value',
+        'total_column': 'TANQUE_FLOW_IN_4_total_value',
+        'raw_flow_unit': 'L/s',
+        'flow_normalization_factor': 1.0,
+        'flow_encoding': 'ieee754_float32_bits_in_numeric',
+        'totalizer_unit': 'm3',
+        'source_timestamp_timezone': UTC_TIMEZONE,
+        'require_flow_validation': True,
+    },
+]
+
+FLOWS = [*LAVADORAS, *JARABES]
 SENSOR_ITEMS = [*WELLS, *LINES]
-ALL_ITEMS = [*SENSOR_ITEMS, *LAVADORAS]
+ALL_ITEMS = [*SENSOR_ITEMS, *FLOWS]
 
 ITEM_BY_SENSOR = {
     int(item['sensor_id']): item
-    for item in SENSOR_ITEMS
+    for item in ALL_ITEMS
     if item.get('sensor_id') is not None
 }
 ITEM_BY_KEY = {str(item['operational_key']): item for item in ALL_ITEMS}
 SENSORS_BY_MODULE = {
     'well': [int(item['sensor_id']) for item in WELLS],
     'line': [int(item['sensor_id']) for item in LINES],
-    'flow': [str(item['operational_key']) for item in LAVADORAS],
+    'flow': [item['sensor_id'] if item.get('sensor_id') is not None else str(item['operational_key']) for item in FLOWS],
 }
 
-ACTIVE_MODULES = ['Resumen', 'Pozos', 'Líneas', 'Lavadoras', 'Comparativo Operativo de Agua', 'Revisión diaria', 'Reportes']
+ACTIVE_MODULES = ['Resumen', 'Pozos', 'Líneas', 'Flujos', 'Comparativo Operativo de Agua', 'Revisión diaria', 'Reportes']
 PENDING_MODULES = ['Concesión']
 DISABLED_MODULES = ['Energía']
 
@@ -182,6 +204,7 @@ def item_contract(value: Any) -> dict[str, Any]:
         'display_flow_unit': 'L/s',
         'flow_unit': 'L/s',
         'flow_normalization_factor': 1.0,
+        'source_timestamp_timezone': LOCAL_TIMEZONE,
         'unit_status': 'pending',
         'enabled': False,
     }
@@ -195,6 +218,29 @@ def flow_unit_for_sensor(sensor_id: Any) -> str:
     return str(item_contract(sensor_id).get('display_flow_unit') or 'L/s')
 
 
+def source_timezone_for_identity(identity: Any) -> str:
+    return str(item_contract(identity).get('source_timestamp_timezone') or LOCAL_TIMEZONE)
+
+
+def _decode_ieee754_float32_bits(value: float) -> float | None:
+    """Decode the Durango Jarabes flow when BOS stores Float32 bits as a number.
+
+    Current observations are around 1.0e9 (for example 1064303552 -> ~0.9374).
+    If SCADA is later corrected and starts storing a normal engineering value,
+    values below one million are preserved instead of being reinterpreted.
+    """
+    if abs(value) < 1_000_000:
+        return value
+    try:
+        encoded = int(round(value)) & 0xFFFFFFFF
+        decoded = struct.unpack('!f', struct.pack('!I', encoded))[0]
+    except (OverflowError, ValueError, struct.error):
+        return None
+    if not math.isfinite(decoded):
+        return None
+    return float(decoded)
+
+
 def normalize_flow_lps(identity: Any, raw_value: Any) -> float | None:
     if raw_value in (None, ''):
         return None
@@ -202,10 +248,17 @@ def normalize_flow_lps(identity: Any, raw_value: Any) -> float | None:
         parsed = float(str(raw_value).replace(',', '').strip())
     except (TypeError, ValueError):
         return None
-    if parsed != parsed:
+    if not math.isfinite(parsed):
         return None
-    factor = float(item_contract(identity).get('flow_normalization_factor') or 1.0)
-    return parsed * factor
+    contract = item_contract(identity)
+    if contract.get('flow_encoding') == 'ieee754_float32_bits_in_numeric':
+        decoded = _decode_ieee754_float32_bits(parsed)
+        if decoded is None:
+            return None
+        parsed = decoded
+    factor = float(contract.get('flow_normalization_factor') or 1.0)
+    normalized = parsed * factor
+    return normalized if math.isfinite(normalized) else None
 
 
 def current_flow_threshold_for_sensor(sensor_id: Any) -> float:
@@ -231,7 +284,8 @@ def capability_payload() -> dict[str, Any]:
         'scada_cutover_utc': DURANGO_SCADA_CUTOVER_UTC.isoformat(timespec='seconds') + 'Z',
         'wells': WELLS,
         'lines': LINES,
-        'flows': LAVADORAS,
+        'flows': FLOWS,
         'washers': LAVADORAS,
+        'jarabes': JARABES,
         'current_flow_active_threshold': DEFAULT_CURRENT_FLOW_ACTIVE_THRESHOLD,
     }

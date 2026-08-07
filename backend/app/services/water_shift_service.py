@@ -12,6 +12,7 @@ from app.services.durango_capabilities import (
     clamp_to_validated_segment,
 )
 from app.services.durango_lavadoras_service import get_lavadora_period_items
+from app.services.durango_jarabes_service import get_jarabes_period_items
 from app.services.plant_time import local_now_naive
 from app.services.water_period_service import build_period_item, query_previous_closes, query_readings_window
 
@@ -99,7 +100,7 @@ def get_shift_consumption_data(report_date: Any = None, *, force_refresh: bool =
                 'summary': {
                     'wells': {'total_m3': None, 'active_count': 0, 'inactive_count': 0, 'review_count': 0, 'coverage_available': 0, 'coverage_total': 2},
                     'lines': {'total_m3': None, 'active_count': 0, 'inactive_count': 0, 'review_count': 0, 'coverage_available': 0, 'coverage_total': 5},
-                    'flows': {'total_m3': None, 'active_count': 0, 'inactive_count': 0, 'review_count': 0, 'coverage_available': 0, 'coverage_total': 2},
+                    'flows': {'total_m3': None, 'active_count': 0, 'inactive_count': 0, 'review_count': 0, 'coverage_available': 0, 'coverage_total': 3},
                     'total_operational_m3': None,
                 },
             })
@@ -141,6 +142,13 @@ def get_shift_consumption_data(report_date: Any = None, *, force_refresh: bool =
             for contract in SENSOR_ITEMS
         ]
         items.extend(get_lavadora_period_items(
+            query_start,
+            query_end,
+            day,
+            window_start=query_start,
+            window_end=query_end,
+        ))
+        items.extend(get_jarabes_period_items(
             query_start,
             query_end,
             day,

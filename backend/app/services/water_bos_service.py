@@ -14,11 +14,12 @@ from app.services.durango_capabilities import (
     DURANGO_SCADA_CUTOVER_LOCAL,
     WELLS as DURANGO_WELLS,
     LINES as DURANGO_LINES,
-    LAVADORAS as DURANGO_LAVADORAS,
+    FLOWS as DURANGO_FLOWS,
     flow_unit_for_sensor,
     normalize_flow_lps,
 )
 from app.services.durango_lavadoras_service import get_current_lavadoras
+from app.services.durango_jarabes_service import get_current_jarabes
 from app.services.plant_time import local_now_naive, local_to_source_naive, source_iso_local, source_to_local_naive
 
 
@@ -212,7 +213,7 @@ WELL_IDS = list(range(1, len(DURANGO_WELLS) + 1))
 ENERGY_SENSOR_IDS = [0 for _ in DURANGO_WELLS]
 FLOW_OUT_SENSOR_IDS = [int(item['sensor_id']) for item in DURANGO_WELLS]
 FLOW_IN_SENSOR_IDS = [0 for _ in DURANGO_WELLS]
-DISTRIBUTION_NAMES = [str(item['display_name']) for item in DURANGO_LAVADORAS]
+DISTRIBUTION_NAMES = [str(item['display_name']) for item in DURANGO_FLOWS]
 LINE_SENSOR_MAP = [
     {'sensor_id': int(item['sensor_id']), 'numero': index + 1, 'name': str(item['display_name'])}
     for index, item in enumerate(DURANGO_LINES)
@@ -293,7 +294,7 @@ def _iso(value: Any) -> str | None:
         return value.isoformat()
     if value in (None, ''):
         return None
-    localized = source_iso_local(value)
+    localized = source_iso_local(value, 'America/Mexico_City')
     return localized or str(value)
 
 
@@ -863,11 +864,11 @@ def _reading_freshness(value: Any, stale_minutes: int = 60, now_value: Any = Non
     current. Freshness is compared against SQL Server ``GETDATE()`` when
     available, because BOS timestamps are produced in SQL Server time.
     """
-    dt_value = source_to_local_naive(value)
+    dt_value = source_to_local_naive(value, 'America/Mexico_City')
     if not dt_value:
         return False, 'Sin timestamp BOS', 'communication', None
     try:
-        now = source_to_local_naive(now_value) if now_value is not None else None
+        now = source_to_local_naive(now_value, 'America/Mexico_City') if now_value is not None else None
         if not now:
             now = local_now_naive()
         if dt_value.tzinfo and not now.tzinfo:
@@ -907,7 +908,7 @@ def _source_freshness(timestamp_value: Any, sql_now: Any = None, stale_minutes: 
 def _latest_timestamp_value(*values: Any) -> Any:
     parsed: list[tuple[datetime, Any]] = []
     for value in values:
-        dt_value = source_to_local_naive(value)
+        dt_value = source_to_local_naive(value, 'America/Mexico_City')
         if dt_value:
             parsed.append((dt_value, value))
     if not parsed:
@@ -1048,7 +1049,7 @@ def _build_wells(
         raw_start_energy_total = _bos_value(pozo_start_row, 'POZO_ENERGY_TOTAL', index, 'total_value', None)
         raw_start_flow_out_total = _bos_value(pozo_start_row, 'POZO_FLOW_OUT', index, 'total_value', None)
         updated_value = _first(pozo_row, 'time_stamp', 'timestamp')
-        updated_local = source_to_local_naive(updated_value)
+        updated_local = source_to_local_naive(updated_value, 'America/Mexico_City')
         if updated_local is None or updated_local < DURANGO_SCADA_CUTOVER_LOCAL:
             raw_flow_out = None
             raw_flow_out_total = None
@@ -1221,7 +1222,7 @@ def _build_lines(
         raw_total = _bos_value(linea_row, 'LINEA_FLOW_IN', index, 'total_value', None)
         raw_start_total = _bos_value(linea_start_row, 'LINEA_FLOW_IN', index, 'total_value', None)
         updated_value = _first(linea_row, 'time_stamp', 'timestamp')
-        updated_local = source_to_local_naive(updated_value)
+        updated_local = source_to_local_naive(updated_value, 'America/Mexico_City')
         if updated_local is None or updated_local < DURANGO_SCADA_CUTOVER_LOCAL:
             raw_flow = None
             raw_total = None
@@ -1295,7 +1296,7 @@ def _parse_datetime(value: Any) -> datetime | None:
 
 
 def _bucket_datetime(value: Any, period: str = 'hourly') -> datetime | None:
-    dt_value = source_to_local_naive(value)
+    dt_value = source_to_local_naive(value, 'America/Mexico_City')
     if not dt_value:
         return None
     period = str(period or 'hourly').lower()
@@ -1328,7 +1329,7 @@ def _build_well_flow_history(rows: list[dict[str, Any]], period: str = 'hourly',
         bucket = _bucket_iso(timestamp_value, period)
         if not bucket:
             continue
-        local_stamp = source_to_local_naive(timestamp_value)
+        local_stamp = source_to_local_naive(timestamp_value, 'America/Mexico_City')
         if local_stamp is None or local_stamp < DURANGO_SCADA_CUTOVER_LOCAL:
             continue
         for slot in slots:
@@ -1470,7 +1471,7 @@ def _cards(wells: list[dict[str, Any]], lines: list[dict[str, Any]], tank_inputs
         {'label': 'Flujo salida pozos', 'value': f'{total_flow_out:,.2f}', 'unit': 'L/s', 'trend': 'Lectura actual de salida', 'accent': 'cyan'},
         {'label': 'Pozos con lectura actual', 'value': f'{len([item for item in wells if item.get("flow_lps") is not None])}/{len(wells)}', 'unit': 'pozos', 'trend': 'Solo sensores FLOW_OUT confirmados', 'accent': 'teal'},
         {'label': 'Líneas activas', 'value': f'{active_lines}/{len(lines)}', 'unit': 'líneas', 'trend': 'Datos desde monitoreo', 'accent': 'sky'},
-        {'label': 'Lavadoras', 'value': f'{active_tank}/{len(tank_inputs)}', 'unit': 'equipos con actividad', 'trend': 'Fuente SensorsBOS_Lavadoras', 'accent': 'indigo'},
+        {'label': 'Flujos', 'value': f'{active_tank}/{len(tank_inputs)}', 'unit': 'equipos con actividad', 'trend': 'Lavadoras y Jarabes', 'accent': 'indigo'},
     ]
 
 
@@ -1489,14 +1490,15 @@ def get_bos_water_dashboard_payload(start_date: Any = None, end_date: Any = None
             pozo_row = _safe_latest_row(session, 'dbo.SensorsBOS_Pozo', start_date, end_date, sql_errors)
             linea_row = _safe_latest_row(session, 'dbo.SensorsBOS_Linea', start_date, end_date, sql_errors)
             lavadoras = get_current_lavadoras(session=session)
+            jarabes = get_current_jarabes(session=session)
             niveles_row = None
             pozo_start_row = _safe_first_row(session, 'dbo.SensorsBOS_Pozo', start_date, end_date, sql_errors) if has_period else None
             linea_start_row = _safe_first_row(session, 'dbo.SensorsBOS_Linea', start_date, end_date, sql_errors) if has_period else None
             pozo_history_rows = _range_rows(session, 'dbo.SensorsBOS_Pozo', start_date, end_date) if include_history else []
             linea_history_rows = _range_rows(session, 'dbo.SensorsBOS_Linea', start_date, end_date) if include_history else []
             niveles_history_rows = []
-            has_lavadora_reading = any(item.get('current_reading_available') for item in lavadoras)
-            if not any([pozo_row, linea_row, has_lavadora_reading]):
+            has_flow_reading = any(item.get('current_reading_available') for item in [*lavadoras, *jarabes])
+            if not any([pozo_row, linea_row, has_flow_reading]):
                 if int(sql_errors.get('count') or 0) >= 2:
                     logger.warning('water_bos SQL unavailable: required dashboard latest queries failed for start_date=%s end_date=%s', start_date, end_date)
                     return _sql_connection_error_payload()
@@ -1524,7 +1526,7 @@ def get_bos_water_dashboard_payload(start_date: Any = None, end_date: Any = None
 
     wells = _build_wells(pozo_row, catalog, locations, energy_water, pozo_start_row=pozo_start_row, has_period=has_period, latest_quality_by_sensor=latest_quality_by_sensor, well_slots=well_slots, sql_now=sql_now)
     tank_inputs: list[dict[str, Any]] = []
-    flows = lavadoras
+    flows = [*lavadoras, *jarabes]
     tank_level_readings = _build_tank_level_readings(niveles_row)
     lines = _build_lines(linea_row, catalog, linea_start_row=linea_start_row, has_period=has_period, sql_now=sql_now)
     normalized_period = _normalize_period(period, start_date, end_date)
@@ -1542,7 +1544,7 @@ def get_bos_water_dashboard_payload(start_date: Any = None, end_date: Any = None
             'name': item.get('name') or item.get('label') or f'Flujo {idx + 1}',
             'value': _optional_num(item.get('flow_lps')),
             'unit': 'L/s',
-            'detail': ('Lavadora' if item.get('category') == 'lavadora' else 'Flujo auxiliar'),
+            'detail': ('Lavadora' if item.get('category') == 'lavadora' else 'Jarabes' if item.get('category') == 'jarabes' else 'Flujo auxiliar'),
             'operational_key': item.get('operational_key'),
             'category': item.get('category'),
         }
@@ -1552,14 +1554,14 @@ def get_bos_water_dashboard_payload(start_date: Any = None, end_date: Any = None
     pozo_updated = _first(pozo_row, 'time_stamp', 'timestamp')
     linea_updated = _first(linea_row, 'time_stamp', 'timestamp')
     niveles_updated = _first(niveles_row, 'time_stamp', 'timestamp')
-    lavadoras_updated = max((str(item.get('last_update') or '') for item in flows), default='') or None
+    flows_updated = max((str(item.get('last_update') or '') for item in flows), default='') or None
     updated = _latest_timestamp_value(pozo_updated, linea_updated, niveles_updated)
     source_freshness = {
         'pozos': _source_freshness(pozo_updated, sql_now),
         'lineas': _source_freshness(linea_updated, sql_now),
-        'lavadoras': {
+        'flujos': {
             'status': 'available' if any(item.get('current_reading_available') for item in flows) else 'no_data',
-            'updated_at': lavadoras_updated,
+            'updated_at': flows_updated,
         },
     }
     payload = {
@@ -1580,7 +1582,7 @@ def get_bos_water_dashboard_payload(start_date: Any = None, end_date: Any = None
         'entry_vs_exit': entry_vs_exit,
         'monthly_averages': [],
         'daily_indicators': water_consumption,
-        'report_modules': ['Pozos SQL Server', 'Líneas SQL Server', 'Lavadoras SQL Server', 'Comparativo operativo', 'Reporte diario operativo'],
+        'report_modules': ['Pozos SQL Server', 'Líneas SQL Server', 'Flujos SQL Server', 'Comparativo operativo', 'Reporte diario operativo'],
         'hourly_flow': [],
         'wells': wells,
         'sensors': sensors,

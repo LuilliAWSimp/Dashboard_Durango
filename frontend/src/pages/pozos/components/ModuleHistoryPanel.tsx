@@ -161,7 +161,7 @@ export default function ModuleHistoryPanel({ range }: Props) {
       <PanelHeader title="Histórico operativo por módulo" subtitle="Flujo promedio por elemento, sin interpolar periodos sin registros" />
       <div className="module-history-toolbar">
         <div className="module-history-tabs" role="tablist">
-          {([['well', 'Pozos'], ['line', 'Líneas'], ['flow', 'Lavadoras']] as const).map(([value, label]) => (
+          {([['well', 'Pozos'], ['line', 'Líneas'], ['flow', 'Flujos']] as const).map(([value, label]) => (
             <button type="button" role="tab" aria-selected={module === value} className={`module-history-tab ${module === value ? 'active' : ''}`} key={value} onClick={() => setModule(value)}>{label}</button>
           ))}
         </div>
