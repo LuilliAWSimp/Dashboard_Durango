@@ -10,6 +10,7 @@ from app.services.durango_capabilities import (
     ALL_ITEMS,
     DURANGO_SCADA_CUTOVER_LOCAL,
     DURANGO_SCADA_CUTOVER_UTC,
+    POZO_1_FLOW_CALIBRATION_CUTOFF_LOCAL,
     FLOWS,
     JARABES,
     LAVADORAS,
@@ -31,6 +32,7 @@ from app.services.water_bos_service import (
     _status_from_values,
     get_bos_water_dashboard_payload,
 )
+from app.services.water_history_service import _localized_rows
 
 
 class _Result:
@@ -185,11 +187,41 @@ class DurangoScadaCutoverTests(unittest.TestCase):
         self.assertNotIn('Tanques', ACTIVE_MODULES)
         self.assertFalse(CAPABILITIES['tanks'])
 
-    def test_pozo_one_flow_is_converted_but_totalizer_contract_is_not(self):
-        self.assertAlmostEqual(normalize_flow_lps(1001, 103.53), 28.758333, places=6)
-        self.assertAlmostEqual(normalize_flow_lps(1051, 30.20), 30.20)
+    def test_pozo_one_flow_uses_temporal_calibration_contract(self):
+        self.assertEqual(POZO_1_FLOW_CALIBRATION_CUTOFF_LOCAL, datetime(2026, 8, 11, 12, 15))
+        self.assertAlmostEqual(normalize_flow_lps(1001, 74.70, datetime(2026, 8, 11, 12, 14)), 20.75, places=6)
+        self.assertAlmostEqual(normalize_flow_lps(1001, 20.56, datetime(2026, 8, 11, 12, 15)), 20.56, places=6)
+        self.assertAlmostEqual(normalize_flow_lps(1001, 20.76, datetime(2026, 8, 11, 12, 16)), 20.76, places=6)
+        self.assertAlmostEqual(normalize_flow_lps(1051, 30.20, datetime(2026, 8, 11, 12, 16)), 30.20)
+
+    def test_pozo_one_zero_flow_remains_valid_after_calibration_cutoff(self):
+        self.assertEqual(normalize_flow_lps(1001, 0, datetime(2026, 8, 11, 12, 25)), 0.0)
+
+    def test_pozo_one_totalizer_contract_is_not_normalized_like_flow(self):
         self.assertEqual(WELLS[0]['totalizer_unit'], 'm3')
         self.assertEqual(WELLS[1]['totalizer_unit'], 'm3')
+        self.assertEqual(WELLS[0]['flow_calibration_cutoff_local'], '2026-08-11T12:15:00')
+        self.assertEqual(WELLS[0]['post_cutoff_raw_flow_unit'], 'L/s')
+
+    def test_pozo_one_history_crossing_calibration_cutoff_has_no_artificial_drop(self):
+        samples = [
+            (datetime(2026, 8, 11, 12, 14), 74.70),
+            (datetime(2026, 8, 11, 12, 15), 20.56),
+            (datetime(2026, 8, 11, 12, 16), 20.76),
+        ]
+        normalized = [normalize_flow_lps(1001, raw, stamp) for stamp, raw in samples]
+        self.assertEqual([round(value, 2) for value in normalized if value is not None], [20.75, 20.56, 20.76])
+        self.assertLess(max(normalized) - min(normalized), 0.25)
+
+    def test_pozo_one_aggregated_rows_crossing_cutoff_use_per_sample_normalization(self):
+        rows = _localized_rows([
+            {'sensor_id': 1001, 'reading_ts': datetime(2026, 8, 11, 12, 14), 'flow_value': 74.70},
+            {'sensor_id': 1001, 'reading_ts': datetime(2026, 8, 11, 12, 15), 'flow_value': 20.56},
+            {'sensor_id': 1001, 'reading_ts': datetime(2026, 8, 11, 12, 16), 'flow_value': 20.76},
+        ], 'reading_ts')
+        values = [row['flow_value'] for row in rows]
+        self.assertEqual([round(value, 2) for value in values if value is not None], [20.75, 20.56, 20.76])
+        self.assertAlmostEqual(sum(values) / len(values), (20.75 + 20.56 + 20.76) / 3, places=6)
 
     def test_cutover_is_same_in_local_and_utc_contracts(self):
         self.assertEqual(DURANGO_SCADA_CUTOVER_LOCAL, datetime(2026, 8, 4, 18, 16))

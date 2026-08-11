@@ -26,6 +26,13 @@ DURANGO_SCADA_CUTOVER_UTC = (
     .replace(tzinfo=None)
 )
 
+POZO_1_FLOW_SENSOR_ID = 1001
+# Pozo 1 fue recalibrado en SCADA el 11/08/2026 12:15 hora local:
+# antes de este corte el raw está en m³/h y se convierte /3.6; desde
+# el corte el raw ya está en L/s y debe usarse directo.
+POZO_1_FLOW_CALIBRATION_CUTOFF_LOCAL = datetime(2026, 8, 11, 12, 15, 0)
+POZO_1_LEGACY_FLOW_NORMALIZATION_FACTOR = 1 / 3.6
+
 CAPABILITIES: dict[str, str | bool] = {
     'wells': True,
     'lines': True,
@@ -64,8 +71,10 @@ WELLS: list[dict[str, Any]] = [
         'table': 'dbo.SensorsBOS_Pozo',
         'source_key': 'POZO_FLOW_OUT[0]',
         'slot_index': 0,
-        'raw_flow_unit': 'm3/h',
-        'flow_normalization_factor': 1 / 3.6,
+        'raw_flow_unit': 'm3/h_until_2026-08-11T12:15_then_L/s',
+        'flow_normalization_factor': POZO_1_LEGACY_FLOW_NORMALIZATION_FACTOR,
+        'flow_calibration_cutoff_local': POZO_1_FLOW_CALIBRATION_CUTOFF_LOCAL.isoformat(timespec='seconds'),
+        'post_cutoff_raw_flow_unit': 'L/s',
         'totalizer_unit': 'm3',
         'source_timestamp_timezone': LOCAL_TIMEZONE,
         'require_flow_validation': True,
@@ -262,7 +271,36 @@ def _decode_ieee754_float32_bits(value: float) -> float | None:
     return float(decoded)
 
 
-def normalize_flow_lps(identity: Any, raw_value: Any) -> float | None:
+def _local_timestamp(value: Any) -> datetime | None:
+    if isinstance(value, datetime):
+        if value.tzinfo is not None:
+            return value.astimezone(ZoneInfo(LOCAL_TIMEZONE)).replace(tzinfo=None)
+        return value.replace(tzinfo=None)
+    if value in (None, ''):
+        return None
+    raw = str(value).replace('Z', '').strip()
+    for candidate in (raw, raw[:19]):
+        try:
+            return datetime.fromisoformat(candidate).replace(tzinfo=None)
+        except ValueError:
+            continue
+    return None
+
+
+def flow_normalization_factor(identity: Any, timestamp: Any = None) -> float:
+    contract = item_contract(identity)
+    try:
+        sensor_id = int(contract.get('sensor_id') or identity)
+    except (TypeError, ValueError):
+        sensor_id = -1
+    if sensor_id == POZO_1_FLOW_SENSOR_ID:
+        stamp = _local_timestamp(timestamp)
+        if stamp is not None and stamp >= POZO_1_FLOW_CALIBRATION_CUTOFF_LOCAL:
+            return 1.0
+    return float(contract.get('flow_normalization_factor') or 1.0)
+
+
+def normalize_flow_lps(identity: Any, raw_value: Any, timestamp: Any = None) -> float | None:
     if raw_value in (None, ''):
         return None
     try:
@@ -277,8 +315,7 @@ def normalize_flow_lps(identity: Any, raw_value: Any) -> float | None:
         if decoded is None:
             return None
         parsed = decoded
-    factor = float(contract.get('flow_normalization_factor') or 1.0)
-    normalized = parsed * factor
+    normalized = parsed * flow_normalization_factor(identity, timestamp)
     return normalized if math.isfinite(normalized) else None
 
 
