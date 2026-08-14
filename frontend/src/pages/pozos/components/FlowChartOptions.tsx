@@ -115,7 +115,6 @@ function displayLabel(row: FlowChartRow): string {
 
 function compactLabelPart(value: string): string {
   return value
-    .replace(/Guadalupe/gi, 'Gpe.')
     .replace(/Estacionamiento/gi, 'Estac.')
     .replace(/Estación/gi, 'Est.')
     .replace(/Estacion/gi, 'Est.')

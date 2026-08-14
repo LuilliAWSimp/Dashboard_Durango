@@ -1,257 +1,366 @@
-import { useEffect, useState } from 'react';
-import type { MouseEventHandler } from 'react';
-import { ShieldCheck } from 'lucide-react';
-import { getDailyWaterReport } from '../../../services/waterReportService';
-import { exportDailyWaterReportExcel, exportDailyWaterReportHtml, printDailyWaterReportPdf } from '../../../services/dailyWaterReportExportService';
-import arcaContinentalLogo from '../../../assets/arca-continental-logo.png';
-import { defaultTodayRange, formatDateRangeStatus } from '../dateUtils';
-import type { DateRange } from '../types';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { CalendarDays, Eye, FileDown, FileSpreadsheet, Mail, RefreshCw, RotateCcw } from 'lucide-react';
+import {
+  fetchDailyWaterReport,
+  fetchDailyWaterReportPreview,
+  downloadDailyWaterReportExcel,
+  downloadDailyWaterReportPdf,
+  sendDailyWaterReportEmail,
+} from '../../../services/waterReportService';
+import { exportDailyWaterReportHtml } from '../../../services/dailyWaterReportExportService';
+import { todayInputDate } from '../dateUtils';
+import useAutoRefresh from '../../../hooks/useAutoRefresh';
+import ChartEmptyState from '../components/ChartEmptyState';
 import PanelHeader from '../components/PanelHeader';
-import DateRangeControls from '../components/DateRangeControls';
-import ReportPreviewTable from '../components/ReportPreviewTable';
+import StatusBadge from '../components/StatusBadge';
+import { useNotifications } from '../components/NotificationCenter';
 
-type ReportExportFormat = 'pdf' | 'excel' | 'html';
+type ReportMode = 'day' | 'range';
+type ReportSectionKey = 'wells' | 'production_lines' | 'operational_flows';
+type ReportFilters = { date?: string; startDate?: string; endDate?: string };
+type ExportAction = 'pdf' | 'xlsx' | 'html' | null;
 
-type NumericValue = number | string | null | undefined;
+const REPORT_SECTIONS: Array<{ key: ReportSectionKey; label: string }> = [
+  { key: 'wells', label: 'Pozos' },
+  { key: 'production_lines', label: 'Líneas' },
+  { key: 'operational_flows', label: 'Flujos' },
+];
 
-interface WaterEntryRow {
-  [key: string]: unknown;
-  equipo?: string;
-  ubicacion?: string;
-  suministro_m3?: NumericValue;
-  flujo_lps?: NumericValue;
-  estado?: string;
+function fmt(value: unknown): string {
+  if (value === null || value === undefined || value === '') return 'No disponible';
+  const parsed = Number(value);
+  return Number.isFinite(parsed)
+    ? parsed.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : String(value);
 }
 
-interface WaterConsumptionRow {
-  [key: string]: unknown;
-  equipo?: string;
-  ubicacion?: string;
-  suministro?: NumericValue;
-  unidad?: string;
-  porcentaje?: NumericValue;
+function fmtVolume(value: unknown): string {
+  return value === null || value === undefined || value === '' ? 'No disponible' : `${fmt(value)} m³`;
 }
 
-interface ProductionLineRow {
-  [key: string]: unknown;
-  linea?: string;
-  sensor_id?: NumericValue;
-  flujo_lps?: NumericValue;
-  totalizador_m3?: NumericValue;
-  volumen_periodo_m3?: NumericValue;
-  estado?: string;
+function fmtLocalDate(value: unknown): string {
+  if (!value) return 'Sin lectura';
+  const parsed = new Date(String(value));
+  if (Number.isNaN(parsed.getTime())) return String(value);
+  return parsed.toLocaleString('es-MX', {
+    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
 }
 
-interface OperationalFlowRow {
-  [key: string]: unknown;
-  equipo?: string;
-  sensor_id?: NumericValue;
-  tipo?: string;
-  flujo_lps?: NumericValue;
-  totalizador_m3?: NumericValue;
-  volumen_periodo_m3?: NumericValue;
-  estado?: string;
+function statusType(value: unknown): string {
+  const text = String(value || '').toLowerCase();
+  if (text.includes('parcial') || text.includes('atrasada')) return 'warning';
+  if (text.includes('sin registros')) return 'nodata';
+  if (text.includes('sin actividad')) return 'idle';
+  if (text.includes('sin')) return 'idle';
+  return 'normal';
 }
 
-interface PendingFieldRow {
-  [key: string]: unknown;
-  name?: string;
-  detail?: string;
+function validationStatusType(item: any): string {
+  const status = String(item?.validation_status || '').toLowerCase();
+  if (status === 'partial') return 'warning';
+  if (status === 'unavailable') return 'idle';
+  return statusType(validationLabel(item));
 }
 
-interface DailyWaterReportSection<T> {
-  [key: string]: unknown;
-  rows?: T[];
-  total_pozos_m3?: NumericValue;
-  total_entrada_m3?: NumericValue;
+function reportRows(report: any, key: ReportSectionKey): any[] {
+  return report?.[key]?.rows || [];
 }
 
-interface DailyWaterReport {
-  [key: string]: unknown;
-  title?: string;
-  plant?: string;
-  date?: string;
-  report_code?: string;
-  source_status?: string;
-  water_entry?: DailyWaterReportSection<WaterEntryRow>;
-  water_consumption?: DailyWaterReportSection<WaterConsumptionRow>;
-  production_lines?: DailyWaterReportSection<ProductionLineRow>;
-  operational_flows?: DailyWaterReportSection<OperationalFlowRow>;
-  missing_fields?: PendingFieldRow[];
+function validationLabel(item: any): string {
+  if (item?.validation) return String(item.validation);
+  if (item?.validated_volume_m3 === null || item?.validated_volume_m3 === undefined) return 'Sin volumen validado';
+  return item?.has_discontinuities ? 'Validación parcial' : 'Validado';
 }
 
-function ReportesSection() {
-  const [dailyReport, setDailyReport] = useState<DailyWaterReport | null>(null);
-  const [reportLoading, setReportLoading] = useState(false);
-  const [reportError, setReportError] = useState('');
-  const [reportDraftRange, setReportDraftRange] = useState<DateRange>(defaultTodayRange);
-  const [reportRange, setReportRange] = useState<DateRange>(defaultTodayRange);
-
-  const loadDailyReport = async (range: Partial<DateRange> = reportRange) => {
-    setReportLoading(true);
-    setReportError('');
-    try {
-      const sameDay = range?.startDate && range?.endDate && range.startDate === range.endDate;
-      const report = await getDailyWaterReport(sameDay
-        ? { date: range.startDate }
-        : { startDate: range?.startDate, endDate: range?.endDate }
-      ) as DailyWaterReport;
-      setDailyReport(report);
-      return report;
-    } catch (error) {
-      console.error('No fue posible cargar el reporte diario de agua', error);
-      setReportError('No fue posible cargar el reporte desde monitoreo de planta.');
-      return null;
-    } finally {
-      setReportLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadDailyReport(reportRange);
-  }, [reportRange.startDate, reportRange.endDate, reportRange.refreshKey]);
-
-  const exportReport = async (format: ReportExportFormat) => {
-    const report = dailyReport || await loadDailyReport();
-    if (!report) {
-      window.alert('No fue posible generar el reporte. Revisa la disponibilidad de datos operativos.');
-      return;
-    }
-    if (format === 'pdf') printDailyWaterReportPdf(report, arcaContinentalLogo);
-    if (format === 'excel') exportDailyWaterReportExcel(report);
-    if (format === 'html') exportDailyWaterReportHtml(report, arcaContinentalLogo);
-  };
-
-  const entryRows = dailyReport?.water_entry?.rows || [];
-  const consumptionRows = dailyReport?.water_consumption?.rows || [];
-  const lineRows = dailyReport?.production_lines?.rows || [];
-  const flowRows = dailyReport?.operational_flows?.rows || [];
-  const linePeriodTotal = lineRows.reduce((sum, item) => sum + Number(item.volumen_periodo_m3 || 0), 0);
-  const flowPeriodTotal = flowRows.reduce((sum, item) => sum + Number(item.volumen_periodo_m3 || 0), 0);
-  const reportStatus = `Reporte: ${formatDateRangeStatus(reportRange, 'Hoy')}`;
-
+function ReportSkeleton() {
   return (
-    <section className="reportes-page fade-up">
-      <div className="panel report-hero-panel">
-        <PanelHeader
-          title="Reportes"
-          subtitle="Reporte operativo de Durango con pozos, líneas y flujos."
-        />
-        <DateRangeControls
-          className="report-date-range-panel"
-          title="Fechas del reporte"
-          subtitle="Este rango solo afecta este reporte y sus exportaciones."
-          draftRange={reportDraftRange}
-          activeRange={reportRange}
-          onDraftChange={setReportDraftRange}
-          onApply={() => {
-            setReportRange((previous) => ({ ...reportDraftRange, refreshKey: (previous.refreshKey || 0) + 1 }));
-          }}
-          onReset={() => {
-            const today = defaultTodayRange();
-            setReportDraftRange(today);
-            setReportRange((previous) => ({ ...today, refreshKey: (previous.refreshKey || 0) + 1 }));
-          }}
-          status={reportStatus}
-          showDateIcons
-        />
-        <div className="report-actions">
-          <button type="button" className="primary-action report-action-button" onClick={() => exportReport('pdf')}>Generar PDF</button>
-          <button type="button" className="ghost-action report-action-button" onClick={() => exportReport('excel')}>Exportar Excel</button>
-          <button type="button" className="ghost-action report-action-button" onClick={() => exportReport('html')}>Vista HTML</button>
-          <button type="button" className="ghost-action report-action-button" onClick={loadDailyReport as unknown as MouseEventHandler<HTMLButtonElement>}>Actualizar datos</button>
-        </div>
-      </div>
-
-      <article className="daily-report-preview panel">
-        <div className="daily-report-band">
-          <img src={arcaContinentalLogo} alt="Arca Continental" className="daily-report-logo" />
-        </div>
-        <div className="daily-report-meta">
-          <div>
-            <h2>{dailyReport?.title || 'Reporte Diario de Agua'}</h2>
-            <p>{dailyReport?.plant || 'Planta Durango'}</p>
-            <p>Fecha: {dailyReport?.date || '—'}</p>
-            <p>Periodo consultado: {formatDateRangeStatus(reportRange, 'Hoy')}</p>
+    <div className="report-preview-skeleton" aria-label="Cargando vista previa del reporte">
+      <section className="report-summary-grid" aria-hidden="true">
+        {Array.from({ length: 5 }, (_, index) => <div className="report-skeleton-card" key={index}><i /><b /></div>)}
+      </section>
+      <section className="panel report-data-panel report-skeleton-preview" aria-hidden="true">
+        <div className="report-skeleton-heading"><i /><b /></div>
+        {REPORT_SECTIONS.map((section) => (
+          <div className="report-skeleton-section" key={section.key}>
+            <span>{section.label}</span>
+            <i /><i /><i />
           </div>
-          <div className="daily-report-code">
-            <span>Reporte:</span>
-            <strong>{dailyReport?.report_code || '—'}</strong>
-            <small>{dailyReport ? 'Información operativa' : 'Cargando...'}</small>
-          </div>
-        </div>
-
-        {reportLoading && <div className="status-pill report-status-pill">Cargando datos operativos...</div>}
-        {reportError && <div className="status-pill alert report-status-pill">{reportError}</div>}
-
-        <div className="daily-report-kpis">
-          <div><span>Pozos periodo</span><strong>{formatNumber(dailyReport?.water_entry?.total_pozos_m3 || 0, 2)} m³</strong></div>
-          <div><span>Líneas periodo</span><strong>{formatNumber(linePeriodTotal, 2)} m³</strong></div>
-          <div><span>Lavadoras/Jarabes</span><strong>{formatNumber(flowPeriodTotal, 2)} m³</strong></div>
-        </div>
-
-        <ReportPreviewTable
-          title="Entrada de Agua"
-          headers={['Equipo', 'Ubicación', 'Suministro m³', 'Flujo L/s', 'Estado']}
-          rows={entryRows.map((item) => [item.equipo, item.ubicacion, formatNumber(item.suministro_m3, 2), formatNumber(item.flujo_lps, 2), item.estado])}
-        />
-        <ReportPreviewTable
-          title="Consumo de Agua"
-          headers={['Equipo', 'Ubicación', 'Suministro', 'Unidad', 'Porcentaje']}
-          rows={consumptionRows.map((item) => [item.equipo, item.ubicacion, formatNumber(item.suministro, 2), item.unidad, `${formatNumber(item.porcentaje, 2)}%`])}
-        />
-        <ReportPreviewTable
-          title="Líneas"
-          headers={['Línea', 'Flujo L/s', 'Volumen periodo m³', 'Totalizador m³', 'Estado']}
-          rows={lineRows.map((item) => [item.linea, formatNumber(item.flujo_lps, 2), formatNumber(item.volumen_periodo_m3, 2), formatNumber(item.totalizador_m3, 2), item.estado])}
-        />
-        <ReportPreviewTable
-          title="Flujos"
-          headers={['Punto', 'Flujo L/s', 'Volumen periodo m³', 'Totalizador m³', 'Estado']}
-          rows={flowRows.map((item) => [item.equipo, formatNumber(item.flujo_lps, 2), formatNumber(item.volumen_periodo_m3, 2), formatNumber(item.totalizador_m3, 2), item.estado])}
-        />
-      </article>
-
-      <section className="cards-grid reports-grid">
-        {[
-          {
-            title: 'Pozos',
-            description: 'Pozo 1 y Pozo 2 en el reporte operativo.',
-            status: `${entryRows.length}/2`,
-          },
-          {
-            title: 'Líneas',
-            description: 'Cinco líneas reales de Durango.',
-            status: `${lineRows.length}/5`,
-          },
-          {
-            title: 'Flujos',
-            description: 'Lavadora Ciel, Jarabes y Lavadora de Vidrio.',
-            status: `${flowRows.length}/3`,
-          },
-        ].map((card) => (
-          <article key={card.title} className="panel report-card-clean">
-            <div className="report-card-head">
-              <div>
-                <div className="panel-title small">{card.title}</div>
-                <div className="panel-subtitle">{card.description}</div>
-              </div>
-              <div className="report-card-icon"><ShieldCheck size={18} /></div>
-            </div>
-            <div className="status-pill normal report-status-pill">{card.status}</div>
-          </article>
         ))}
       </section>
+    </div>
+  );
+}
+
+function ReportPreviewTable({ rows, sectionKey }: { rows: any[]; sectionKey: ReportSectionKey }) {
+  if (!rows.length) {
+    return <div className="report-preview-empty">Sin elementos disponibles para este grupo.</div>;
+  }
+
+  return (
+    <div className="pozos-table-scroll">
+      <table className="pozos-operacion-table report-data-table">
+        <thead>
+          <tr>
+            <th>Elemento</th>
+            <th>Flujo actual</th>
+            <th>Apertura</th>
+            <th>Cierre</th>
+            <th>Volumen</th>
+            <th>Actividad</th>
+            <th>Validación</th>
+            <th>Comunicación</th>
+            <th>Última actualización</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((item: any, index: number) => (
+            <tr key={`${sectionKey}-${index}`}>
+              <td>{item.name}</td>
+              <td>{item.flow == null ? 'No disponible' : `${fmt(item.flow)} ${item.flow_unit || 'L/s'}`}</td>
+              <td>{item.opening_m3 == null ? 'No disponible' : `${fmt(item.opening_m3)} m³`}</td>
+              <td>{item.closing_m3 == null ? 'No disponible' : `${fmt(item.closing_m3)} m³`}</td>
+              <td>{item.validated_volume_m3 == null ? 'Sin volumen validado' : `${fmt(item.validated_volume_m3)} m³`}</td>
+              <td><StatusBadge type={statusType(item.activity)}>{item.activity}</StatusBadge></td>
+              <td><StatusBadge type={validationStatusType(item)}>{validationLabel(item)}</StatusBadge></td>
+              <td>{item.communication}</td>
+              <td>{fmtLocalDate(item.last_update)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function ReportPreviewSection({ report, section }: { report: any; section: { key: ReportSectionKey; label: string } }) {
+  const rows = reportRows(report, section.key);
+  const headingId = `report-preview-${section.key}`;
+
+  return (
+    <section className="report-preview-section" aria-labelledby={headingId}>
+      <div className="report-preview-section-heading">
+        <div>
+          <h4 id={headingId}>{section.label}</h4>
+          <p>Periodo {report.period_label}</p>
+        </div>
+        <span>{rows.length.toLocaleString('es-MX')} elementos</span>
+      </div>
+      <ReportPreviewTable rows={rows} sectionKey={section.key} />
     </section>
   );
 }
 
-function formatNumber(value: unknown, decimals = 1): string {
-  if (value === null || value === undefined || Number.isNaN(value)) return '—';
-  return Number(value).toLocaleString('es-MX', {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
+export default function ReportesSection() {
+  const today = todayInputDate();
+  const { notify } = useNotifications();
+  const [mode, setMode] = useState<ReportMode>('day');
+  const [date, setDate] = useState(today);
+  const [startDate, setStartDate] = useState(today);
+  const [endDate, setEndDate] = useState(today);
+  const [report, setReport] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [exportAction, setExportAction] = useState<ExportAction>(null);
+  const inFlightRef = useRef(false);
+  const [error, setError] = useState('');
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [emailStatus, setEmailStatus] = useState('');
+  const [formats, setFormats] = useState({ pdf: true, xlsx: true });
+  const [form, setForm] = useState({
+    to: '',
+    cc: '',
+    subject: `Reporte Diario de Control Hídrico Durango - ${today}`,
+    message: 'Se adjunta el Reporte Diario de Control Hídrico Durango.',
   });
-}
 
-export default ReportesSection;
+  const filters = useMemo<ReportFilters>(
+    () => (mode === 'day' ? { date } : { startDate, endDate }),
+    [mode, date, startDate, endDate],
+  );
+
+  const load = async (nextFilters: ReportFilters = filters, background = false) => {
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
+    if (background && report) setRefreshing(true);
+    else setLoading(true);
+    if (!background) setError('');
+    try {
+      // Preview intentionally excludes historical series and administrative shifts.
+      setReport(await fetchDailyWaterReportPreview(nextFilters));
+      setError('');
+    } catch (caught) {
+      const candidate = caught as { response?: { data?: { detail?: string } }; message?: string };
+      setError(candidate.response?.data?.detail || candidate.message || 'No fue posible consultar el reporte.');
+    } finally {
+      inFlightRef.current = false;
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const reset = () => {
+    const initial = { date: today };
+    setMode('day');
+    setDate(today);
+    setStartDate(today);
+    setEndDate(today);
+    setForm((current) => ({ ...current, subject: `Reporte Diario de Control Hídrico Durango - ${today}` }));
+    void load(initial);
+  };
+
+  useEffect(() => { void load({ date: today }); }, []);
+
+  const includesToday = mode === 'day'
+    ? date === today
+    : [startDate, endDate].sort()[0] <= today && today <= [startDate, endDate].sort()[1];
+  useAutoRefresh(includesToday, () => { void load(filters, true); });
+
+  const runExport = async (action: Exclude<ExportAction, null>) => {
+    if (exportAction) return;
+    setExportAction(action);
+    setError('');
+    try {
+      if (action === 'pdf') await downloadDailyWaterReportPdf(filters);
+      if (action === 'xlsx') await downloadDailyWaterReportExcel(filters);
+      if (action === 'html') {
+        const fullReport = await fetchDailyWaterReport(filters, { includeHistory: true, includeShifts: false });
+        exportDailyWaterReportHtml(fullReport);
+      }
+    } catch (caught) {
+      const candidate = caught as { response?: { data?: { detail?: string } }; message?: string };
+      setError(candidate.response?.data?.detail || candidate.message || 'No fue posible generar el formato solicitado.');
+    } finally {
+      setExportAction(null);
+    }
+  };
+
+  const send = async () => {
+    const selectedFormats = [formats.pdf ? 'pdf' : null, formats.xlsx ? 'xlsx' : null].filter(Boolean);
+    if (!selectedFormats.length) {
+      setEmailStatus('Selecciona al menos un formato para adjuntar.');
+      return;
+    }
+    setSending(true);
+    setEmailStatus('');
+    try {
+      await sendDailyWaterReportEmail({
+        to: form.to,
+        cc: form.cc || undefined,
+        subject: form.subject,
+        message: form.message,
+        date: mode === 'day' ? date : undefined,
+        start_date: mode === 'range' ? startDate : undefined,
+        end_date: mode === 'range' ? endDate : undefined,
+        formats: selectedFormats,
+      });
+      setEmailOpen(false);
+      setEmailStatus('');
+      notify({
+        tone: 'success',
+        title: 'Correo enviado correctamente',
+        message: `${selectedFormats.map((format) => String(format).toUpperCase()).join(' y ')} enviados a ${form.to.trim()}.`,
+      });
+    } catch {
+      notify({
+        tone: 'error',
+        title: 'No se pudo enviar el correo',
+        message: 'Conservamos el formulario abierto para que revises los datos e intentes nuevamente.',
+        ariaLive: 'assertive',
+      });
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const summary = report?.summary || {};
+  const summaryCards = [
+    { label: 'Volumen validado de pozos', value: summary.well_validated_volume_m3 ?? summary.well_volume_m3 },
+    { label: 'Volumen validado de líneas', value: summary.line_validated_volume_m3 ?? summary.line_volume_m3 },
+    { label: 'Volumen validado de flujos', value: summary.washer_validated_volume_m3 ?? summary.flow_validated_volume_m3 ?? summary.flow_volume_m3 },
+    { label: 'Total validado operativo', value: summary.total_validated_operational_m3 ?? summary.total_operational_m3 },
+  ];
+  const isBusy = exportAction !== null;
+
+  return (
+    <div className="reportes-page durango-report-page">
+      <section className="panel report-hero-panel fade-up">
+        <div className="report-center-heading">
+          <span>Centro de reportes</span>
+          <PanelHeader title="Reportes" subtitle="Control hídrico · Planta Durango" />
+          <p>Genera, consulta y envía reportes del periodo seleccionado.</p>
+        </div>
+
+        <div className="report-workflow-panel">
+          <div className="report-workflow-intro">
+            <strong>Periodo del reporte</strong>
+            <span>Configura el periodo y genera el formato necesario.</span>
+          </div>
+
+          <div className="report-workflow-body">
+            <div className="report-controls-block" aria-label="Periodo del reporte">
+              <div className="report-field report-mode-field">
+                <span className="report-field-label">Tipo</span>
+                <div className="report-mode-toggle" role="group" aria-label="Tipo de periodo">
+                  <button type="button" className={mode === 'day' ? 'active' : ''} aria-pressed={mode === 'day'} onClick={() => setMode('day')}>Fecha</button>
+                  <button type="button" className={mode === 'range' ? 'active' : ''} aria-pressed={mode === 'range'} onClick={() => setMode('range')}>Periodo</button>
+                </div>
+              </div>
+
+              {mode === 'day' ? (
+                <label className="report-field"><span className="report-field-label">Fecha</span><div className="date-input-with-icon report-date-input"><CalendarDays size={16} /><input type="date" value={date} onChange={(event) => { setDate(event.target.value); setForm((current) => ({ ...current, subject: `Reporte Diario de Control Hídrico Durango - ${event.target.value}` })); }} /></div></label>
+              ) : <><label className="report-field"><span className="report-field-label">Desde</span><div className="date-input-with-icon report-date-input"><CalendarDays size={16} /><input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} /></div></label><label className="report-field"><span className="report-field-label">Hasta</span><div className="date-input-with-icon report-date-input"><CalendarDays size={16} /><input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} /></div></label></>}
+
+              <div className="report-period-buttons">
+                <button type="button" className="date-range-apply" onClick={() => void load()} disabled={loading}><RefreshCw size={15} /> {loading ? 'Actualizando...' : 'Actualizar'}</button>
+                <button type="button" className="date-range-reset" onClick={reset} disabled={loading}><RotateCcw size={15} /> Restablecer</button>
+              </div>
+            </div>
+
+            <div className="report-actions-block">
+              <span className="report-field-label">Acciones</span>
+              <div className="report-actions" aria-label="Acciones del reporte">
+                <button type="button" className="report-action-button primary-action" disabled={isBusy} onClick={() => void runExport('pdf')}><FileDown size={17} /> {exportAction === 'pdf' ? 'Generando PDF...' : 'Generar PDF'}</button>
+                <button type="button" className="report-action-button" disabled={isBusy} onClick={() => void runExport('xlsx')}><FileSpreadsheet size={17} /> {exportAction === 'xlsx' ? 'Generando Excel...' : 'Exportar Excel'}</button>
+                <button type="button" className="report-action-button" disabled={isBusy} onClick={() => void runExport('html')}><Eye size={17} /> {exportAction === 'html' ? 'Generando vista...' : 'Vista HTML'}</button>
+                <button type="button" className="report-action-button" disabled={sending} onClick={() => setEmailOpen(true)}><Mail size={17} /> Enviar por correo</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        {refreshing ? <div className="status-pill auto-refresh-status">Actualizando datos de la vista previa…</div> : null}
+        {error ? <div className="status-pill alert">{error}</div> : null}
+      </section>
+
+      {loading && !report ? <ReportSkeleton /> : null}
+
+      {report ? <>
+        <section className="report-summary-grid fade-up" aria-label="Resumen ejecutivo del reporte">
+          {summaryCards.map((card) => <article className="report-summary-card" key={card.label}><span>{card.label}</span><strong>{fmtVolume(card.value)}</strong></article>)}
+          <article className="report-summary-card review"><span>Validación parcial</span><strong>{Number(summary.partial_validation_count ?? summary.review_count ?? 0).toLocaleString('es-MX')} <small>elementos</small></strong><small>Con volumen utilizable y eventos descartados.</small></article>
+        </section>
+        <p className="report-summary-note">{summary.note}</p>
+        {report.legacy_notice ? <div className="status-pill alert">{report.legacy_notice}</div> : null}
+
+        <section className="panel fade-up report-data-panel report-preview-panel">
+          <div className="report-preview-heading"><div><span>Vista previa ligera</span><h3>Vista previa del reporte</h3><p>Pozos, Líneas y Flujos · Periodo {report.period_label}</p></div></div>
+          <div className="report-preview-sections">
+            {REPORT_SECTIONS.map((section) => <ReportPreviewSection key={section.key} report={report} section={section} />)}
+          </div>
+        </section>
+      </> : !loading ? <ChartEmptyState message="Sin reporte cargado." /> : null}
+
+      {emailOpen ? <div className="modal-backdrop" onClick={() => setEmailOpen(false)}><div className="email-report-modal" onClick={(event) => event.stopPropagation()}>
+        <h3>Enviar Reporte Diario de Control Hídrico Durango</h3>
+        <label>Para<input value={form.to} onChange={(event) => setForm({ ...form, to: event.target.value })} placeholder="correo@dominio.com" /></label>
+        <label>CC<input value={form.cc} onChange={(event) => setForm({ ...form, cc: event.target.value })} placeholder="Opcional" /></label>
+        <label>Asunto<input value={form.subject} onChange={(event) => setForm({ ...form, subject: event.target.value })} /></label>
+        <label>Mensaje<textarea value={form.message} onChange={(event) => setForm({ ...form, message: event.target.value })} /></label>
+        <fieldset className="email-format-selector"><legend>Formatos a adjuntar</legend><label><input type="checkbox" checked={formats.pdf} onChange={(event) => setFormats((current) => ({ ...current, pdf: event.target.checked }))} /> PDF</label><label><input type="checkbox" checked={formats.xlsx} onChange={(event) => setFormats((current) => ({ ...current, xlsx: event.target.checked }))} /> Excel</label></fieldset>
+        {emailStatus ? <div className="status-pill">{emailStatus}</div> : null}
+        <div className="modal-actions"><button type="button" className="date-range-reset" onClick={() => setEmailOpen(false)}>Cerrar</button><button type="button" className="date-range-apply" disabled={sending || !form.to.trim() || (!formats.pdf && !formats.xlsx)} onClick={() => void send()}>{sending ? 'Enviando...' : 'Enviar'}</button></div>
+      </div></div> : null}
+    </div>
+  );
+}

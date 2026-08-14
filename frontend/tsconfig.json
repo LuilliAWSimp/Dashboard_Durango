@@ -23,7 +23,8 @@
     "types": [
       "node",
       "vite/client"
-    ]
+    ],
+    "allowImportingTsExtensions": true
   },
   "include": [
     "src",

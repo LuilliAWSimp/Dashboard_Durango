@@ -2,10 +2,15 @@ import { bucketLabel, dashboardPeriod } from './dateUtils';
 import { normalizeSqlLine, normalizeSqlWell } from './normalizers';
 import type { ChartDataPoint, DashboardData, DateRange, FlexibleRecord, NormalizedWaterItem } from './types';
 
+interface EnergyWaterChartPoint extends ChartDataPoint {
+  agua: number;
+  energia: number;
+}
+
 export function buildEnergyWaterSeries(dashboard?: DashboardData | null, fallbackRange: DateRange = {}): ChartDataPoint[] {
   const rows = Array.isArray(dashboard?.energy_water_rows) ? dashboard.energy_water_rows : [];
   const period = dashboardPeriod(dashboard, fallbackRange);
-  const buckets = new Map<unknown, ChartDataPoint>();
+  const buckets = new Map<unknown, EnergyWaterChartPoint>();
   rows.forEach((row) => {
     const key = row.bucket || row.period || row.fecha || row.date || row.time_stamp || row.timestamp || 'Periodo';
     const item = buckets.get(key) || { bucket: key, hour: bucketLabel(key, period), agua: 0, energia: 0 };
@@ -30,7 +35,7 @@ export function buildWellPeriodRows(dashboard?: DashboardData | null): ChartData
 export function buildWellHistoryProductionSeries(dashboard?: DashboardData | null, fallbackRange: DateRange = {}): ChartDataPoint[] {
   const rows = Array.isArray(dashboard?.well_flow_history) ? dashboard.well_flow_history : [];
   const period = dashboardPeriod(dashboard, fallbackRange);
-  const buckets = new Map<unknown, ChartDataPoint>();
+  const buckets = new Map<unknown, EnergyWaterChartPoint>();
   rows.forEach((row) => {
     const key = row.bucket || row.timestamp || row.time_stamp || 'Periodo';
     const item = buckets.get(key) || { bucket: key, hour: bucketLabel(key, period), agua: 0, energia: 0 };
@@ -73,7 +78,9 @@ export function buildEntryExitRows(dashboard?: DashboardData | null): ChartDataP
 
 
 export function buildTankLevelRows(dashboard?: DashboardData | null): ChartDataPoint[] {
-  const rows = dashboard?.tank_level_readings || [];
+  const rows = Array.isArray(dashboard?.tank_level_readings)
+    ? dashboard.tank_level_readings as FlexibleRecord[]
+    : [];
   return rows
     .map((item, index) => ({
       name: item.name || item.label || `Tanque ${index + 1}`,
@@ -100,7 +107,9 @@ export function buildTankLevelRows(dashboard?: DashboardData | null): ChartDataP
 }
 
 export function buildTankLevelHistoryRows(dashboard?: DashboardData | null): ChartDataPoint[] {
-  const rows = dashboard?.tank_level_history || [];
+  const rows = Array.isArray(dashboard?.tank_level_history)
+    ? dashboard.tank_level_history as FlexibleRecord[]
+    : [];
   return rows
     .map((item) => ({
       ...item,
@@ -121,7 +130,8 @@ export function buildTankLineRows(dashboard?: DashboardData | null): ChartDataPo
 }
 
 export function buildDistributionRows(dashboard?: DashboardData | null): ChartDataPoint[] {
-  const rows = dashboard?.water_consumption || dashboard?.distribution_flows || [];
+  const source = dashboard?.water_consumption || dashboard?.distribution_flows;
+  const rows = Array.isArray(source) ? source as FlexibleRecord[] : [];
   return rows.map((item) => ({
     name: item.name || item.label || 'Consumo',
     value: Number(item.value ?? item.flow_lps ?? item.total_m3 ?? 0),

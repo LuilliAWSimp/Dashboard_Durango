@@ -1,7 +1,7 @@
-import type { DashboardData, DateRange, FlexibleRecord, Period } from './types';
+import type { DashboardData, DateRange, FlexibleRecord, HistoryAggregation, Period } from './types';
 
 export function formatSqlDate(value: unknown): string {
-  if (!value) return 'Dato operativo';
+  if (!value) return 'Última lectura disponible';
   const date = new Date(value as string | number | Date);
   if (Number.isNaN(date.getTime())) return String(value);
   return date.toLocaleString('es-MX', {
@@ -24,19 +24,33 @@ export function defaultTodayRange(): DateRange {
   return { startDate: today, endDate: today, refreshKey: 0 };
 }
 
-export function formatDateRangeStatus(range?: DateRange | null, fallback = 'Datos operativos de planta'): string {
+export function rangeIncludesToday(range: DateRange | null = {}): boolean {
+  const today = todayInputDate();
+  const start = String(range?.startDate || range?.endDate || '');
+  const end = String(range?.endDate || range?.startDate || '');
+  return Boolean(start && end && start <= today && today <= end);
+}
+
+export function isHistoryPointVisible(timestampValue: unknown, dataStatus?: unknown, now = Date.now()): boolean {
+  const timestamp = new Date(String(timestampValue || '')).getTime();
+  return Number.isFinite(timestamp) && timestamp <= now && String(dataStatus || '') !== 'future_interval';
+}
+
+export function formatDateRangeStatus(range?: DateRange | null, fallback = 'Datos actuales de planta'): string {
   if (!range?.startDate && !range?.endDate) return fallback;
   if (range.startDate && range.endDate && range.startDate === range.endDate) return range.startDate;
   return `${range?.startDate || 'inicio'} → ${range?.endDate || 'último'}`;
 }
 
 export function periodLabel(period: string): string {
+  if (period === 'quarter_hour') return 'cada 15 minutos';
   if (period === 'daily') return 'por día';
   if (period === 'monthly') return 'por mes';
   return 'por hora';
 }
 
 export function periodTitle(period: string): string {
+  if (period === 'quarter_hour') return 'Agrupación cada 15 minutos';
   if (period === 'daily') return 'Agrupación diaria';
   if (period === 'monthly') return 'Agrupación mensual';
   return 'Agrupación horaria';
@@ -55,21 +69,26 @@ export function dateInputDay(value: unknown): number | null {
   return Date.UTC(year, month - 1, day);
 }
 
-export function dateRangePeriod(range: DateRange | null = {}): Period {
+export function dateRangeDays(range: DateRange | null = {}): number {
   const startDay = dateInputDay(range?.startDate);
   const endDay = dateInputDay(range?.endDate);
-  if (startDay !== null && endDay !== null) {
-    return startDay === endDay ? 'hourly' : 'daily';
-  }
-  if (startDay !== null || endDay !== null) return 'hourly';
-  return 'hourly';
+  if (startDay === null || endDay === null) return 1;
+  return Math.max(Math.floor(Math.abs(endDay - startDay) / 86_400_000) + 1, 1);
+}
+
+export function recommendedHistoryAggregation(range: DateRange | null = {}): HistoryAggregation {
+  return dateRangeDays(range) <= 7 ? 'hourly' : 'daily';
+}
+
+export function dateRangePeriod(range: DateRange | null = {}): Period {
+  return recommendedHistoryAggregation(range);
 }
 
 export function dashboardPeriod(dashboard?: DashboardData | null, fallbackRange: DateRange = {}): Period {
   const dateRange = dashboard?.date_range;
   const dateRangeRecord = dateRange && typeof dateRange === 'object' && !Array.isArray(dateRange) ? dateRange as FlexibleRecord : {};
   const period = String(dashboard?.aggregation || dateRangeRecord.period || '').toLowerCase();
-  if (['hourly', 'daily', 'monthly'].includes(period)) return period as Period;
+  if (['quarter_hour', 'hourly', 'daily', 'monthly'].includes(period)) return period as Period;
   return dateRangePeriod(fallbackRange);
 }
 

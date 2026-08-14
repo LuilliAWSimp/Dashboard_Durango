@@ -1,0 +1,200 @@
+"""Fuente operativa de Jarabes para Planta Durango.
+
+BOS expone Jarabes en ``dbo.SensorsBOS_Tanque.TANQUE_FLOW_IN[4]`` (sensor 3010).
+El ``instant_value`` observado contiene los bits IEEE-754 de un Float32 guardados
+como número entero; la normalización central de Durango reinterpreta esos bits.
+El totalizador ya está expresado en m³. ``Time_Stamp`` está en UTC.
+"""
+from __future__ import annotations
+
+from contextlib import nullcontext
+from datetime import date, datetime
+import logging
+from typing import Any
+
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
+
+from app.database import SessionLocal
+from app.services.durango_capabilities import (
+    DURANGO_SCADA_CUTOVER_LOCAL,
+    JARABES,
+    clamp_to_validated_segment,
+    normalize_flow_lps,
+)
+from app.services.durango_lavadoras_service import build_lavadora_period_item
+from app.services.plant_time import local_now_naive, local_to_source_naive, source_to_local_naive
+
+logger = logging.getLogger(__name__)
+MAX_JARABES_ROWS = 200_000
+CONTRACT = JARABES[0]
+
+
+def _number(value: Any) -> float | None:
+    if value in (None, ''):
+        return None
+    try:
+        parsed = float(str(value).replace(',', '').strip())
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed == parsed else None
+
+
+def _mapping(row: Any) -> dict[str, Any]:
+    if isinstance(row, dict):
+        return dict(row)
+    return dict(getattr(row, '_mapping', {}) or {})
+
+
+def _session_scope(session: Any = None):
+    return nullcontext(session) if session is not None else SessionLocal()
+
+
+def _query_rows(start_local: datetime, end_local: datetime, *, session: Any = None) -> list[dict[str, Any]]:
+    if end_local <= start_local:
+        return []
+    sql = text(f"""
+        SELECT TOP ({MAX_JARABES_ROWS})
+            Time_Stamp AS source_timestamp,
+            TRY_CONVERT(float, TANQUE_FLOW_IN_4_sensor_id) AS sensor_id,
+            TRY_CONVERT(float, TANQUE_FLOW_IN_4_instant_value) AS raw_flow,
+            TRY_CONVERT(float, TANQUE_FLOW_IN_4_total_value) AS total_value
+        FROM dbo.SensorsBOS_Tanque
+        WHERE Time_Stamp >= :start_utc
+          AND Time_Stamp < :end_utc
+        ORDER BY Time_Stamp ASC
+    """)
+    params = {
+        'start_utc': local_to_source_naive(start_local, 'UTC'),
+        'end_utc': local_to_source_naive(end_local, 'UTC'),
+    }
+    try:
+        with _session_scope(session) as active_session:
+            return [_mapping(row) for row in active_session.execute(sql, params).fetchall()]
+    except SQLAlchemyError as exc:
+        logger.exception('Durango Jarabes range query failed: %s', exc)
+        raise
+
+
+def _query_latest(*, session: Any = None) -> dict[str, Any] | None:
+    sql = text("""
+        SELECT TOP (1)
+            Time_Stamp AS source_timestamp,
+            TRY_CONVERT(float, TANQUE_FLOW_IN_4_sensor_id) AS sensor_id,
+            TRY_CONVERT(float, TANQUE_FLOW_IN_4_instant_value) AS raw_flow,
+            TRY_CONVERT(float, TANQUE_FLOW_IN_4_total_value) AS total_value
+        FROM dbo.SensorsBOS_Tanque
+        WHERE Time_Stamp >= :cutover_utc
+        ORDER BY Time_Stamp DESC
+    """)
+    try:
+        with _session_scope(session) as active_session:
+            row = active_session.execute(
+                sql,
+                {'cutover_utc': local_to_source_naive(DURANGO_SCADA_CUTOVER_LOCAL, 'UTC')},
+            ).fetchone()
+            return _mapping(row) if row is not None else None
+    except SQLAlchemyError as exc:
+        logger.exception('Durango Jarabes latest query failed: %s', exc)
+        raise
+
+
+def normalize_jarabes_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    result: list[dict[str, Any]] = []
+    for raw in rows:
+        local_stamp = source_to_local_naive(raw.get('source_timestamp'), 'UTC')
+        if local_stamp is None or local_stamp < DURANGO_SCADA_CUTOVER_LOCAL:
+            continue
+        sensor_id = int(_number(raw.get('sensor_id')) or int(CONTRACT['sensor_id']))
+        if sensor_id != int(CONTRACT['sensor_id']):
+            continue
+        result.append({
+            'sensor_id': int(CONTRACT['sensor_id']),
+            'operational_key': str(CONTRACT['operational_key']),
+            'operational_ts': local_stamp,
+            'instant_value': normalize_flow_lps(int(CONTRACT['sensor_id']), raw.get('raw_flow')),
+            'total_value': _number(raw.get('total_value')),
+            'source': 'dbo.SensorsBOS_Tanque',
+            'period_source': 'dbo.SensorsBOS_Tanque',
+        })
+    return result
+
+
+def query_jarabes_rows(start_local: datetime, end_local: datetime, *, session: Any = None) -> list[dict[str, Any]]:
+    effective_start, effective_end, legacy_only, _crosses = clamp_to_validated_segment(start_local, end_local)
+    if legacy_only or effective_end <= effective_start:
+        return []
+    return normalize_jarabes_rows(_query_rows(effective_start, effective_end, session=session))
+
+
+def get_jarabes_period_items(
+    start_local: datetime,
+    end_local: datetime,
+    end_day: date,
+    *,
+    session: Any = None,
+    window_start: datetime | None = None,
+    window_end: datetime | None = None,
+) -> list[dict[str, Any]]:
+    rows = query_jarabes_rows(start_local, end_local, session=session)
+    return [
+        build_lavadora_period_item(
+            CONTRACT,
+            rows,
+            end_day,
+            window_start=window_start or start_local,
+            window_end=window_end or end_local,
+        )
+    ]
+
+
+def get_current_jarabes(*, session: Any = None) -> list[dict[str, Any]]:
+    raw = _query_latest(session=session)
+    rows = normalize_jarabes_rows([raw] if raw else [])
+    today = local_now_naive().date()
+    item = build_lavadora_period_item(CONTRACT, rows, today)
+    has_reading = bool(item.get('current_reading_available'))
+    flow = _number(item.get('current_flow'))
+    # Una única lectura actual no constituye un periodo. Conserva solamente la
+    # lectura/totalizador/comunicación y deja el volumen para la consulta de rango.
+    item.update({
+        'period_open_m3': None,
+        'period_close_m3': None,
+        'period_m3': None,
+        'period_delta_m3': None,
+        'period_m3_reliable': False,
+        'validated_volume_m3': None,
+        'discarded_volume_m3': 0.0,
+        'discarded_totalizer_events': 0,
+        'discarded_totalizer_event_details': [],
+        'has_discontinuities': False,
+        'volume_reliable': False,
+        'volume_display_label': 'Sin histórico para el periodo',
+        'today_accumulated_m3': None,
+        'today_accumulated_reliable': False,
+        'activity': 'Sin histórico para el periodo',
+        'activity_status': 'Sin histórico para el periodo',
+        'period_activity': 'Sin histórico para el periodo',
+        'data_status': 'no_history',
+        'period_data_status': 'no_history',
+        'volume_data_status': 'no_totalizer',
+        'validation': 'Sin volumen validado',
+        'validation_status': 'unavailable',
+        'samples': 0,
+        'samples_received': 0,
+        'samples_expected': 0,
+        'coverage_percent': 0.0,
+        'coverage_status': 'Sin histórico para el periodo',
+        'data_reliable': False,
+        'active_samples': 0,
+        'active_minutes': 0.0,
+        'flow_active_avg': None,
+    })
+    item['active'] = bool(flow is not None and flow > 0.01)
+    item['status'] = 'Operando' if item['active'] else 'Sin flujo' if has_reading else 'Sin datos'
+    item['statusType'] = 'normal' if item['active'] else 'idle' if has_reading else 'communication'
+    item['communicationType'] = item.get('communication_status')
+    item['updated'] = item.get('last_update')
+    item['category'] = 'jarabes'
+    item['ubicacion'] = 'Flujos'
+    return [item]

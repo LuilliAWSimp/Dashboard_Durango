@@ -8,6 +8,7 @@ import LoginPage from './pages/LoginPage';
 import PozosDashboardPage from './pages/PozosDashboardPage';
 import { getAuth, logout } from './services/authService';
 import { fetchWaterDashboard } from './services/waterService';
+import { NotificationProvider } from './pages/pozos/components/NotificationCenter';
 
 const DEFAULT_POZOS_SECTION = 'dashboard';
 
@@ -19,9 +20,8 @@ const POZOS_MENU = [
       { key: 'pozos', label: 'Pozos', iconKey: 'pozos-pozos' },
       { key: 'lineas', label: 'Líneas', iconKey: 'pozos-lineas' },
       { key: 'flujos', label: 'Flujos', iconKey: 'pozos-flujos' },
-      { key: 'tanques', label: 'Tanques', iconKey: 'pozos-tanques' },
       { key: 'balance', label: 'Balance de Agua', iconKey: 'pozos-balance' },
-      { key: 'concesion', label: 'Concesión', iconKey: 'pozos-concesion' },
+      { key: 'concesion', label: 'Concesión · Pendiente', iconKey: 'pozos-concesion' },
       { key: 'revision', label: 'Revisión Diaria', iconKey: 'pozos-revision' },
       { key: 'reportes', label: 'Reportes', iconKey: 'pozos-reportes' },
     ],
@@ -54,20 +54,6 @@ function preloadWithTimeout(timeoutMs = 12000) {
   return Promise.race([preload, timeout]);
 }
 
-function warmWaterHistoryCache() {
-  const today = new Date().toISOString().slice(0, 10);
-  window.setTimeout(() => {
-    fetchWaterDashboard('dashboard', {
-      startDate: today,
-      endDate: today,
-      period: 'hourly',
-      include_history: true,
-      include_energy_water: false,
-    }).catch(() => {
-      // Warm cache no debe bloquear ni mostrar errores al usuario.
-    });
-  }, 1200);
-}
 
 function InitialPlantLoader({ status, error, onRetry, onSkip }) {
   const hasError = status === 'error';
@@ -138,7 +124,7 @@ function PozosShell({ user, onLogout }) {
   const [collapsed, setCollapsed] = useState(true);
   const [preloadState, setPreloadState] = useState({ status: 'loading', error: '' });
   const [headerMeta, setHeaderMeta] = useState({
-    title: 'Resumen de Pozos',
+    title: 'Resumen hídrico',
     subtitle: '',
     onExport: () => {},
     onEmail: () => {},
@@ -149,7 +135,6 @@ function PozosShell({ user, onLogout }) {
     preloadWithTimeout()
       .then(() => {
         setPreloadState({ status: 'ready', error: '' });
-        warmWaterHistoryCache();
       })
       .catch((error) => {
         setPreloadState({ status: 'error', error: error?.message || 'No se pudo preparar la información de planta.' });
@@ -172,22 +157,24 @@ function PozosShell({ user, onLogout }) {
   }
 
   return (
-    <Shell
-      user={user}
-      onLogout={onLogout}
-      headerMeta={headerMeta}
-      shellClass="pozos-shell"
-      sidebarProps={{
-        collapsed,
-        onToggle: () => setCollapsed((value) => !value),
-        sections: POZOS_MENU,
-        basePath: '/pozos',
-        brandTitle: 'Durango',
-        brandSubtitle: 'Monitoreo hídrico operativo',
-      }}
-    >
-      <PozosDashboardPage section={section} itemId={itemId} setHeaderMeta={setHeaderMeta} />
-    </Shell>
+    <NotificationProvider enableWaterAlerts>
+      <Shell
+        user={user}
+        onLogout={onLogout}
+        headerMeta={headerMeta}
+        shellClass="pozos-shell"
+        sidebarProps={{
+          collapsed,
+          onToggle: () => setCollapsed((value) => !value),
+          sections: POZOS_MENU,
+          basePath: '/pozos',
+          brandTitle: 'Durango',
+          brandSubtitle: 'Monitoreo hídrico operativo',
+        }}
+      >
+        <PozosDashboardPage section={section} itemId={itemId} setHeaderMeta={setHeaderMeta} />
+      </Shell>
+    </NotificationProvider>
   );
 }
 

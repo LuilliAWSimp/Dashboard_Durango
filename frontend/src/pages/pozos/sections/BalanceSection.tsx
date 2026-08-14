@@ -1,167 +1,76 @@
-import {
-  Bar,
-  CartesianGrid,
-  ComposedChart,
-  Legend,
-  Line,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
+import { Bar, BarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import KpiCard from '../../../components/KpiCard';
-import { buildEntryExitRows, buildWellPeriodRows } from '../chartBuilders';
+import { DURANGO_CAPABILITIES } from '../../../config/plantCapabilities';
+import { defaultTodayRange } from '../dateUtils';
 import type { DashboardData, FlexibleRecord } from '../types';
 import ChartEmptyState from '../components/ChartEmptyState';
-import ChartPeriodNote from '../components/ChartPeriodNote';
-import ChartTooltip from '../components/ChartTooltip';
 import PanelHeader from '../components/PanelHeader';
 import SqlChartDateControls from '../components/SqlChartDateControls';
-import StatusBadge from '../components/StatusBadge';
 import useSqlChartDashboard from '../hooks/useSqlChartDashboard';
-import { defaultTodayRange } from '../dateUtils';
 
-const axisColor = '#b9e7ff';
-const gridColor = 'rgba(56,189,248,0.14)';
-
-function formatNumber(value: unknown, decimals = 2): string {
-  const number = Number(value ?? 0);
-  return Number.isFinite(number) ? number.toLocaleString('es-MX', { maximumFractionDigits: decimals, minimumFractionDigits: decimals }) : '—';
+function group(summary: FlexibleRecord, key: string): FlexibleRecord {
+  const value = summary[key];
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as FlexibleRecord : {};
 }
 
-function toArray(value: unknown): FlexibleRecord[] {
-  return Array.isArray(value) ? value as FlexibleRecord[] : [];
+function fmt(value: unknown): string {
+  const number = Number(value);
+  return Number.isFinite(number)
+    ? number.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : '—';
 }
 
-function flowValue(row: FlexibleRecord): number {
-  return Number(row.flow_lps ?? row.flujo_lps ?? row.flow ?? row.flujo_salida ?? row.flujo_entrada ?? 0);
-}
-
-function statusForFlowPoint(row: FlexibleRecord): { label: string; type: string } {
-  const explicitLabel = String(row.status || '').trim();
-  const explicitType = String(row.statusType || '').trim();
-  if (explicitLabel) return { label: explicitLabel, type: explicitType || 'idle' };
-  const flow = flowValue(row);
-  const period = Number(row.volumen_periodo_m3 ?? row.period_m3 ?? row.period_delta_m3 ?? 0);
-  if (flow > 0) return { label: 'Operando', type: 'normal' };
-  if (Boolean(row.period_data_available) && period > 0) return { label: 'Totalizador activo', type: 'normal' };
-  return { label: 'Sin flujo instantáneo', type: 'idle' };
-}
-
-function BalanceSection() {
-  const balanceChart = useSqlChartDashboard('dashboard', defaultTodayRange, { forceRefresh: true, includeHistory: false, includeEnergyWater: false });
-  const dashboard = balanceChart.dashboard as DashboardData | null;
-  const entryExitRows = buildEntryExitRows(dashboard);
-  const wellRows = buildWellPeriodRows(dashboard).map((row) => ({ ...row, flujo: Number(row.flujo || 0) }));
-  const flows = toArray(dashboard?.flows);
-  const lines = toArray(dashboard?.production_lines);
-  const totalEntrada = entryExitRows.reduce((sum, item) => sum + Number(item.entrada || 0), 0);
-  const totalSalida = entryExitRows.reduce((sum, item) => sum + Number(item.salida || 0), 0);
-  const difference = totalEntrada - totalSalida;
-  const differencePct = totalEntrada ? (difference / totalEntrada) * 100 : 0;
-  const flowTotal = flows.reduce((sum, item) => sum + flowValue(item), 0);
-  const lineTotal = lines.reduce((sum, item) => sum + flowValue(item), 0);
-  const cards = [
-    { label: 'Entrada medida', value: formatNumber(totalEntrada, 2), unit: 'L/s', trend: 'Suma de entradas disponibles', accent: 'blue' },
-    { label: 'Salida medida', value: formatNumber(totalSalida, 2), unit: 'L/s', trend: 'Líneas y puntos monitoreados', accent: 'cyan' },
-    { label: 'Diferencia', value: `${difference >= 0 ? '+' : ''}${formatNumber(difference, 2)}`, unit: 'L/s', trend: 'No compara contra energía ni concesión', accent: Math.abs(differencePct) > 25 ? 'red' : 'teal' },
-    { label: 'Lavadoras/Jarabes', value: formatNumber(flowTotal, 2), unit: 'L/s', trend: 'Flujos independientes monitoreados', accent: 'indigo' },
+export default function BalanceSection() {
+  const controller = useSqlChartDashboard('dashboard', defaultTodayRange, {
+    forceRefresh: true,
+    includeHistory: false,
+    includeEnergyWater: false,
+    autoRefresh: true,
+  });
+  const dashboard = controller.dashboard as DashboardData | null;
+  const summary = (dashboard?.operational_summary || {}) as FlexibleRecord;
+  const wells = group(summary, 'wells');
+  const lines = group(summary, 'lines');
+  const flows = group(summary, 'flows');
+  const data = [
+    { name: 'Pozos', value: Number(wells.total_m3 || 0), color: '#0ea5e9' },
+    { name: 'Líneas', value: Number(lines.total_m3 || 0), color: '#7dd3fc' },
+    { name: 'Flujos', value: Number(flows.total_m3 || 0), color: '#a855f7' },
   ];
+  const coverage = Number(wells.coverage_available || 0) + Number(lines.coverage_available || 0) + Number(flows.coverage_available || 0);
+  const total = Number(wells.coverage_total || DURANGO_CAPABILITIES.wells.length)
+    + Number(lines.coverage_total || DURANGO_CAPABILITIES.lines.length)
+    + Number(flows.coverage_total || DURANGO_CAPABILITIES.flows.length);
+  const excluded = total - coverage;
+  const comparison = Number(wells.total_m3 || 0) - Number(lines.total_m3 || 0) - Number(flows.total_m3 || 0);
 
-  return (
-    <>
-      <section className="water-balance-hero panel fade-up">
-        <div>
-          <h2>Balance de Agua</h2>
-          <p>Comparativo operativo de entradas y salidas con datos reales disponibles de Durango.</p>
-        </div>
-        <div className="water-balance-hero-grid">
-          <article><span>Entrada medida</span><strong>{formatNumber(totalEntrada, 2)} <small>L/s</small></strong></article>
-          <article><span>Salida medida</span><strong>{formatNumber(totalSalida, 2)} <small>L/s</small></strong></article>
-          <article className={Math.abs(differencePct) > 25 ? 'warning' : 'positive'}><span>Diferencia</span><strong>{difference >= 0 ? '+' : ''}{formatNumber(difference, 2)} <small>L/s</small></strong></article>
-          <article><span>Variación</span><strong>{differencePct >= 0 ? '+' : ''}{formatNumber(differencePct, 1)}<small>%</small></strong></article>
-        </div>
-      </section>
-
-      <section className="cards-grid water-balance-kpi-grid">
-        {cards.map((card, index) => <KpiCard key={card.label} {...card} style={{ animationDelay: `${index * 60}ms` }} />)}
-      </section>
-
-      <section className="content-grid water-balance-main-grid">
-        <div className="panel chart-panel fade-up">
-          <PanelHeader title="Volumen por pozo" subtitle="Volumen del periodo y flujo actual con fuente energética pendiente de confirmar." />
-          <SqlChartDateControls controller={balanceChart} />
-          <ChartPeriodNote range={balanceChart.range} source="Volumen del periodo desde totalizadores disponibles cuando existe lectura inicial/final" />
-          {wellRows.length ? (
-            <ResponsiveContainer width="100%" height={400}>
-              <ComposedChart data={wellRows} margin={{ top: 10, right: 18, bottom: 8, left: 4 }}>
-                <CartesianGrid stroke={gridColor} strokeDasharray="3 3" />
-                <XAxis dataKey="name" stroke={axisColor} />
-                <YAxis yAxisId="left" stroke={axisColor} />
-                <YAxis yAxisId="right" orientation="right" stroke="#7dd3fc" />
-                <Tooltip content={<ChartTooltip />} cursor={{ fill: 'transparent' }} />
-                <Legend />
-                <Bar yAxisId="left" dataKey="agua" name="Volumen periodo (m³)" fill="#0ea5e9" radius={[10, 10, 0, 0]} />
-                <Line yAxisId="right" type="monotone" dataKey="flujo" name="Flujo actual (L/s)" stroke="#7dd3fc" strokeWidth={2.7} dot={{ r: 3 }} />
-              </ComposedChart>
-            </ResponsiveContainer>
-          ) : <ChartEmptyState message="Sin datos de pozos para el rango seleccionado." />}
-        </div>
-
-        <div className="panel summary-panel fade-up water-balance-summary-panel">
-          <PanelHeader title="Resumen del día" subtitle="Lectura ejecutiva sin datos mock" />
-          <div className="water-balance-summary-stack">
-            <article><span>Estado del balance</span><strong>{entryExitRows.length ? 'Datos operativos disponibles' : 'Sin balance disponible'}</strong><p>El balance se calcula solo con campos presentes en el payload actual.</p></article>
-            <article><span>Lavadoras/Jarabes</span><strong>{formatNumber(flowTotal, 2)} L/s</strong><p>Incluye Lavadora Ciel, Jarabes y Lavadora de Vidrio.</p></article>
-            <article><span>Líneas</span><strong>{formatNumber(lineTotal, 2)} L/s</strong><p>Solo se muestran líneas configuradas para esta planta.</p></article>
-          </div>
-        </div>
-      </section>
-
-      <section className="panel fade-up water-type-panel">
-        <PanelHeader title="Puntos operativos de consumo" subtitle="Lavadoras y Jarabes con datos reales disponibles" />
-        <div className="water-type-grid">
-          {flows.length ? flows.map((item, index) => {
-            const sensorId = Number(item.sensor_id || 0);
-            const flow = flowValue(item);
-            const status = statusForFlowPoint(item);
-            return (
-              <article className={`water-type-card ${status.type}`} key={`${sensorId}-${index}`}>
-                <div className="water-type-head">
-                  <div><span>{sensorId ? `Sensor ${sensorId}` : 'Sensor'}</span><strong>{String(item.nombre || item.name || `Punto ${index + 1}`)}</strong></div>
-                  <StatusBadge type={status.type}>{status.label}</StatusBadge>
-                </div>
-                <div className="water-type-foot">
-                  <span>Flujo actual</span>
-                  <strong>{formatNumber(flow, 2)} L/s</strong>
-                  <p>{sensorId === 3004 ? 'Jarabes pendiente de validación operativa.' : 'Dato real de flujo operativo.'}</p>
-                </div>
-              </article>
-            );
-          }) : <ChartEmptyState message="Sin flujos independientes disponibles." />}
-        </div>
-      </section>
-
-      <section className="panel chart-panel fade-up">
-        <PanelHeader title="Entradas vs salidas" subtitle="Comparativo operativo del periodo seleccionado" />
-        <SqlChartDateControls controller={balanceChart} title="Fechas de entradas/salidas" />
-        {entryExitRows.length ? (
-          <ResponsiveContainer width="100%" height={320}>
-            <ComposedChart data={entryExitRows}>
-              <CartesianGrid stroke={gridColor} strokeDasharray="3 3" />
-              <XAxis dataKey="label" stroke={axisColor} />
-              <YAxis stroke={axisColor} />
-              <Tooltip content={<ChartTooltip />} cursor={{ fill: 'transparent' }} />
-              <Legend />
-              <Bar dataKey="entrada" name="Entrada" fill="#0ea5e9" radius={[10, 10, 0, 0]} />
-              <Bar dataKey="salida" name="Salida" fill="#7dd3fc" radius={[10, 10, 0, 0]} />
-              <Line type="monotone" dataKey="diferencia" name="Diferencia" stroke="#38bdf8" strokeWidth={2.2} dot={{ r: 3 }} />
-            </ComposedChart>
-          </ResponsiveContainer>
-        ) : <ChartEmptyState message="Sin datos de entradas/salidas para graficar en este rango." />}
-      </section>
-    </>
-  );
+  return <>
+    <section className="water-balance-hero panel fade-up">
+      <div><h2>Balance de Agua</h2><p>Referencia operativa de los volúmenes registrados durante el periodo seleccionado.</p></div>
+      <div className="water-balance-hero-grid">
+        <article><span>Volumen de pozos</span><strong>{fmt(wells.total_m3)} <small>m³</small></strong></article>
+        <article><span>Volumen de líneas</span><strong>{fmt(lines.total_m3)} <small>m³</small></strong></article>
+        <article><span>Flujos</span><strong>{fmt(flows.total_m3)} <small>m³</small></strong></article>
+        <article><span>Cobertura</span><strong>{coverage}/{total}</strong></article>
+      </div>
+    </section>
+    <section className="cards-grid water-balance-kpi-grid">
+      <KpiCard label="Balance del periodo" value={`${comparison >= 0 ? '+' : ''}${fmt(comparison)}`} unit="m³" trend="Pozos − Líneas − Flujos" accent="cyan" />
+      <KpiCard label="Elementos sin volumen validado" value={String(excluded)} unit="elementos" trend={excluded === 0 ? 'Todos cuentan con información utilizable' : 'Sin volumen validado para el periodo'} accent="brown" />
+    </section>
+    <section className="panel chart-panel fade-up">
+      <PanelHeader title="Volúmenes validados del periodo" subtitle="No se utilizan flujos instantáneos como sustituto de volumen" />
+      <SqlChartDateControls controller={controller} title="Fechas del comparativo" />
+      {data.some((item) => item.value > 0) ? <ResponsiveContainer width="100%" height={320}>
+        <BarChart data={data} layout="vertical" margin={{ top: 12, right: 90, bottom: 12, left: 12 }}>
+          <CartesianGrid stroke="rgba(56,189,248,.14)" strokeDasharray="3 3" horizontal={false} />
+          <XAxis type="number" domain={[0, 'dataMax']} stroke="#b9e7ff" />
+          <YAxis type="category" dataKey="name" width={120} stroke="#b9e7ff" />
+          <Tooltip cursor={{ fill: 'rgba(56,189,248,.06)' }} formatter={(value) => [`${fmt(value)} m³`, 'Volumen']} contentStyle={{ background: '#031522', border: '1px solid rgba(56,189,248,.28)', borderRadius: 12, color: '#fff' }} />
+          <Bar dataKey="value" radius={[0, 10, 10, 0]}>{data.map((item) => <Cell key={item.name} fill={item.color} />)}<LabelList dataKey="value" position="right" formatter={(value) => `${fmt(value)} m³`} fill="#effbff" /></Bar>
+        </BarChart>
+      </ResponsiveContainer> : <ChartEmptyState message="Sin volúmenes validados para el periodo seleccionado." />}
+      <div className="operational-comparison-difference"><span>Referencia operativa</span><strong>La diferencia compara los volúmenes registrados en Pozos − Líneas − Flujos.</strong><small>No representa por sí misma pérdida, fuga, desperdicio ni eficiencia.</small></div>
+    </section>
+  </>;
 }
-
-export default BalanceSection;

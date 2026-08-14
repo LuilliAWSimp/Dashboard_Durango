@@ -47,7 +47,7 @@ def on_startup():
 @app.get('/')
 def root():
     return {
-        'message': 'ARCA CONTINENTAL Energy API running',
+        'message': 'ARCA CONTINENTAL Water API running',
         'db_mode': settings.db_mode,
         'sqlserver_source_mode': settings.sqlserver_source_mode,
     }

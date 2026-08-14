@@ -1,6 +1,8 @@
 import { formatSqlDate } from './dateUtils';
 import type { FlexibleRecord, NormalizedWaterItem, StatusFromFlowResult } from './types';
 
+function nullableNumber(value: unknown): number | null { if (value === null || value === undefined || value === '') return null; const parsed = Number(value); return Number.isFinite(parsed) ? parsed : null; }
+
 export function statusFromFlow(flow: unknown, explicitActive: unknown): StatusFromFlowResult {
   if (explicitActive === false && Number(flow || 0) <= 0) {
     return { status: 'Apagado', statusType: 'idle' };
@@ -43,10 +45,10 @@ export function normalizeSqlWell(well: FlexibleRecord, index: number): Normalize
     flow,
     kwh: Number(well.kwh ?? well.dailyKwh ?? 0),
     dailyKwh: Number(well.dailyKwh ?? well.kwh ?? 0),
-    totalizador_m3: Number(well.totalizador_m3 ?? 0),
-    period_m3: Number(well.period_m3 ?? well.entry_m3 ?? well.period_delta_m3 ?? 0),
+    totalizador_m3: nullableNumber(well.totalizador_m3),
+    period_m3: nullableNumber(well.period_m3 ?? well.entry_m3 ?? well.period_delta_m3),
     period_kwh: Number(well.period_kwh ?? well.period_delta_kwh ?? 0),
-    entry_m3: Number(well.entry_m3 ?? well.period_m3 ?? well.period_delta_m3 ?? 0),
+    entry_m3: nullableNumber(well.entry_m3 ?? well.period_m3 ?? well.period_delta_m3),
     amps: amps === null || Number.isNaN(amps) ? null : amps,
     efficiency: well.efficiency ?? null,
     loadFactor: well.loadFactor ?? null,
@@ -77,15 +79,15 @@ export function normalizeSqlLine(line: FlexibleRecord, index: number): Normalize
     communicationType: backendCommunicationType,
     kwh: null,
     dailyKwh: null,
-    totalizador_m3: Number(line.total_m3 || line.totalizador_m3 || 0),
-    period_m3: Number(line.period_m3 ?? line.period_delta_m3 ?? 0),
-    period_delta_m3: Number(line.period_delta_m3 ?? line.period_m3 ?? 0),
+    totalizador_m3: nullableNumber(line.total_m3 ?? line.totalizador_m3),
+    period_m3: nullableNumber(line.period_m3 ?? line.period_delta_m3),
+    period_delta_m3: nullableNumber(line.period_delta_m3 ?? line.period_m3),
     flujo_entrada: flow,
     flujo_salida: flow,
     flow,
     updated,
     ultima_lectura: updated,
-    sensor_id: line.sensor_id,
+    sensor_id: line.sensor_id == null ? undefined : Number(line.sensor_id),
     sensor_name: line.sensor_name,
     diagnosis: `Sensor ${line.sensor_id || ''} · ${line.sensor_name || 'Lectura de línea'}`,
   };

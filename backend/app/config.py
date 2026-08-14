@@ -13,7 +13,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    app_name: str = Field(default="ARCA CONTINENTAL Energy API", alias="APP_NAME")
+    app_name: str = Field(default="ARCA CONTINENTAL Water API", alias="APP_NAME")
     api_v1_prefix: str = Field(default="/api/v1", alias="API_V1_PREFIX")
     debug: bool = Field(default=True, alias="DEBUG")
     database_url: str = Field(default="sqlite:///./energy_dashboard.db", alias="DATABASE_URL")
@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     smtp_username: str = Field(default="", alias="SMTP_USERNAME")
     smtp_password: str = Field(default="", alias="SMTP_PASSWORD")
     smtp_from: str = Field(default="no-reply@example.com", alias="SMTP_FROM")
+    smtp_use_ssl: bool = Field(default=False, alias="SMTP_USE_SSL")
+    smtp_use_starttls: bool = Field(default=True, alias="SMTP_USE_STARTTLS")
 
     # SQL Server settings
     sqlserver_host: str = Field(default=r"SERVER-SCADA\SQLSCADA", validation_alias=AliasChoices("SQLSERVER_HOST", "DB_SERVER"))
