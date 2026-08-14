@@ -1065,7 +1065,7 @@ def _build_wells(
 
         energy_total = _num(raw_energy_total, 0)
         energy_instant = _num(raw_energy_instant, 0)
-        flow_out = normalize_flow_lps(flow_out_sensor_id, raw_flow_out)
+        flow_out = normalize_flow_lps(flow_out_sensor_id, raw_flow_out, updated_local)
         flow_in = None
         flow_out_total = _optional_num(raw_flow_out_total)
         flow_out_delta_m3, flow_out_delta_available = _period_delta_from_totalizers(raw_flow_out_total, raw_start_flow_out_total, has_period)
@@ -1235,7 +1235,7 @@ def _build_lines(
         if updated_local is None or updated_local < DURANGO_SCADA_CUTOVER_LOCAL:
             raw_flow = None
             raw_total = None
-        flow = normalize_flow_lps(sensor_id, raw_flow)
+        flow = normalize_flow_lps(sensor_id, raw_flow, updated_local)
         total = _optional_num(raw_total)
         period_m3, period_available = _period_delta_from_totalizers(raw_total, raw_start_total, has_period)
         quality = _num(_bos_value(linea_row, 'LINEA_FLOW_IN', index, 'quality', 0))
@@ -1350,7 +1350,7 @@ def _build_well_flow_history(rows: list[dict[str, Any]], period: str = 'hourly',
             index = int(slot.get('index', 0))
             numero = int(slot.get('numero', index + 1))
             well_id = int(slot.get('well_id') or numero)
-            flow_out = normalize_flow_lps(slot.get('flow_out_sensor_id'), _bos_value(row, 'POZO_FLOW_OUT', index, 'instant_value', None))
+            flow_out = normalize_flow_lps(slot.get('flow_out_sensor_id'), _bos_value(row, 'POZO_FLOW_OUT', index, 'instant_value', None), local_stamp)
             flow_lps = flow_out
             energy_total = _num(_bos_value(row, 'POZO_ENERGY_TOTAL', index, 'total_value', 0))
             amps = (

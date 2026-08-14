@@ -131,7 +131,7 @@ def query_readings_window(sensor_ids: list[int], start_dt: datetime, end_dt: dat
             rows = [dict(row._mapping) for row in session.execute(sql, params).fetchall()]
             for row in rows:
                 row['operational_ts'] = source_to_local_naive(row.get('operational_ts'), LOCAL_TIMEZONE)
-                row['instant_value'] = normalize_flow_lps(row.get('sensor_id'), row.get('instant_value'))
+                row['instant_value'] = normalize_flow_lps(row.get('sensor_id'), row.get('instant_value'), row.get('operational_ts'))
             return rows
     except WaterPeriodError:
         raise

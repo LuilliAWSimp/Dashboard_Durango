@@ -14,6 +14,9 @@ from app.database import SessionLocal
 from app.services.durango_capabilities import (
     DURANGO_SCADA_CUTOVER_LOCAL,
     LOCAL_TIMEZONE,
+    POZO_1_FLOW_CALIBRATION_CUTOFF_LOCAL,
+    POZO_1_FLOW_SENSOR_ID,
+    POZO_1_LEGACY_FLOW_NORMALIZATION_FACTOR,
     SENSORS_BY_MODULE,
     clamp_to_validated_segment,
     flow_unit_for_sensor,
@@ -124,6 +127,7 @@ def _localized_rows(
     *timestamp_keys: str,
     identity_hint: Any = None,
     source_timezone: str | None = None,
+    normalize_flows: bool = True,
 ) -> list[dict[str, Any]]:
     normalized: list[dict[str, Any]] = []
     for row in rows:
@@ -133,9 +137,11 @@ def _localized_rows(
         for key in timestamp_keys:
             if item.get(key) is not None:
                 item[key] = source_to_local_naive(item[key], row_timezone)
-        for key in ('instant_value', 'flow_value', 'flow_avg', 'flow_active_avg', 'flow_min', 'flow_max'):
-            if key in item:
-                item[key] = normalize_flow_lps(identity, item.get(key))
+        timestamp = item.get('reading_ts') or item.get('operational_ts') or item.get('bucket_start')
+        if normalize_flows:
+            for key in ('instant_value', 'flow_value', 'flow_avg', 'flow_active_avg', 'flow_min', 'flow_max'):
+                if key in item:
+                    item[key] = normalize_flow_lps(identity, item.get(key), timestamp)
         normalized.append(item)
     return normalized
 
@@ -145,7 +151,12 @@ def _query_15m(sensor_id: int, start_dt: datetime, end_dt: datetime) -> list[dic
         WITH source_rows AS (
             SELECT
                 COALESCE(reading.ts_local, reading.ts_minute) AS reading_ts,
-                TRY_CONVERT(float, reading.instant_value) AS flow_value,
+                CASE
+                    WHEN reading.sensor_id = :pozo_1_sensor_id
+                         AND COALESCE(reading.ts_local, reading.ts_minute) < :pozo_1_flow_cutoff
+                    THEN TRY_CONVERT(float, reading.instant_value) * :pozo_1_legacy_factor
+                    ELSE TRY_CONVERT(float, reading.instant_value)
+                END AS flow_value,
                 TRY_CONVERT(float, reading.total_value) AS total_value
             FROM iot.readings_minute AS reading
             WHERE reading.sensor_id = :sensor_id
@@ -204,8 +215,11 @@ def _query_15m(sensor_id: int, start_dt: datetime, end_dt: datetime) -> list[dic
                 'sensor_id': sensor_id,
                 'start_dt': local_to_source_naive(start_dt, source_timezone_for_identity(sensor_id)),
                 'end_dt': local_to_source_naive(end_dt, source_timezone_for_identity(sensor_id)),
+                'pozo_1_sensor_id': POZO_1_FLOW_SENSOR_ID,
+                'pozo_1_flow_cutoff': POZO_1_FLOW_CALIBRATION_CUTOFF_LOCAL,
+                'pozo_1_legacy_factor': POZO_1_LEGACY_FLOW_NORMALIZATION_FACTOR,
             }).fetchall()]
-            return _localized_rows(rows, 'bucket_start', identity_hint=sensor_id)
+            return _localized_rows(rows, 'bucket_start', identity_hint=sensor_id, normalize_flows=False)
     except WaterHistoryError:
         raise
     except OperationalError as exc:
@@ -651,7 +665,13 @@ def _validate_module_request(module: str, start_date: str, end_date: str, aggreg
 
 
 def _query_15m_multi(sensor_ids: list[int], start_dt: datetime, end_dt: datetime) -> list[dict[str, Any]]:
-    params: dict[str, Any] = {'start_dt': local_to_source_naive(start_dt, LOCAL_TIMEZONE), 'end_dt': local_to_source_naive(end_dt, LOCAL_TIMEZONE)}
+    params: dict[str, Any] = {
+        'start_dt': local_to_source_naive(start_dt, LOCAL_TIMEZONE),
+        'end_dt': local_to_source_naive(end_dt, LOCAL_TIMEZONE),
+        'pozo_1_sensor_id': POZO_1_FLOW_SENSOR_ID,
+        'pozo_1_flow_cutoff': POZO_1_FLOW_CALIBRATION_CUTOFF_LOCAL,
+        'pozo_1_legacy_factor': POZO_1_LEGACY_FLOW_NORMALIZATION_FACTOR,
+    }
     placeholders = []
     for index, sensor_id in enumerate(sensor_ids):
         key = f'sensor_{index}'
@@ -660,7 +680,12 @@ def _query_15m_multi(sensor_ids: list[int], start_dt: datetime, end_dt: datetime
     sql = text(f"""
         WITH source_rows AS (
             SELECT reading.sensor_id, COALESCE(reading.ts_local, reading.ts_minute) AS reading_ts,
-                   TRY_CONVERT(float, reading.instant_value) AS flow_value,
+                   CASE
+                       WHEN reading.sensor_id = :pozo_1_sensor_id
+                            AND COALESCE(reading.ts_local, reading.ts_minute) < :pozo_1_flow_cutoff
+                       THEN TRY_CONVERT(float, reading.instant_value) * :pozo_1_legacy_factor
+                       ELSE TRY_CONVERT(float, reading.instant_value)
+                   END AS flow_value,
                    TRY_CONVERT(float, reading.total_value) AS total_value
             FROM iot.readings_minute AS reading
             WHERE reading.sensor_id IN ({', '.join(placeholders)})
@@ -704,7 +729,7 @@ def _query_15m_multi(sensor_ids: list[int], start_dt: datetime, end_dt: datetime
             if not exists:
                 raise WaterHistoryError('La fuente histórica no está disponible.', status='no_history_source')
             rows = [dict(row._mapping) for row in session.execute(sql, params).fetchall()]
-            return _localized_rows(rows, 'bucket_start', source_timezone=LOCAL_TIMEZONE)
+            return _localized_rows(rows, 'bucket_start', source_timezone=LOCAL_TIMEZONE, normalize_flows=False)
     except WaterHistoryError:
         raise
     except OperationalError as exc:

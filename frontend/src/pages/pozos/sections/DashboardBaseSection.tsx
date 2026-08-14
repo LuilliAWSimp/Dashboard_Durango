@@ -7,10 +7,12 @@ import ModuleHistoryPanel from '../components/ModuleHistoryPanel';
 import PanelHeader from '../components/PanelHeader';
 import SqlChartDateControls from '../components/SqlChartDateControls';
 import StatusBadge from '../components/StatusBadge';
+import OperationalAlertsPanel from '../components/OperationalAlertsPanel';
 import WellsMinuteFlowPanel from '../components/WellsMinuteFlowPanel';
-import { defaultTodayRange, formatSqlDate } from '../dateUtils';
+import { defaultTodayRange, formatSqlDate, recommendedHistoryAggregation } from '../dateUtils';
 import useSqlChartDashboard from '../hooks/useSqlChartDashboard';
 import type { DashboardData, FlexibleRecord } from '../types';
+import { evaluateDurangoWaterAlerts } from '../waterOperationalAlerts';
 
 function rows(value: unknown): FlexibleRecord[] {
   return Array.isArray(value) ? value as FlexibleRecord[] : [];
@@ -57,6 +59,8 @@ export default function DashboardBaseSection() {
     .sort();
   const latest = latestValues[latestValues.length - 1];
   const review = Number(wells.review_count || 0) + Number(lines.review_count || 0) + Number(flows.review_count || 0);
+  const alerts = useMemo(() => evaluateDurangoWaterAlerts(dashboard), [dashboard]);
+  const alertAggregation = useMemo(() => recommendedHistoryAggregation(controller.range), [controller.range.startDate, controller.range.endDate]);
   const wellCount = DURANGO_CAPABILITIES.wells.length;
   const lineCount = DURANGO_CAPABILITIES.lines.length;
   const flowCount = DURANGO_CAPABILITIES.flows.length;
@@ -81,6 +85,8 @@ export default function DashboardBaseSection() {
 
       <ModuleHistoryPanel range={controller.range} />
       <WellsMinuteFlowPanel />
+
+      <OperationalAlertsPanel alerts={alerts} range={controller.range} aggregation={alertAggregation} />
 
       <section className="panel fade-up">
         <PanelHeader title="Accesos operativos" subtitle="Módulos confirmados y pendientes de validación" />

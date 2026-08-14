@@ -54,7 +54,7 @@ def _extract_row(row: dict[str, Any], sensor_id: int, index: int) -> dict[str, A
         return None
     if stamp < DURANGO_SCADA_CUTOVER_LOCAL:
         return None
-    flow = normalize_flow_lps(sensor_id, _bos_value(row, 'POZO_FLOW_OUT', index, 'instant_value', None))
+    flow = normalize_flow_lps(sensor_id, _bos_value(row, 'POZO_FLOW_OUT', index, 'instant_value', None), stamp)
     total_out = _num(_bos_value(row, 'POZO_FLOW_OUT', index, 'total_value', None))
     total = total_out if total_out is not None and total_out > 0 else None
     quality = _num(_bos_value(row, 'POZO_FLOW_OUT', index, 'quality', None))

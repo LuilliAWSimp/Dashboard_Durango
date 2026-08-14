@@ -11,7 +11,7 @@ export const DURANGO_CAPABILITIES = {
     shifts: true,
   },
   wells: [
-    { operationalKey: 'pozo_1', sensorId: 1001, name: 'Pozo 1', flowUnit: 'L/s', rawFlowUnit: 'm3/h', normalizationFactor: 1 / 3.6 },
+    { operationalKey: 'pozo_1', sensorId: 1001, name: 'Pozo 1', flowUnit: 'L/s', rawFlowUnit: 'm3/h hasta 2026-08-11 12:15; L/s directo desde entonces', normalizationFactor: 'backend-temporal' },
     { operationalKey: 'pozo_2', sensorId: 1051, name: 'Pozo 2', flowUnit: 'L/s', rawFlowUnit: 'L/s', normalizationFactor: 1 },
   ],
   lines: [
