@@ -14,7 +14,7 @@ import useSqlChartDashboard from '../hooks/useSqlChartDashboard';
 import type { DashboardData, FlexibleRecord } from '../types';
 import { evaluateDurangoWaterAlerts } from '../waterOperationalAlerts';
 
-const SUMMARY_HISTORY_COLORS = ['#FE019A', '#FEE301', '#a78bfa', '#34d399', '#f59e0b', '#fb7185'];
+const SUMMARY_HISTORY_COLORS = ['#3B82F6', '#10B981', '#a78bfa', '#34d399', '#f59e0b', '#fb7185'];
 
 
 function rows(value: unknown): FlexibleRecord[] {

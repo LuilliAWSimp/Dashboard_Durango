@@ -225,8 +225,8 @@ export default function ModuleHistoryPanel({ range, fixedModule, aggregation: co
               const series = data?.series.find((item) => comparisonSeriesIdentity(item) === identity);
               const color = palette[Math.max(itemIndex, 0) % palette.length];
               const chartSeries = [];
-              if (axes.showFlow) chartSeries.push(<Line key={`flow-${identity}`} yAxisId="flow" type="linear" dataKey={`flow_${identity}`} name={`${series?.name || identity} · Flujo (L/s)`} stroke={"#ef4444"} strokeWidth={2.4} dot={false} activeDot={{ r: 4 }} connectNulls={false} isAnimationActive={false} />);
-              if (axes.showTotalizer) chartSeries.push(<Line key={`totalizer-${identity}`} yAxisId="totalizer" type="linear" dataKey={`totalizer_${identity}`} name={`${series?.name || identity} · Totalizador (m³)`} stroke={"#bcef44"} strokeWidth={2.1} strokeDasharray="7 4" dot={false} activeDot={{ r: 4 }} connectNulls={false} isAnimationActive={false} />);
+              if (axes.showFlow) chartSeries.push(<Line key={`flow-${identity}`} yAxisId="flow" type="linear" dataKey={`flow_${identity}`} name={`${series?.name || identity} · Flujo (L/s)`} stroke={color} strokeWidth={2.4} dot={false} activeDot={{ r: 4 }} connectNulls={false} isAnimationActive={false} />);
+              if (axes.showTotalizer) chartSeries.push(<Line key={`totalizer-${identity}`} yAxisId="totalizer" type="linear" dataKey={`totalizer_${identity}`} name={`${series?.name || identity} · Totalizador (m³)`} stroke={color} strokeWidth={2.1} strokeDasharray="7 4" dot={false} activeDot={{ r: 4 }} connectNulls={false} isAnimationActive={false} />);
               return chartSeries;
             })}
           </LineChart>
