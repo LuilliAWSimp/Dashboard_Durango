@@ -27,6 +27,7 @@ interface Props {
   fixedModule?: ComparisonModule;
   aggregation?: HistoryAggregation;
   onAggregationChange?: (value: HistoryAggregation) => void;
+  colors?: string[];
 }
 
 function intervalLabel(startValue: unknown, endValue: unknown, aggregation: HistoryAggregation): string {
@@ -79,7 +80,7 @@ function ModuleTooltip({
           return (
             <div className="module-history-tooltip-group" key={identity}>
               <div className="module-history-tooltip-title">
-                <span className="chart-tooltip-dot" style={{ background: COLORS[Math.max(itemIndex, 0) % COLORS.length] }} />
+                <span className="chart-tooltip-dot" style={{ background: palette[Math.max(itemIndex, 0) % palette.length] }} />
                 {item?.name || `Elemento ${identity}`}
               </div>
               <div className="module-history-tooltip-grid">
@@ -109,9 +110,10 @@ function tick(value: number, aggregation: HistoryAggregation): string {
   return date.toLocaleString('es-MX', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
-export default function ModuleHistoryPanel({ range, fixedModule, aggregation: controlledAggregation, onAggregationChange }: Props) {
+export default function ModuleHistoryPanel({ range, fixedModule, aggregation: controlledAggregation, onAggregationChange, colors }: Props) {
   const [tabModule, setTabModule] = useState<ComparisonModule>(fixedModule || 'well');
   const module = fixedModule || tabModule;
+  const palette = colors?.length ? colors : COLORS;
   const [internalAggregation, setInternalAggregation] = useState<HistoryAggregation>(() => controlledAggregation || recommendedHistoryAggregation(range));
   const aggregation = controlledAggregation || internalAggregation;
   const [metric, setMetric] = useState<ComparisonMetric>('flow');
@@ -219,7 +221,7 @@ export default function ModuleHistoryPanel({ range, fixedModule, aggregation: co
             {visible.flatMap((identity) => {
               const itemIndex = activeItems.findIndex((item) => configuredComparisonIdentity(item) === identity);
               const series = data?.series.find((item) => comparisonSeriesIdentity(item) === identity);
-              const color = COLORS[Math.max(itemIndex, 0) % COLORS.length];
+              const color = palette[Math.max(itemIndex, 0) % palette.length];
               const chartSeries = [];
               if (axes.showFlow) chartSeries.push(<Line key={`flow-${identity}`} yAxisId="flow" type="linear" dataKey={`flow_${identity}`} name={`${series?.name || identity} · Flujo (L/s)`} stroke={color} strokeWidth={2.4} dot={false} activeDot={{ r: 4 }} connectNulls={false} isAnimationActive={false} />);
               if (axes.showTotalizer) chartSeries.push(<Line key={`totalizer-${identity}`} yAxisId="totalizer" type="linear" dataKey={`totalizer_${identity}`} name={`${series?.name || identity} · Totalizador (m³)`} stroke={color} strokeWidth={2.1} strokeDasharray="7 4" dot={false} activeDot={{ r: 4 }} connectNulls={false} isAnimationActive={false} />);
