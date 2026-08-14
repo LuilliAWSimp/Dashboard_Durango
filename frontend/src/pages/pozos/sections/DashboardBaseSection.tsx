@@ -15,7 +15,7 @@ import type { DashboardData, FlexibleRecord } from '../types';
 import { evaluateDurangoWaterAlerts } from '../waterOperationalAlerts';
 
 const SUMMARY_HISTORY_COLORS = ['#3B82F6', '#10B981', '#a78bfa', '#c1f505', '#f59e0b', '#fb7185'];
-
+//Colores de las lineas: linea 1, linea 2, linea 3, linea 4, linea 5, 6 7
 
 function rows(value: unknown): FlexibleRecord[] {
   return Array.isArray(value) ? value as FlexibleRecord[] : [];
