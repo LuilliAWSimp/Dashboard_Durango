@@ -14,8 +14,6 @@ import useSqlChartDashboard from '../hooks/useSqlChartDashboard';
 import type { DashboardData, FlexibleRecord } from '../types';
 import { evaluateDurangoWaterAlerts } from '../waterOperationalAlerts';
 
-const SUMMARY_HISTORY_COLORS = ['#FE019A', '#FEE301', '#a78bfa', '#34d399', '#f59e0b', '#fb7185'];
-
 
 function rows(value: unknown): FlexibleRecord[] {
   return Array.isArray(value) ? value as FlexibleRecord[] : [];
@@ -86,7 +84,7 @@ export default function DashboardBaseSection() {
         <KpiCard label="Última actualización" value={latest ? formatSqlDate(latest) : 'Sin lectura'} unit="" trend={controller.refreshing ? 'Actualizando información…' : 'Actualización automática cada 60 s'} accent="teal" />
       </section>
 
-      <ModuleHistoryPanel range={controller.range} colors={SUMMARY_HISTORY_COLORS} />
+      <ModuleHistoryPanel range={controller.range} />
       <WellsMinuteFlowPanel />
 
       <OperationalAlertsPanel alerts={alerts} range={controller.range} aggregation={alertAggregation} />

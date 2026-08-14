@@ -19,7 +19,7 @@ import type { DateRange, HistoryAggregation, WaterModuleHistoryResponse } from '
 import ChartEmptyState from './ChartEmptyState';
 import PanelHeader from './PanelHeader';
 
-const COLORS = ['#14b8ff', '#7dd3fc', '#a78bfa', '#34d399', '#f59e0b', '#fb7185'];
+const COLORS = ['#FE019A', '#FEE301', '#a78bfa', '#34d399', '#f59e0b', '#fb7185'];
 const MODULE_LABELS: Record<ComparisonModule, string> = { well: 'Pozos', line: 'Líneas', flow: 'Flujos' };
 
 interface Props {
