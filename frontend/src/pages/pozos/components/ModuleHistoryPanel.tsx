@@ -56,6 +56,7 @@ function ModuleTooltip({
   selected,
   module,
   metric,
+  palette,
 }: {
   active?: boolean;
   payload?: Array<{ payload?: ComparisonRow }>;
@@ -63,6 +64,7 @@ function ModuleTooltip({
   selected: OperationalIdentity[];
   module: ComparisonModule;
   metric: ComparisonMetric;
+  palette: string[];
 }) {
   if (!active || !payload?.length) return null;
   const row = payload.find((entry) => entry.payload)?.payload;
@@ -215,7 +217,7 @@ export default function ModuleHistoryPanel({ range, fixedModule, aggregation: co
             <XAxis dataKey="timestamp" type="number" scale="time" domain={['dataMin', 'dataMax']} tickFormatter={(value) => tick(Number(value), aggregation)} minTickGap={32} stroke="#b9e7ff" />
             {axes.showFlow ? <YAxis yAxisId="flow" stroke="#7dd3fc" width={62} tickFormatter={(value) => Number(value).toLocaleString('es-MX')} label={{ value: 'L/s', angle: -90, position: 'insideLeft', fill: '#7dd3fc' }} /> : null}
             {axes.showTotalizer ? <YAxis yAxisId="totalizer" orientation={axes.independentAxes ? 'right' : 'left'} stroke="#c4b5fd" width={72} tickFormatter={(value) => Number(value).toLocaleString('es-MX')} label={{ value: 'm³', angle: axes.independentAxes ? 90 : -90, position: axes.independentAxes ? 'insideRight' : 'insideLeft', fill: '#c4b5fd' }} /> : null}
-            <Tooltip content={<ModuleTooltip aggregation={aggregation} selected={visible} module={module} metric={metric} />} filterNull={false} wrapperStyle={{ zIndex: 60, pointerEvents: 'none' }} offset={16} />
+            <Tooltip content={<ModuleTooltip aggregation={aggregation} selected={visible} module={module} metric={metric} palette={palette} />} filterNull={false} wrapperStyle={{ zIndex: 60, pointerEvents: 'none' }} offset={16} />
             <Legend />
             <Line yAxisId={axes.showFlow ? 'flow' : 'totalizer'} dataKey="tooltipAnchor" stroke="transparent" dot={false} activeDot={false} legendType="none" isAnimationActive={false} />
             {visible.flatMap((identity) => {
