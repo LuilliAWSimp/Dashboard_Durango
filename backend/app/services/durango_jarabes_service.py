@@ -191,6 +191,7 @@ def normalize_jarabes_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             'operational_ts': local_stamp,
             'instant_value': normalize_flow_lps(str(CONTRACT['operational_key']), raw.get('raw_flow'), local_stamp),
             'total_value': _number(raw.get('total_value')),
+            'quality': _number(raw.get('raw_quality')),
             'source': 'dbo.SensorsBOS_Tanque',
             'period_source': 'dbo.SensorsBOS_Tanque',
         })
@@ -226,13 +227,30 @@ def get_jarabes_period_items(
     ]
 
 
+def _current_status_from_reading(item: dict[str, Any]) -> tuple[str, str, bool]:
+    communication_status = str(item.get('communication_status') or '').lower()
+    communication_label = str(item.get('communication') or item.get('estado_comunicacion') or '')
+    has_reading = bool(item.get('current_reading_available'))
+    flow = _number(item.get('current_flow'))
+
+    if not has_reading or communication_status in {'no_data', 'offline'}:
+        return 'Sin datos', 'communication', False
+    if communication_status in {'stale_data', 'communication', 'warning'}:
+        return communication_label or 'Sin datos', 'communication', False
+    active = bool(flow is not None and flow > 0.01)
+    if active:
+        return 'Operando', 'normal', True
+    return 'Sin flujo', 'idle', False
+
+
 def get_current_jarabes(*, session: Any = None) -> list[dict[str, Any]]:
     raw = _query_latest(session=session)
     rows = normalize_jarabes_rows([raw] if raw else [])
     today = local_now_naive().date()
     item = build_lavadora_period_item(CONTRACT, rows, today)
-    has_reading = bool(item.get('current_reading_available'))
-    flow = _number(item.get('current_flow'))
+    if rows:
+        item['quality'] = rows[-1].get('quality')
+    status, status_type, active = _current_status_from_reading(item)
     # Una única lectura actual no constituye un periodo. Conserva solamente la
     # lectura/totalizador/comunicación y deja el volumen para la consulta de rango.
     item.update({
@@ -253,11 +271,11 @@ def get_current_jarabes(*, session: Any = None) -> list[dict[str, Any]]:
         'activity': 'Sin histórico para el periodo',
         'activity_status': 'Sin histórico para el periodo',
         'period_activity': 'Sin histórico para el periodo',
-        'data_status': 'no_history',
-        'period_data_status': 'no_history',
-        'volume_data_status': 'no_totalizer',
-        'validation': 'Sin volumen validado',
-        'validation_status': 'unavailable',
+        'data_status': 'current_only',
+        'period_data_status': 'current_only',
+        'volume_data_status': 'current_only',
+        'validation': None,
+        'validation_status': None,
         'samples': 0,
         'samples_received': 0,
         'samples_expected': 0,
@@ -267,10 +285,13 @@ def get_current_jarabes(*, session: Any = None) -> list[dict[str, Any]]:
         'active_samples': 0,
         'active_minutes': 0.0,
         'flow_active_avg': None,
+        'current_sample_only': True,
+        'current_state': status,
+        'current_state_status': status_type,
     })
-    item['active'] = bool(flow is not None and flow > 0.01)
-    item['status'] = 'Operando' if item['active'] else 'Sin flujo' if has_reading else 'Sin datos'
-    item['statusType'] = 'normal' if item['active'] else 'idle' if has_reading else 'communication'
+    item['active'] = active
+    item['status'] = status
+    item['statusType'] = status_type
     item['communicationType'] = item.get('communication_status')
     item['updated'] = item.get('last_update')
     item['category'] = 'jarabes'

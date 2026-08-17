@@ -5,7 +5,7 @@ from typing import Any
 
 from app.schemas.dashboard import KpiCard
 from app.schemas.water import WaterDashboardPayload
-from app.services.durango_capabilities import FLOWS, LINES, WELLS, capability_payload, current_flow_threshold_for_sensor
+from app.services.durango_capabilities import FLOWS, LINES, WELLS, capability_payload, current_flow_threshold_for_sensor, is_jarabes_identity
 from app.services.water_bos_service import get_bos_water_dashboard_payload
 from app.services.water_period_service import WaterPeriodError, get_period_data, summarize_period_items
 
@@ -135,12 +135,25 @@ def _apply_current_state(item: dict[str, Any]) -> dict[str, Any]:
         totalizer = result.get('totalizador_m3')
     stamp = result.get('last_update') or result.get('ultima_lectura') or result.get('updated')
     communication_status = str(result.get('communication_status') or result.get('communicationType') or '').lower()
+    communication_label = str(result.get('communication') or result.get('estado_comunicacion') or '')
     has_reading = bool(flow is not None or totalizer is not None or stamp)
-    if not has_reading or communication_status in {'no_data', 'offline'}:
+    identity = result.get('operational_key') or result.get('sensor_id')
+    if is_jarabes_identity(identity):
+        if not has_reading or communication_status in {'no_data', 'offline'}:
+            label, status = 'Sin datos', 'communication'
+        elif communication_status in {'stale_data', 'communication', 'warning'}:
+            label, status = communication_label or 'Sin datos', 'communication'
+        else:
+            try:
+                active = float(flow) > current_flow_threshold_for_sensor(identity)
+            except (TypeError, ValueError):
+                active = False
+            label, status = ('Operando', 'operational') if active else ('Sin flujo', 'zero_consumption')
+    elif not has_reading or communication_status in {'no_data', 'offline'}:
         label, status = 'Sin registros', 'no_data'
     else:
         try:
-            active = float(flow) > current_flow_threshold_for_sensor(result.get('operational_key') or result.get('sensor_id'))
+            active = float(flow) > current_flow_threshold_for_sensor(identity)
         except (TypeError, ValueError):
             active = False
         label, status = ('Activo', 'operational') if active else ('Apagado con datos', 'zero_consumption')

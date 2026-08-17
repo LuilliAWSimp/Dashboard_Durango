@@ -54,10 +54,10 @@ function itemName(row: FlexibleRecord, index: number): string {
 
 function statusType(value: unknown): string {
   const text = String(value || '').toLowerCase();
-  if (text.includes('revisión') || text.includes('atrasada') || text.includes('parcial')) return 'warning';
-  if (text.includes('sin histórico') || text.includes('sin registro') || text.includes('sin lectura')) return 'communication';
-  if (text.includes('apagado')) return 'idle';
-  if (text.includes('activo')) return 'normal';
+  if (text.includes('revisión') || text.includes('atrasada') || text.includes('parcial') || text.includes('comunicación') || text.includes('comunicacion')) return 'warning';
+  if (text.includes('sin histórico') || text.includes('sin registro') || text.includes('sin lectura') || text.includes('sin datos')) return 'communication';
+  if (text.includes('apagado') || text.includes('sin flujo')) return 'idle';
+  if (text.includes('activo') || text.includes('operando')) return 'normal';
   if (text.includes('actividad')) return text.includes('sin actividad') ? 'idle' : 'normal';
   return 'idle';
 }
@@ -242,7 +242,10 @@ export default function OperationalModuleSection({
                         value={volume === null ? 'No disponible' : fmt(volume)}
                         unit={volume === null ? '' : 'm³'}
                       />
-                      <MetricPair label="Validación" value={String(row.validation || (volume === null ? 'Sin volumen validado' : row.has_discontinuities ? 'Validación parcial' : 'Validado'))} />
+                      <MetricPair
+                        label="Validación"
+                        value={String(row.validation || (String(row.period_data_status || row.data_status || '') === 'current_only' ? '—' : volume === null ? 'Sin volumen validado' : row.has_discontinuities ? 'Validación parcial' : 'Validado'))}
+                      />
                       <MetricPair label="Actividad del periodo" value={activity} />
                       <MetricPair label="Tiempo activo" value={number(row.active_minutes) === null ? '—' : fmt(row.active_minutes)} unit={number(row.active_minutes) === null ? '' : 'min'} />
                       <MetricPair label="Cobertura" value={number(row.coverage_percent) === null ? '—' : fmt(row.coverage_percent)} unit={number(row.coverage_percent) === null ? '' : '%'} />

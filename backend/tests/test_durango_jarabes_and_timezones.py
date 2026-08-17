@@ -22,6 +22,9 @@ from app.services.durango_jarabes_service import get_current_jarabes, normalize_
 from app.services.durango_lavadoras_service import build_lavadora_period_item
 from app.services.plant_time import local_to_source_naive, source_to_local_naive
 import app.services.water_history_service as history_service
+import app.services.durango_jarabes_service as jarabes_service
+import app.services.durango_lavadoras_service as lavadoras_service
+from app.services.water_service import _apply_current_state
 
 
 class _Rows:
@@ -177,18 +180,94 @@ class DurangoJarabesAndTimezoneTests(unittest.TestCase):
             'source_timestamp': datetime(2026, 8, 12, 19, 40, 29),
             'source_sensor_id': 3004,
             'raw_flow': 0.0,
+            'raw_quality': 0,
             'total_value': 4670.0498046875,
             'segment_sensor_id': 3004,
             'segment_slot_index': 1,
             'segment_source_key': 'TANQUE_FLOW_IN[1]',
         }]])
-        items = get_current_jarabes(session=fake)
+        with patch.object(jarabes_service, 'local_now_naive', return_value=datetime(2026, 8, 12, 13, 42, 0)), \
+             patch.object(lavadoras_service, 'local_now_naive', return_value=datetime(2026, 8, 12, 13, 42, 0)):
+            items = get_current_jarabes(session=fake)
         self.assertEqual(len(fake.calls), 1)
         self.assertIn('TANQUE_FLOW_IN_1_instant_value', fake.calls[0][0])
         self.assertNotIn('TANQUE_FLOW_IN_4_instant_value', fake.calls[0][0])
         self.assertEqual(items[0]['sensor_id'], 3004)
         self.assertEqual(items[0]['operational_key'], 'jarabes')
         self.assertEqual(items[0]['current_totalizer_m3'], 4670.0498046875)
+        self.assertEqual(items[0]['quality'], 0.0)
+        self.assertEqual(items[0]['status'], 'Sin flujo')
+        self.assertEqual(items[0]['current_state'], 'Sin flujo')
+        self.assertEqual(items[0]['statusType'], 'idle')
+        self.assertEqual(items[0]['communication_status'], 'operational')
+        self.assertIsNone(items[0]['period_m3'])
+        self.assertIsNone(items[0]['validated_volume_m3'])
+        self.assertIsNone(items[0]['validation'])
+
+    def test_current_jarabes_positive_flow_is_operating(self):
+        fake = _FakeSession([[{
+            'source_timestamp': datetime(2026, 8, 12, 19, 40, 29),
+            'source_sensor_id': 3004,
+            'raw_flow': 1.25,
+            'total_value': 4670.0498046875,
+            'segment_sensor_id': 3004,
+            'segment_slot_index': 1,
+            'segment_source_key': 'TANQUE_FLOW_IN[1]',
+        }]])
+        with patch.object(jarabes_service, 'local_now_naive', return_value=datetime(2026, 8, 12, 13, 42, 0)), \
+             patch.object(lavadoras_service, 'local_now_naive', return_value=datetime(2026, 8, 12, 13, 42, 0)):
+            item = get_current_jarabes(session=fake)[0]
+        self.assertEqual(item['status'], 'Operando')
+        self.assertEqual(item['current_state'], 'Operando')
+        self.assertEqual(item['statusType'], 'normal')
+        self.assertTrue(item['active'])
+        self.assertIsNone(item['period_m3'])
+        self.assertIsNone(item['validated_volume_m3'])
+
+    def test_current_jarabes_missing_or_stale_uses_communication_state(self):
+        missing = get_current_jarabes(session=_FakeSession([[]]))[0]
+        self.assertEqual(missing['status'], 'Sin datos')
+        self.assertEqual(missing['statusType'], 'communication')
+        self.assertFalse(missing['current_reading_available'])
+
+        fake = _FakeSession([[{
+            'source_timestamp': datetime(2026, 8, 12, 19, 0, 0),
+            'source_sensor_id': 3004,
+            'raw_flow': 0.0,
+            'total_value': 4670.0498046875,
+            'segment_sensor_id': 3004,
+            'segment_slot_index': 1,
+            'segment_source_key': 'TANQUE_FLOW_IN[1]',
+        }]])
+        with patch.object(jarabes_service, 'local_now_naive', return_value=datetime(2026, 8, 12, 13, 42, 0)), \
+             patch.object(lavadoras_service, 'local_now_naive', return_value=datetime(2026, 8, 12, 13, 42, 0)):
+            stale = get_current_jarabes(session=fake)[0]
+        self.assertEqual(stale['statusType'], 'communication')
+        self.assertEqual(stale['communication_status'], 'stale_data')
+        self.assertIn(stale['status'], {'Lectura atrasada', 'Revisar comunicación'})
+
+    def test_water_service_preserves_jarabes_current_state_after_period_merge(self):
+        zero = _apply_current_state({
+            'operational_key': 'jarabes',
+            'sensor_id': 3004,
+            'current_flow': 0.0,
+            'current_totalizer_m3': 4670.0498046875,
+            'communication_status': 'operational',
+            'communication': 'Actualizado',
+            'last_update': '2026-08-12T13:40:29',
+            'period_m3': None,
+            'validated_volume_m3': None,
+        })
+        self.assertEqual(zero['current_state'], 'Sin flujo')
+        self.assertEqual(zero['current_state_status'], 'zero_consumption')
+
+        positive = _apply_current_state({**zero, 'current_flow': 1.1})
+        self.assertEqual(positive['current_state'], 'Operando')
+        self.assertEqual(positive['current_state_status'], 'operational')
+
+        stale = _apply_current_state({**zero, 'communication_status': 'stale_data', 'communication': 'Lectura atrasada'})
+        self.assertEqual(stale['current_state'], 'Lectura atrasada')
+        self.assertEqual(stale['current_state_status'], 'communication')
 
     def test_individual_history_accepts_legacy_alias_but_returns_current_sensor(self):
         jarabes_rows = [
