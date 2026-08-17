@@ -33,6 +33,14 @@ POZO_1_FLOW_SENSOR_ID = 1001
 POZO_1_FLOW_CALIBRATION_CUTOFF_LOCAL = datetime(2026, 8, 11, 12, 15, 0)
 POZO_1_LEGACY_FLOW_NORMALIZATION_FACTOR = 1 / 3.6
 
+# Jarabes cambió físicamente de canal el 11/08/2026 19:40:29 UTC.
+# Este corte es independiente del cambio general de SCADA del 04/08/2026.
+JARABES_OPERATIONAL_KEY = 'jarabes'
+JARABES_LEGACY_SENSOR_ID = 3010
+JARABES_CURRENT_SENSOR_ID = 3004
+JARABES_CHANNEL_CUTOVER_UTC = datetime(2026, 8, 11, 19, 40, 29)
+JARABES_CHANNEL_CUTOVER_LOCAL = datetime(2026, 8, 11, 13, 40, 29)
+
 CAPABILITIES: dict[str, str | bool] = {
     'wells': True,
     'lines': True,
@@ -160,19 +168,47 @@ LAVADORAS: list[dict[str, Any]] = [
 
 JARABES: list[dict[str, Any]] = [
     {
-        **_common(key='jarabes', name='Jarabes', group='flow', order=4),
-        'sensor_id': 3010,
+        **_common(key=JARABES_OPERATIONAL_KEY, name='Jarabes', group='flow', order=4),
+        'sensor_id': JARABES_CURRENT_SENSOR_ID,
         'table': 'dbo.SensorsBOS_Tanque',
-        'source_key': 'TANQUE_FLOW_IN[4]',
-        'slot_index': 4,
-        'instant_column': 'TANQUE_FLOW_IN_4_instant_value',
-        'total_column': 'TANQUE_FLOW_IN_4_total_value',
+        'source_key': 'TANQUE_FLOW_IN[1]',
+        'slot_index': 1,
+        'instant_column': 'TANQUE_FLOW_IN_1_instant_value',
+        'total_column': 'TANQUE_FLOW_IN_1_total_value',
         'raw_flow_unit': 'L/s',
         'flow_normalization_factor': 1.0,
         'flow_encoding': 'ieee754_float32_bits_in_numeric',
         'totalizer_unit': 'm3',
         'source_timestamp_timezone': UTC_TIMEZONE,
         'require_flow_validation': True,
+        'channel_cutover_utc': JARABES_CHANNEL_CUTOVER_UTC.isoformat(timespec='seconds') + 'Z',
+        'channel_cutover_local': JARABES_CHANNEL_CUTOVER_LOCAL.isoformat(timespec='seconds'),
+        'legacy_sensor_aliases': [JARABES_LEGACY_SENSOR_ID],
+    },
+]
+
+JARABES_SOURCE_SEGMENTS: list[dict[str, Any]] = [
+    {
+        'name': 'jarabes_legacy_slot_4',
+        'sensor_id': JARABES_LEGACY_SENSOR_ID,
+        'source_key': 'TANQUE_FLOW_IN[4]',
+        'slot_index': 4,
+        'instant_column': 'TANQUE_FLOW_IN_4_instant_value',
+        'total_column': 'TANQUE_FLOW_IN_4_total_value',
+        'sensor_column': 'TANQUE_FLOW_IN_4_sensor_id',
+        'start_utc': DURANGO_SCADA_CUTOVER_UTC,
+        'end_utc': JARABES_CHANNEL_CUTOVER_UTC,
+    },
+    {
+        'name': 'jarabes_current_slot_1',
+        'sensor_id': JARABES_CURRENT_SENSOR_ID,
+        'source_key': 'TANQUE_FLOW_IN[1]',
+        'slot_index': 1,
+        'instant_column': 'TANQUE_FLOW_IN_1_instant_value',
+        'total_column': 'TANQUE_FLOW_IN_1_total_value',
+        'sensor_column': 'TANQUE_FLOW_IN_1_sensor_id',
+        'start_utc': JARABES_CHANNEL_CUTOVER_UTC,
+        'end_utc': None,
     },
 ]
 
@@ -186,6 +222,7 @@ ITEM_BY_SENSOR = {
     for item in ALL_ITEMS
     if item.get('sensor_id') is not None
 }
+ITEM_SENSOR_ALIASES = {JARABES_LEGACY_SENSOR_ID: JARABES_CURRENT_SENSOR_ID}
 ITEM_BY_KEY = {str(item['operational_key']): item for item in ALL_ITEMS}
 SENSORS_BY_MODULE = {
     'well': [int(item['sensor_id']) for item in WELLS],
@@ -206,13 +243,20 @@ def identity_key(value: Any) -> str:
         value = value.get('operational_key') or value.get('sensor_id') or value.get('id')
     if value in (None, ''):
         return ''
+    raw = str(value).strip()
+    lower = raw.lower()
+    if lower in ITEM_BY_KEY:
+        mapped_sensor = ITEM_BY_KEY[lower].get('sensor_id')
+        if mapped_sensor is not None:
+            return str(int(mapped_sensor))
+        return lower
     try:
         number = int(value)
-        if str(value).strip() == str(number):
-            return str(number)
+        if raw == str(number):
+            return str(ITEM_SENSOR_ALIASES.get(number, number))
     except (TypeError, ValueError):
         pass
-    return str(value).strip().lower()
+    return lower
 
 
 def item_contract(value: Any) -> dict[str, Any]:
@@ -250,6 +294,10 @@ def flow_unit_for_sensor(sensor_id: Any) -> str:
 
 def source_timezone_for_identity(identity: Any) -> str:
     return str(item_contract(identity).get('source_timestamp_timezone') or LOCAL_TIMEZONE)
+
+
+def is_jarabes_identity(identity: Any) -> bool:
+    return str(item_contract(identity).get('operational_key') or '') == JARABES_OPERATIONAL_KEY
 
 
 def _decode_ieee754_float32_bits(value: float) -> float | None:

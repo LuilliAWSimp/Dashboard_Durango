@@ -13,11 +13,11 @@ test('la clasificación central contiene cuatro líneas y cuatro flujos sin dupl
   assert.deepEqual(DURANGO_CAPABILITIES.lines.map((item) => item.sensorId), [2002, 2006, 2008, 2010]);
   assert.deepEqual(
     DURANGO_CAPABILITIES.flows.map((item) => item.sensorId ?? item.operationalKey),
-    [2004, 'lavadora_vidrio', 'lavadora_ref_pet', 3010],
+    [2004, 'lavadora_vidrio', 'lavadora_ref_pet', 3004],
   );
   assert.equal(DURANGO_CAPABILITIES.flows[0]?.name, 'Lavadora Línea 2');
   assert.equal(DURANGO_CAPABILITIES.flows.at(-1)?.name, 'Jarabes');
-  assert.equal(DURANGO_CAPABILITIES.flows.at(-1)?.sensorId, 3010);
+  assert.equal(DURANGO_CAPABILITIES.flows.at(-1)?.sensorId, 3004);
 });
 
 test('la comparativa conserva cero real, null sin registro y totalizador observado', () => {

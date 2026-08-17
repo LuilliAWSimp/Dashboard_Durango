@@ -22,7 +22,7 @@ def test_confirmed_mappings_keep_durango_order():
     assert [(item['operational_key'], item['name']) for item in LAVADORAS] == [
         ('lavadora_vidrio', 'Lavadora Vidrio'), ('lavadora_ref_pet', 'Lavadora Ref Pet')
     ]
-    assert [(item['sensor_id'], item['name']) for item in JARABES] == [(3010, 'Jarabes')]
+    assert [(item['sensor_id'], item['name']) for item in JARABES] == [(3004, 'Jarabes')]
 
 
 def test_totalizer_ignores_intermittent_zero_without_double_counting():
@@ -170,7 +170,7 @@ def test_pdf_excel_and_email_attachment_use_same_report_structure(monkeypatch):
     assert pdf_name == 'reporte-diario-control-hidrico-durango-2026-08-01.pdf'
     assert excel_name == 'reporte-diario-control-hidrico-durango-2026-08-01.xlsx'
     workbook = load_workbook(BytesIO(excel_bytes), data_only=True)
-    assert workbook.sheetnames[:7] == ['Resumen', 'Pozos', 'Histórico Pozos', 'Líneas', 'Histórico Líneas', 'Flujos', 'Histórico Flujos']
+    assert workbook.sheetnames[:8] == ['Resumen', 'Pozos', 'Líneas', 'Flujos', 'Turnos', 'Histórico Pozos', 'Histórico Líneas', 'Histórico Flujos']
     assert workbook['Pozos'].max_row == 3
     assert workbook['Líneas'].max_row == 5
     assert workbook['Flujos'].max_row == 5
