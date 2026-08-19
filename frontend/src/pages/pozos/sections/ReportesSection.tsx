@@ -16,14 +16,15 @@ import StatusBadge from '../components/StatusBadge';
 import { useNotifications } from '../components/NotificationCenter';
 
 type ReportMode = 'day' | 'range';
-type ReportSectionKey = 'wells' | 'production_lines' | 'operational_flows';
+type ReportSectionKey = 'wells' | 'production_lines' | 'washers' | 'jarabes';
 type ReportFilters = { date?: string; startDate?: string; endDate?: string };
 type ExportAction = 'pdf' | 'xlsx' | 'html' | null;
 
 const REPORT_SECTIONS: Array<{ key: ReportSectionKey; label: string }> = [
   { key: 'wells', label: 'Pozos' },
   { key: 'production_lines', label: 'Líneas' },
-  { key: 'operational_flows', label: 'Flujos' },
+  { key: 'washers', label: 'Lavadoras' },
+  { key: 'jarabes', label: 'Jarabes' },
 ];
 
 function fmt(value: unknown): string {
@@ -68,9 +69,9 @@ function reportRows(report: any, key: ReportSectionKey): any[] {
 }
 
 function validationLabel(item: any): string {
-  if (item?.validation) return String(item.validation);
-  if (item?.validated_volume_m3 === null || item?.validated_volume_m3 === undefined) return 'Sin volumen validado';
-  return item?.has_discontinuities ? 'Validación parcial' : 'Validado';
+  if (item?.validated_volume_m3 !== null && item?.validated_volume_m3 !== undefined) return 'Validado';
+  if (item?.validation && String(item.validation) !== 'Validación parcial') return String(item.validation);
+  return 'Sin volumen validado';
 }
 
 function ReportSkeleton() {
@@ -278,7 +279,8 @@ export default function ReportesSection() {
   const summaryCards = [
     { label: 'Volumen validado de pozos', value: summary.well_validated_volume_m3 ?? summary.well_volume_m3 },
     { label: 'Volumen validado de líneas', value: summary.line_validated_volume_m3 ?? summary.line_volume_m3 },
-    { label: 'Volumen validado de flujos', value: summary.washer_validated_volume_m3 ?? summary.flow_validated_volume_m3 ?? summary.flow_volume_m3 },
+    { label: 'Volumen validado de lavadoras', value: summary.washer_validated_volume_m3 },
+    { label: 'Volumen validado de Jarabes', value: summary.jarabes_validated_volume_m3 },
     { label: 'Total validado operativo', value: summary.total_validated_operational_m3 ?? summary.total_operational_m3 },
   ];
   const isBusy = exportAction !== null;
@@ -338,13 +340,13 @@ export default function ReportesSection() {
       {report ? <>
         <section className="report-summary-grid fade-up" aria-label="Resumen ejecutivo del reporte">
           {summaryCards.map((card) => <article className="report-summary-card" key={card.label}><span>{card.label}</span><strong>{fmtVolume(card.value)}</strong></article>)}
-          <article className="report-summary-card review"><span>Validación parcial</span><strong>{Number(summary.partial_validation_count ?? summary.review_count ?? 0).toLocaleString('es-MX')} <small>elementos</small></strong><small>Con volumen utilizable y eventos descartados.</small></article>
+          <article className="report-summary-card review"><span>Volúmenes validados</span><strong>{Number(summary.validated_items_count ?? 0).toLocaleString('es-MX')} <small>elementos</small></strong><small>Datos aceptados para operación.</small></article>
         </section>
         <p className="report-summary-note">{summary.note}</p>
         {report.legacy_notice ? <div className="status-pill alert">{report.legacy_notice}</div> : null}
 
         <section className="panel fade-up report-data-panel report-preview-panel">
-          <div className="report-preview-heading"><div><span>Vista previa ligera</span><h3>Vista previa del reporte</h3><p>Pozos, Líneas y Flujos · Periodo {report.period_label}</p></div></div>
+          <div className="report-preview-heading"><div><span>Vista previa ligera</span><h3>Vista previa del reporte</h3><p>Pozos, Líneas, Lavadoras y Jarabes · Periodo {report.period_label}</p></div></div>
           <div className="report-preview-sections">
             {REPORT_SECTIONS.map((section) => <ReportPreviewSection key={section.key} report={report} section={section} />)}
           </div>

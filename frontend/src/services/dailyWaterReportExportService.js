@@ -28,9 +28,9 @@ function volumeDisplay(row) {
   return "Sin volumen validado";
 }
 function validationLabel(row) {
-  if (row?.validation) return String(row.validation);
-  if (row?.validated_volume_m3 === null || row?.validated_volume_m3 === void 0) return "Sin volumen validado";
-  return row?.has_discontinuities ? "Validaci\xF3n parcial" : "Validado";
+  if (row?.validated_volume_m3 !== null && row?.validated_volume_m3 !== void 0) return "Validado";
+  if (row?.validation && String(row.validation) !== "Validaci\xF3n parcial") return String(row.validation);
+  return "Sin volumen validado";
 }
 const CHART_COLORS = ["#1597d4", "#7047eb", "#f59e0b", "#10b981", "#e84a5f"];
 function aggregationLabel(value) {
@@ -107,9 +107,9 @@ function volumeChart(rows) {
   const bars = rows.map((row, index) => {
     const value = values[index];
     const top = 20 + index * rowHeight;
-    const color = row.has_discontinuities ? "#f59e0b" : "#1597d4";
+    const color = "#1597d4";
     const bar = value != null && value > 0 ? `<rect x="${labelWidth}" y="${top}" width="${plotWidth * value / max}" height="18" rx="4" fill="${color}"/>` : "";
-    const label = value == null ? Number(row.samples || 0) <= 0 ? "Sin registros" : "Sin volumen validado" : `${fmt(value)} m\xB3${row.has_discontinuities ? " \xB7 parcial" : ""}`;
+    const label = value == null ? Number(row.samples || 0) <= 0 ? "Sin registros" : "Sin volumen validado" : `${fmt(value)} m\xB3`;
     return `<text x="0" y="${top + 14}">${escapeHtml(row.name)}</text><rect x="${labelWidth}" y="${top}" width="${plotWidth}" height="18" rx="4" class="bar-track"/>${bar}<text x="${labelWidth + plotWidth + 12}" y="${top + 14}">${escapeHtml(label)}</text>`;
   }).join("");
   return `<svg class="report-chart volume-chart" role="img" aria-label="Volumen validado por elemento" viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid meet">${bars}</svg>`;
@@ -146,17 +146,19 @@ function buildDailyWaterReportHtml(report) {
     <div class="summary">
       <div><span>Volumen validado de pozos</span><strong>${fmtVolume(summary.well_validated_volume_m3 ?? summary.well_volume_m3)}</strong></div>
       <div><span>Volumen validado de l\xEDneas</span><strong>${fmtVolume(summary.line_validated_volume_m3 ?? summary.line_volume_m3)}</strong></div>
-      <div><span>Volumen validado de flujos</span><strong>${fmtVolume(summary.washer_validated_volume_m3 ?? summary.flow_validated_volume_m3 ?? summary.flow_volume_m3)}</strong></div>
+      <div><span>Volumen validado de lavadoras</span><strong>${fmtVolume(summary.washer_validated_volume_m3)}</strong></div>
+      <div><span>Volumen validado de Jarabes</span><strong>${fmtVolume(summary.jarabes_validated_volume_m3)}</strong></div>
       <div><span>Total validado operativo</span><strong>${fmtVolume(summary.total_validated_operational_m3 ?? summary.total_operational_m3)}</strong></div>
       <div><span>Pozos con actividad</span><strong>${Number(summary.wells_active || 0)}/${report.wells?.rows?.length || 0}</strong></div>
       <div><span>L\xEDneas con actividad</span><strong>${Number(summary.lines_active || 0)}/${report.production_lines?.rows?.length || 0}</strong></div>
-      <div><span>Flujos con actividad</span><strong>${Number(summary.flows_active || 0)}/${report.operational_flows?.rows?.length || 0}</strong></div>
-      <div><span>Elementos con validaci\xF3n parcial</span><strong>${Number(summary.partial_validation_count ?? summary.review_count ?? 0).toLocaleString("es-MX")}</strong></div>
+      <div><span>Lavadoras con actividad</span><strong>${Number(summary.washers_active || 0)}/${report.washers?.rows?.length || 0}</strong></div>
+      <div><span>Jarabes con actividad</span><strong>${Number(summary.jarabes_active || 0)}/${report.jarabes?.rows?.length || 0}</strong></div>
     </div>
     <p class="note">${escapeHtml(summary.note || "Los vol\xFAmenes mostrados consideran \xFAnicamente incrementos validados. Los eventos descartados no se incluyen en los totales.")}<br><strong>Cero:</strong> lectura v\xE1lida sin flujo. <strong>Hueco:</strong> intervalo sin registros suficientes. Los gr\xE1ficos no generan intervalos futuros.</p>
     ${section("Pozos", report.wells?.rows || [], report.history?.wells)}
     ${section("L\xEDneas", report.production_lines?.rows || [], report.history?.lines)}
-    ${section("Flujos", report.operational_flows?.rows || [], report.history?.flows)}
+    ${section("Lavadoras", report.washers?.rows || [], report.history?.washers)}
+    ${section("Jarabes", report.jarabes?.rows || [], report.history?.jarabes)}
   </main></body></html>`;
 }
 function exportDailyWaterReportHtml(report) {

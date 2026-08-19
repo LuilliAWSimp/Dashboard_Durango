@@ -6,6 +6,7 @@ import type { ShiftElement, WaterShift, WaterShiftsResponse } from '../types';
 import ChartEmptyState from './ChartEmptyState';
 import PanelHeader from './PanelHeader';
 import StatusBadge from './StatusBadge';
+import { JARABES_SECTION_CONFIG, LAVADORAS_SECTION_CONFIG } from '../operationalSectionConfig';
 
 type GroupMode = 'well' | 'line' | 'flow' | 'all';
 
@@ -101,6 +102,22 @@ function summarizeRows(detailRows: ShiftElement[]) {
 function summary(shift: WaterShift, group: Exclude<GroupMode, 'all'>, allowedItems?: AllowedItem[]) {
   if (allowedItems?.length) return summarizeRows(rows(shift, group, undefined, allowedItems));
   return group === 'well' ? shift.summary.wells : group === 'line' ? shift.summary.lines : shift.summary.flows;
+}
+
+const LAVADORA_SHIFT_ITEMS: AllowedItem[] = LAVADORAS_SECTION_CONFIG.items.map((item) => ({
+  sensorId: item.sensorId,
+  operationalKey: item.operationalKey,
+  name: item.name,
+}));
+
+const JARABES_SHIFT_ITEMS: AllowedItem[] = JARABES_SECTION_CONFIG.items.map((item) => ({
+  sensorId: item.sensorId,
+  operationalKey: item.operationalKey,
+  name: item.name,
+}));
+
+function filteredFlowSummary(shift: WaterShift, allowedItems: AllowedItem[]) {
+  return summarizeRows(rows(shift, 'flow', undefined, allowedItems));
 }
 
 function shiftTotal(shift: WaterShift, group: GroupMode, selectedIdentity?: number | string, allowedItems?: AllowedItem[]): number | null {
@@ -228,12 +245,12 @@ export default function ShiftConsumptionPanel({ group = 'all', itemIdentity: sel
             const selectedRow = group === 'all' || selectedIdentity === undefined ? null : rows(shift, group, selectedIdentity, items)[0];
             const summaryText = selectedIdentity !== undefined
               ? selectedRow ? `${selectedRow.activity} · ${selectedRow.communication}` : 'Sin registros para este elemento'
-              : groupSummary ? `Con actividad ${groupSummary.active_count} · Sin actividad ${groupSummary.inactive_count} · Validación parcial ${groupSummary.review_count}` : 'Pozos, Líneas y Flujos';
+              : groupSummary ? `Con actividad ${groupSummary.active_count} · Sin actividad ${groupSummary.inactive_count} · En revisión ${groupSummary.review_count}` : 'Pozos, Líneas, Lavadoras y Jarabes';
             return <article key={shift.id} className={`shift-summary-card ${shift.cut_status === 'Corte parcial' ? 'partial' : shift.cut_status === 'Pendiente' ? 'pending' : 'completed'}`}><span>{shift.name}</span><small>{shift.schedule}</small><strong>{shift.cut_status === 'Pendiente' ? 'Pendiente' : `${shift.cut_status === 'Corte parcial' ? 'Corte parcial: ' : ''}${value == null ? 'Sin volumen validado' : `${fmt(value)} m³`}`}</strong><p>{summaryText}</p><em>{shift.cut_status}</em></article>;
           })}
         </div>
-        {reviewMode ? <div className="pozos-table-scroll shift-overview-table-wrap"><table className="pozos-operacion-table shift-overview-table"><thead><tr><th>Turno</th><th>Horario</th><th>Pozos</th><th>Líneas</th><th>Flujos</th><th>Total operativo</th><th>Estado</th></tr></thead><tbody>{visible.map((shift) => <tr key={shift.id}><td>{shift.name}</td><td>{shift.schedule}</td><td>{shift.cut_status === 'Pendiente' ? 'Pendiente' : `${fmt(shift.summary.wells.total_m3)} m³`}</td><td>{shift.cut_status === 'Pendiente' ? 'Pendiente' : `${fmt(shift.summary.lines.total_m3)} m³`}</td><td>{shift.cut_status === 'Pendiente' ? 'Pendiente' : `${fmt(shift.summary.flows.total_m3)} m³`}</td><td>{shift.cut_status === 'Pendiente' ? 'Pendiente' : `${fmt(shift.summary.total_operational_m3)} m³`}</td><td><StatusBadge type={statusType(shift.cut_status)}>{shift.cut_status}</StatusBadge></td></tr>)}</tbody></table></div> : null}
-        <div className="shift-detail-list">{visible.map((shift) => <details key={`${shift.id}-${group}`} className="shift-detail-disclosure"><summary><span><strong>{shift.name}</strong><small>{shift.schedule}</small></span><StatusBadge type={statusType(shift.cut_status)}>{shift.cut_status}</StatusBadge></summary>{group === 'all' ? <div className="shift-detail-groups"><section><h4>Pozos</h4><DetailTable shift={shift} group="well" /></section><section><h4>Líneas</h4><DetailTable shift={shift} group="line" /></section><section><h4>Flujos</h4><DetailTable shift={shift} group="flow" /></section></div> : <DetailTable shift={shift} group={group} selectedIdentity={selectedIdentity} allowedItems={items} emptyMessage={emptyMessage} />}</details>)}</div>
+        {reviewMode ? <div className="pozos-table-scroll shift-overview-table-wrap"><table className="pozos-operacion-table shift-overview-table"><thead><tr><th>Turno</th><th>Horario</th><th>Pozos</th><th>Líneas</th><th>Lavadoras</th><th>Jarabes</th><th>Total operativo</th><th>Estado</th></tr></thead><tbody>{visible.map((shift) => { const lavadoras = filteredFlowSummary(shift, LAVADORA_SHIFT_ITEMS); const jarabes = filteredFlowSummary(shift, JARABES_SHIFT_ITEMS); return <tr key={shift.id}><td>{shift.name}</td><td>{shift.schedule}</td><td>{shift.cut_status === 'Pendiente' ? 'Pendiente' : `${fmt(shift.summary.wells.total_m3)} m³`}</td><td>{shift.cut_status === 'Pendiente' ? 'Pendiente' : `${fmt(shift.summary.lines.total_m3)} m³`}</td><td>{shift.cut_status === 'Pendiente' ? 'Pendiente' : `${fmt(lavadoras.total_m3)} m³`}</td><td>{shift.cut_status === 'Pendiente' ? 'Pendiente' : `${fmt(jarabes.total_m3)} m³`}</td><td>{shift.cut_status === 'Pendiente' ? 'Pendiente' : `${fmt(shift.summary.total_operational_m3)} m³`}</td><td><StatusBadge type={statusType(shift.cut_status)}>{shift.cut_status}</StatusBadge></td></tr>; })}</tbody></table></div> : null}
+        <div className="shift-detail-list">{visible.map((shift) => <details key={`${shift.id}-${group}`} className="shift-detail-disclosure"><summary><span><strong>{shift.name}</strong><small>{shift.schedule}</small></span><StatusBadge type={statusType(shift.cut_status)}>{shift.cut_status}</StatusBadge></summary>{group === 'all' ? <div className="shift-detail-groups"><section><h4>Pozos</h4><DetailTable shift={shift} group="well" /></section><section><h4>Líneas</h4><DetailTable shift={shift} group="line" /></section><section><h4>Lavadoras</h4><DetailTable shift={shift} group="flow" allowedItems={LAVADORA_SHIFT_ITEMS} emptyMessage="Sin registros de lavadoras para este turno." /></section><section><h4>Jarabes</h4><DetailTable shift={shift} group="flow" allowedItems={JARABES_SHIFT_ITEMS} emptyMessage="Sin registros de Jarabes para este turno." /></section></div> : <DetailTable shift={shift} group={group} selectedIdentity={selectedIdentity} allowedItems={items} emptyMessage={emptyMessage} />}</details>)}</div>
       </> : null}
     </section>
   );

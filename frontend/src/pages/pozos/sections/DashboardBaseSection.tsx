@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import KpiCard from '../../../components/KpiCard';
 import { DURANGO_CAPABILITIES } from '../../../config/plantCapabilities';
+import { JARABES_SECTION_CONFIG, LAVADORAS_SECTION_CONFIG } from '../operationalSectionConfig';
 import ChartEmptyState from '../components/ChartEmptyState';
 import ModuleHistoryPanel from '../components/ModuleHistoryPanel';
 import PanelHeader from '../components/PanelHeader';
@@ -33,8 +34,34 @@ function summaryGroup(summary: FlexibleRecord, key: string): FlexibleRecord {
 }
 function volumeTrend(group: FlexibleRecord, total: number): string {
   if (number(group.total_m3) === null) return 'No disponible';
-  const prefix = group.has_partial_volume ? 'Volumen validado parcial · ' : '';
-  return `${prefix}${Number(group.active_count || 0)}/${total} con actividad en el periodo`;
+  return `${Number(group.active_count || 0)}/${total} con actividad en el periodo`;
+}
+function operationalKey(item: FlexibleRecord): string {
+  return String(item.operational_key ?? item.operationalKey ?? '').trim();
+}
+function validatedRowVolume(item: FlexibleRecord): number | null {
+  const direct = number(item.validated_volume_m3);
+  if (direct !== null) return direct;
+  if (item.period_m3_reliable === false || item.reliable === false) return null;
+  return number(item.period_m3 ?? item.volume_m3);
+}
+function rowSummary(items: FlexibleRecord[]): FlexibleRecord {
+  let total = 0;
+  let hasVolume = false;
+  let active = 0;
+  let currentFlow = 0;
+  items.forEach((item) => {
+    const volume = validatedRowVolume(item);
+    if (volume !== null) {
+      total += volume;
+      hasVolume = true;
+    }
+    const activity = String(item.activity || item.period_activity || '').toLowerCase();
+    if (activity.includes('con actividad') || Number(item.active_minutes || 0) > 0 || (volume !== null && volume > 0)) active += 1;
+    const flow = number(item.current_flow_lps ?? item.flow_lps ?? item.instant_flow_lps ?? item.flujo_lps);
+    if (flow !== null && flow > 0) currentFlow += 1;
+  });
+  return { total_m3: hasVolume ? total : null, active_count: active, current_flow_count: currentFlow };
 }
 
 export default function DashboardBaseSection() {
@@ -50,8 +77,15 @@ export default function DashboardBaseSection() {
   const wells = summaryGroup(summary, 'wells');
   const lines = summaryGroup(summary, 'lines');
   const flows = summaryGroup(summary, 'flows');
+  const flowRows = rows(dashboard?.flows);
+  const lavadoraKeys = LAVADORAS_SECTION_CONFIG.allowedOperationalKeys;
+  const jarabesKeys = JARABES_SECTION_CONFIG.allowedOperationalKeys;
+  const lavadorasRows = flowRows.filter((item) => lavadoraKeys.includes(operationalKey(item)));
+  const jarabesRows = flowRows.filter((item) => jarabesKeys.includes(operationalKey(item)));
+  const lavadoras = rowSummary(lavadorasRows);
+  const jarabes = rowSummary(jarabesRows);
   const all = useMemo(
-    () => [...rows(dashboard?.wells), ...rows(dashboard?.production_lines), ...rows(dashboard?.flows)],
+    () => [...rows(dashboard?.wells), ...rows(dashboard?.production_lines), ...flowRows],
     [dashboard],
   );
   const latestValues = all
@@ -64,7 +98,8 @@ export default function DashboardBaseSection() {
   const alertAggregation = useMemo(() => recommendedHistoryAggregation(controller.range), [controller.range.startDate, controller.range.endDate]);
   const wellCount = DURANGO_CAPABILITIES.wells.length;
   const lineCount = DURANGO_CAPABILITIES.lines.length;
-  const flowCount = DURANGO_CAPABILITIES.flows.length;
+  const lavadoraCount = LAVADORAS_SECTION_CONFIG.items.length;
+  const jarabesCount = JARABES_SECTION_CONFIG.items.length;
 
   return (
     <>
@@ -76,11 +111,13 @@ export default function DashboardBaseSection() {
       <section className="cards-grid stagger-grid summary-operational-kpis">
         <KpiCard label="Volumen validado de pozos" value={fmt(wells.total_m3)} unit={number(wells.total_m3) === null ? '' : 'm³'} trend={volumeTrend(wells, wellCount)} accent="blue" />
         <KpiCard label="Volumen validado de líneas" value={fmt(lines.total_m3)} unit={number(lines.total_m3) === null ? '' : 'm³'} trend={volumeTrend(lines, lineCount)} accent="cyan" />
-        <KpiCard label="Volumen validado de flujos" value={fmt(flows.total_m3)} unit={number(flows.total_m3) === null ? '' : 'm³'} trend={volumeTrend(flows, flowCount)} accent="indigo" />
+        <KpiCard label="Volumen validado de lavadoras" value={fmt(lavadoras.total_m3)} unit={number(lavadoras.total_m3) === null ? '' : 'm³'} trend={volumeTrend(lavadoras, lavadoraCount)} accent="indigo" />
+        <KpiCard label="Volumen validado de Jarabes" value={fmt(jarabes.total_m3)} unit={number(jarabes.total_m3) === null ? '' : 'm³'} trend={volumeTrend(jarabes, jarabesCount)} accent="purple" />
         <KpiCard label="Pozos con flujo actual" value={`${Number(wells.current_flow_count || 0)}/${wellCount}`} unit="pozos" trend="Lectura reciente por encima del umbral operativo" accent="teal" />
         <KpiCard label="Líneas con flujo actual" value={`${Number(lines.current_flow_count || 0)}/${lineCount}`} unit="líneas" trend="Independiente de la actividad del periodo" accent="teal" />
-        <KpiCard label="Flujos con flujo actual" value={`${Number(flows.current_flow_count || 0)}/${flowCount}`} unit="flujos" trend="Lectura actual y comunicación válida" accent="teal" />
-        <KpiCard label="Validación parcial" value={String(review)} unit="elementos" trend="Con volumen utilizable y eventos descartados" accent="brown" />
+        <KpiCard label="Lavadoras con flujo actual" value={`${Number(lavadoras.current_flow_count || 0)}/${lavadoraCount}`} unit="lavadoras" trend="Lectura actual y comunicación válida" accent="teal" />
+        <KpiCard label="Jarabes con flujo actual" value={`${Number(jarabes.current_flow_count || 0)}/${jarabesCount}`} unit="Jarabes" trend="Lectura actual y comunicación válida" accent="teal" />
+        <KpiCard label="Volúmenes validados" value={String(review)} unit="elementos" trend="Datos revisados para operación" accent="brown" />
         <KpiCard label="Última actualización" value={latest ? formatSqlDate(latest) : 'Sin lectura'} unit="" trend={controller.refreshing ? 'Actualizando información…' : 'Actualización automática cada 60 s'} accent="teal" />
       </section>
 

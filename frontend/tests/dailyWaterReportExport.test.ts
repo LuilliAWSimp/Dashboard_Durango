@@ -38,7 +38,8 @@ function history(names: string[]) {
 
 const wells = ['Pozo 1', 'Pozo 2'];
 const lines = ['Línea 1', 'Línea 3', 'Línea 4', 'Línea 5'];
-const flows = ['Lavadora Línea 2', 'Lavadora Vidrio', 'Lavadora Ref Pet', 'Jarabes'];
+const washers = ['Lavadora Línea 2', 'Lavadora Vidrio', 'Lavadora Ref Pet'];
+const jarabes = ['Jarabes'];
 const report = {
   title: 'Reporte Diario de Control Hídrico Durango',
   start_date: '2026-08-07',
@@ -49,32 +50,41 @@ const report = {
     well_validated_volume_m3: 2,
     line_validated_volume_m3: 4,
     flow_validated_volume_m3: 4,
+    washer_validated_volume_m3: 3,
+    jarabes_validated_volume_m3: 1,
     total_validated_operational_m3: 10,
     wells_active: 2,
     lines_active: 4,
     flows_active: 4,
+    washers_active: 3,
+    jarabes_active: 1,
     review_count: 0,
   },
   wells: { rows: wells.map((name) => row(name)) },
   production_lines: { rows: lines.map((name) => row(name)) },
-  operational_flows: { rows: flows.map((name) => row(name)) },
-  history: { wells: history(wells), lines: history(lines), flows: history(flows) },
+  operational_flows: { rows: [...washers, ...jarabes].map((name) => row(name)) },
+  washers: { rows: washers.map((name) => row(name)) },
+  jarabes: { rows: jarabes.map((name) => row(name)) },
+  history: { wells: history(wells), lines: history(lines), flows: history([...washers, ...jarabes]), washers: history(washers), jarabes: history(jarabes) },
 };
 
-test('HTML mantiene tabla y gráfica juntas en el orden Pozos, Líneas, Flujos', () => {
+test('HTML mantiene tabla y gráfica juntas en el orden Pozos, Líneas, Lavadoras y Jarabes', () => {
   const html = buildDailyWaterReportHtml(report);
   const wellsIndex = html.indexOf('<h2>Pozos</h2>');
   const linesIndex = html.indexOf('<h2>Líneas</h2>');
-  const flowsIndex = html.indexOf('<h2>Flujos</h2>');
-  assert.ok(wellsIndex > 0 && wellsIndex < linesIndex && linesIndex < flowsIndex);
+  const washersIndex = html.indexOf('<h2>Lavadoras</h2>');
+  const jarabesIndex = html.indexOf('<h2>Jarabes</h2>');
+  assert.ok(wellsIndex > 0 && wellsIndex < linesIndex && linesIndex < washersIndex && washersIndex < jarabesIndex);
   assert.ok(html.indexOf('Comportamiento de flujo · Pozos', wellsIndex) < linesIndex);
-  assert.ok(html.indexOf('Comportamiento de flujo · Líneas', linesIndex) < flowsIndex);
-  assert.ok(html.indexOf('Comportamiento de flujo · Flujos', flowsIndex) > flowsIndex);
+  assert.ok(html.indexOf('Comportamiento de flujo · Líneas', linesIndex) < washersIndex);
+  assert.ok(html.indexOf('Comportamiento de flujo · Lavadoras', washersIndex) > washersIndex);
+  assert.ok(html.indexOf('Comportamiento de flujo · Jarabes', jarabesIndex) > jarabesIndex);
+  assert.doesNotMatch(html, /<h2>Flujos<\/h2>/);
 });
 
 test('HTML usa clasificación operativa y omite nombres técnicos', () => {
   const html = buildDailyWaterReportHtml(report);
-  for (const name of [...wells, ...lines, ...flows]) assert.match(html, new RegExp(name));
+  for (const name of [...wells, ...lines, ...washers, ...jarabes]) assert.match(html, new RegExp(name));
   assert.doesNotMatch(html, /Tanques|FLOW_IN|sensor 2004|<td>Línea 2<\/td>/);
 });
 

@@ -6951,3 +6951,21 @@ th { color: #c1d0e8; font-weight: 700; position: sticky; top: 0; background: #0f
   position: relative;
   z-index: 1;
 }
+
+/* Keep Balance de Agua tooltip above bars and panel boundaries without affecting other charts. */
+.balance-chart-panel {
+  position: relative;
+  overflow: visible;
+  z-index: 20;
+}
+
+.balance-chart-panel .recharts-responsive-container,
+.balance-chart-panel .recharts-wrapper,
+.balance-chart-panel .recharts-surface {
+  overflow: visible !important;
+}
+
+.balance-chart-panel .recharts-tooltip-wrapper {
+  z-index: 140 !important;
+  pointer-events: none;
+}

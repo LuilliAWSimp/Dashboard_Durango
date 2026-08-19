@@ -170,10 +170,11 @@ def test_pdf_excel_and_email_attachment_use_same_report_structure(monkeypatch):
     assert pdf_name == 'reporte-diario-control-hidrico-durango-2026-08-01.pdf'
     assert excel_name == 'reporte-diario-control-hidrico-durango-2026-08-01.xlsx'
     workbook = load_workbook(BytesIO(excel_bytes), data_only=True)
-    assert workbook.sheetnames[:8] == ['Resumen', 'Pozos', 'Líneas', 'Flujos', 'Turnos', 'Histórico Pozos', 'Histórico Líneas', 'Histórico Flujos']
+    assert workbook.sheetnames[:8] == ['Resumen', 'Pozos', 'Líneas', 'Lavadoras', 'Jarabes', 'Turnos', 'Histórico Pozos', 'Histórico Líneas']
     assert workbook['Pozos'].max_row == 3
     assert workbook['Líneas'].max_row == 5
-    assert workbook['Flujos'].max_row == 5
+    assert workbook['Lavadoras'].max_row == 4
+    assert workbook['Jarabes'].max_row == 2
     assert workbook['Histórico Pozos']['E2'].value == 0
     assert workbook['Histórico Pozos']['J2'].value == 15
     assert report['history']['aggregation'] == 'quarter_hour'
