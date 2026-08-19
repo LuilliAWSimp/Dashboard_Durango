@@ -6928,3 +6928,26 @@ th { color: #c1d0e8; font-weight: 700; position: sticky; top: 0; background: #0f
     width: calc(100vw - 24px);
   }
 }
+
+/* Keep operational module history tooltips above the shift-cuts panel. */
+.module-history-panel.operational-module-comparison {
+  position: relative;
+  overflow: visible;
+  z-index: 30;
+}
+
+.module-history-panel.operational-module-comparison .recharts-responsive-container,
+.module-history-panel.operational-module-comparison .recharts-wrapper,
+.module-history-panel.operational-module-comparison .recharts-surface {
+  overflow: visible !important;
+}
+
+.module-history-panel.operational-module-comparison .recharts-tooltip-wrapper {
+  z-index: 120 !important;
+  pointer-events: none;
+}
+
+.shift-consumption-panel {
+  position: relative;
+  z-index: 1;
+}
