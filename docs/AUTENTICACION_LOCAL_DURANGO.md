@@ -45,9 +45,24 @@ AUTH_REQUIRE_TAB_SESSION=true
 AUTH_MAX_FAILED_ATTEMPTS=5
 AUTH_LOCK_MINUTES=15
 AUTH_CSRF_HEADER=X-CSRF-Token
+ALLOWED_ORIGINS=https://durango.dashboardrsrc.com.mx,http://localhost:5173,http://127.0.0.1:5173
 ```
 
 En producción HTTPS debe conservarse `AUTH_COOKIE_SECURE=true`. Para desarrollo local por HTTP únicamente puede usarse `AUTH_COOKIE_SECURE=false` en el `.env` local.
+
+## CORS y URL del frontend
+
+El backend debe aceptar credenciales desde los orígenes explícitos de Durango:
+
+```text
+https://durango.dashboardrsrc.com.mx
+http://localhost:5173
+http://127.0.0.1:5173
+```
+
+No usar `*` porque la autenticación depende de cookie HTTP-only y `allow_credentials=true`.
+
+Si el frontend y el backend se sirven bajo el mismo dominio/reverse proxy, el frontend puede usar la ruta relativa por defecto `/api/v1`. Para desarrollo local con Vite, el proxy envía `/api` a `http://127.0.0.1:8000`. Si se define `VITE_API_BASE_URL`, debe apuntar al backend real y conservar HTTPS cuando se accede desde `https://durango.dashboardrsrc.com.mx`.
 
 ## Sesiones y pestañas
 

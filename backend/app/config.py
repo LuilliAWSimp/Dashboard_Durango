@@ -20,7 +20,11 @@ class Settings(BaseSettings):
     database_url: str = Field(default="sqlite:///./energy_dashboard.db", alias="DATABASE_URL")
     db_mode: str = Field(default="sqlserver", validation_alias=AliasChoices("DB_MODE", "DATABASE_MODE"))
     allowed_origins_raw: str = Field(
-        default="http://localhost:5173,http://127.0.0.1:5173",
+        default=(
+            "https://durango.dashboardrsrc.com.mx,"
+            "http://localhost:5173,"
+            "http://127.0.0.1:5173"
+        ),
         alias="ALLOWED_ORIGINS",
     )
 
@@ -63,7 +67,21 @@ class Settings(BaseSettings):
 
     @property
     def allowed_origins(self) -> List[str]:
-        return [item.strip() for item in self.allowed_origins_raw.split(",") if item.strip()]
+        required_origins = [
+            "https://durango.dashboardrsrc.com.mx",
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+        ]
+        configured = [
+            item.strip().rstrip("/")
+            for item in self.allowed_origins_raw.split(",")
+            if item.strip() and item.strip() != "*"
+        ]
+        origins: List[str] = []
+        for origin in [*configured, *required_origins]:
+            if origin not in origins:
+                origins.append(origin)
+        return origins
 
 
     @property

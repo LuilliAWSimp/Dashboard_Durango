@@ -8,10 +8,13 @@ from datetime import timedelta
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 
 from app.api.routes.auth import router as auth_router
 from app.auth.middleware import LocalAuthMiddleware, TAB_SESSION_HEADER
+from app.config import Settings
 from app.auth.service import (
     AccountLockedError,
     AuthPolicy,
@@ -25,6 +28,8 @@ from app.auth.service import (
 
 COOKIE_NAME = "arca_dgo_session"
 CSRF_HEADER = "X-CSRF-Token"
+DURANGO_ORIGIN = "https://durango.dashboardrsrc.com.mx"
+ALLOWED_ORIGINS = [DURANGO_ORIGIN, "http://localhost:5173", "http://127.0.0.1:5173"]
 ADMIN_PASSWORD = "Administrador2026!"
 VIEWER_PASSWORD = "Consulta2026!"
 OPERATOR_PASSWORD = "Operador2026!"
@@ -52,11 +57,26 @@ class LocalAuthTests(unittest.TestCase):
     def build_app(self):
         app = FastAPI()
         app.state.auth_service = self.service
+
+        @app.middleware("http")
+        async def exception_boundary(request, call_next):
+            try:
+                return await call_next(request)
+            except Exception:
+                return JSONResponse(status_code=500, content={"detail": "Error interno del servidor."})
+
         app.add_middleware(
             LocalAuthMiddleware,
             api_prefix="/api/v1",
             cookie_name=COOKIE_NAME,
             csrf_header=CSRF_HEADER,
+        )
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=ALLOWED_ORIGINS,
+            allow_credentials=True,
+            allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+            allow_headers=["Content-Type", CSRF_HEADER, TAB_SESSION_HEADER],
         )
         app.include_router(auth_router, prefix="/api/v1")
 
@@ -68,6 +88,14 @@ class LocalAuthTests(unittest.TestCase):
         def email_report():
             return {"sent": True}
 
+        @app.post("/api/v1/admin-only")
+        def admin_only():
+            return {"ok": True}
+
+        @app.get("/api/v1/boom")
+        def boom():
+            raise RuntimeError("boom")
+
         return app
 
     def session_client(self, username="adminlocal", password=ADMIN_PASSWORD):
@@ -76,6 +104,14 @@ class LocalAuthTests(unittest.TestCase):
         client.cookies.set(COOKIE_NAME, result.token)
         client.headers.update({TAB_SESSION_HEADER: result.tab_session})
         return client, result
+
+    def test_configuracion_incluye_origenes_cors_de_durango(self):
+        settings = Settings()
+        self.assertEqual(
+            settings.allowed_origins[:3],
+            [DURANGO_ORIGIN, "http://localhost:5173", "http://127.0.0.1:5173"],
+        )
+        self.assertNotIn("*", settings.allowed_origins)
 
     def test_login_genera_cookie_e_identificador_de_pestana(self):
         client = TestClient(self.build_app(), base_url="https://testserver")
@@ -114,6 +150,56 @@ class LocalAuthTests(unittest.TestCase):
     def test_cookie_e_identificador_correctos_permiten_acceso(self):
         client, _ = self.session_client()
         self.assertEqual(client.get("/api/v1/dashboard").status_code, 200)
+
+    def test_cors_preflight_desde_dominio_durango_no_exige_auth(self):
+        client = TestClient(self.build_app())
+        response = client.options(
+            "/api/v1/auth/me",
+            headers={
+                "Origin": DURANGO_ORIGIN,
+                "Access-Control-Request-Method": "GET",
+                "Access-Control-Request-Headers": f"content-type,{CSRF_HEADER},{TAB_SESSION_HEADER}",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers.get("access-control-allow-origin"), DURANGO_ORIGIN)
+        self.assertEqual(response.headers.get("access-control-allow-credentials"), "true")
+        allowed_headers = response.headers.get("access-control-allow-headers", "").lower()
+        self.assertIn("content-type", allowed_headers)
+        self.assertIn(CSRF_HEADER.lower(), allowed_headers)
+        self.assertIn(TAB_SESSION_HEADER.lower(), allowed_headers)
+
+    def test_cors_en_respuesta_publica_200(self):
+        client = TestClient(self.build_app())
+        response = client.get("/api/v1/auth/setup-status", headers={"Origin": DURANGO_ORIGIN})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers.get("access-control-allow-origin"), DURANGO_ORIGIN)
+        self.assertEqual(response.headers.get("access-control-allow-credentials"), "true")
+
+    def test_auth_me_sin_sesion_devuelve_401_visible_con_cors(self):
+        client = TestClient(self.build_app())
+        response = client.get("/api/v1/auth/me", headers={"Origin": DURANGO_ORIGIN})
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.headers.get("access-control-allow-origin"), DURANGO_ORIGIN)
+
+    def test_permisos_insuficientes_devuelven_403_con_cors(self):
+        self.service.create_user(username="viewer_cors", display_name="Viewer CORS", password=VIEWER_PASSWORD, role="viewer")
+        client, _ = self.session_client("viewer_cors", VIEWER_PASSWORD)
+        response = client.get("/api/v1/auth/users", headers={"Origin": DURANGO_ORIGIN})
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.headers.get("access-control-allow-origin"), DURANGO_ORIGIN)
+
+    def test_error_de_validacion_422_conserva_cors(self):
+        client = TestClient(self.build_app())
+        response = client.post("/api/v1/auth/login", headers={"Origin": DURANGO_ORIGIN}, json={})
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.headers.get("access-control-allow-origin"), DURANGO_ORIGIN)
+
+    def test_error_500_conserva_cors(self):
+        client, _ = self.session_client()
+        response = client.get("/api/v1/boom", headers={"Origin": DURANGO_ORIGIN})
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.headers.get("access-control-allow-origin"), DURANGO_ORIGIN)
 
     def test_identificador_compartido_permite_multiples_pestanas(self):
         first_client, result = self.session_client()

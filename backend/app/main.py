@@ -1,6 +1,9 @@
+import logging
+
 from sqlalchemy import text
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.auth.middleware import LocalAuthMiddleware
 from app.auth.service import AuthPolicy, AuthService
@@ -17,24 +20,36 @@ from app.database import Base, SessionLocal, engine
 from app.services.seed_service import seed_if_empty
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 app = FastAPI(title=settings.app_name, debug=settings.debug)
 
-cors_origins = [origin for origin in settings.allowed_origins if origin != '*']
-if not cors_origins:
-    cors_origins = ['http://localhost:5173', 'http://127.0.0.1:5173']
 
+@app.middleware('http')
+async def api_exception_boundary(request, call_next):
+    try:
+        return await call_next(request)
+    except Exception:
+        logger.exception('unhandled_request_error path=%s', request.url.path)
+        return JSONResponse(status_code=500, content={'detail': 'Error interno del servidor.'})
+
+
+cors_origins = settings.allowed_origins
+
+# Starlette ejecuta el último middleware agregado como capa exterior.
+# LocalAuthMiddleware puede responder 401/403 directamente; por eso se agrega
+# antes de CORSMiddleware para que CORS envuelva también rechazos de auth/CSRF.
+app.add_middleware(
+    LocalAuthMiddleware,
+    api_prefix=settings.api_v1_prefix,
+    cookie_name=settings.auth_cookie_name,
+    csrf_header=settings.auth_csrf_header,
+)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allow_headers=['Content-Type', settings.auth_csrf_header, 'X-ARCA-Tab-Session'],
-)
-app.add_middleware(
-    LocalAuthMiddleware,
-    api_prefix=settings.api_v1_prefix,
-    cookie_name=settings.auth_cookie_name,
-    csrf_header=settings.auth_csrf_header,
 )
 
 app.state.auth_service = AuthService(
