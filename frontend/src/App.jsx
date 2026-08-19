@@ -21,7 +21,6 @@ const POZOS_MENU = [
       { key: 'lineas', label: 'Líneas', iconKey: 'pozos-lineas' },
       { key: 'flujos', label: 'Lavadoras', iconKey: 'pozos-flujos' },//Ahora se llama la etiqueta "lavadoras"
       { key: 'jarabes', label: 'Jarabes', iconKey: 'pozos-flujos' },//Nueva sección "jarabes"
-      { key: 'jarabes', label: 'Jarabes', iconKey: 'pozos-flujos' },
       { key: 'balance', label: 'Balance de Agua', iconKey: 'pozos-balance' },
       { key: 'concesion', label: 'Concesión · Pendiente', iconKey: 'pozos-concesion' },
       { key: 'revision', label: 'Revisión Diaria', iconKey: 'pozos-revision' },
