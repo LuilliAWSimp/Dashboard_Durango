@@ -9,6 +9,7 @@ import LineasSection from './pozos/sections/LineasSection';
 import FlujosSection from './pozos/sections/FlujosSection';
 import ConcesionSection from './pozos/sections/ConcesionSection';
 import ReportesSection from './pozos/sections/ReportesSection';
+import JarabesSection from './pozos/sections/JarabesSection';
 
 const pieColors = ['#14b8ff', '#0ea5e9', '#38bdf8'];
 const axisColor = '#b9e7ff';
@@ -34,9 +35,16 @@ const sectionMap = {
     render: ({ itemId } = {}) => <LineasSection itemId={itemId} />,
   },
   flujos: {
-    title: 'Flujos',
+    title: 'Lavadoras',
     render: ({ itemId } = {}) => <FlujosSection itemId={itemId} />,
   },
+
+  //sección de jarabes
+  jarabes: {
+  title: 'Jarabes',
+  render: ({ itemId } = {}) => <JarabesSection itemId={itemId} />,
+},
+
   balance: {
     title: 'Balance de Agua',
     render: () => <BalanceSection />,
