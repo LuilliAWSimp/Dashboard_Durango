@@ -18,7 +18,7 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.platypus import HRFlowable, Image, KeepTogether, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-from app.services.durango_capabilities import LOCAL_TIMEZONE
+from app.services.durango_capabilities import FLOWS, JARABES, LOCAL_TIMEZONE
 from app.services.water_history_service import WaterHistoryError, get_water_history_module
 from app.services.water_period_service import WaterPeriodError, get_period_data
 from app.services.water_shift_service import get_shift_consumption_data
@@ -28,6 +28,36 @@ SUMMARY_NOTE = (
     'Los volúmenes mostrados consideran únicamente incrementos validados. '
     'Los eventos descartados no se incluyen en los totales.'
 )
+
+LAVADORA_KEYS = {str(item.get('operational_key')) for item in FLOWS if str(item.get('operational_key') or '').startswith('lavadora_')}
+JARABES_KEYS = {str(item.get('operational_key')) for item in JARABES}
+
+
+def _operational_key(item: dict[str, Any]) -> str:
+    return str(item.get('operational_key') or item.get('operationalKey') or '').strip().lower()
+
+
+def _is_lavadora(item: dict[str, Any]) -> bool:
+    return _operational_key(item) in LAVADORA_KEYS
+
+
+def _is_jarabes(item: dict[str, Any]) -> bool:
+    return _operational_key(item) in JARABES_KEYS
+
+
+def _split_flow_rows(rows: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    lavadoras = [row for row in rows if _is_lavadora(row)]
+    jarabes = [row for row in rows if _is_jarabes(row)]
+    return lavadoras, jarabes
+
+
+def _filter_history(history: dict[str, Any], allowed_keys: set[str]) -> dict[str, Any]:
+    clone = dict(history or {})
+    clone['series'] = [
+        series for series in list((history or {}).get('series') or [])
+        if str(series.get('operational_key') or '').strip().lower() in allowed_keys
+    ]
+    return clone
 
 
 class ReportDataUnavailableError(RuntimeError):
@@ -96,8 +126,6 @@ def _volume_validation(item: dict[str, Any], validated: float | None = None) -> 
     value = _validated_volume(item) if validated is None else validated
     if value is None:
         return 'Sin volumen validado', 'unavailable'
-    if bool(item.get('has_discontinuities')) or int(item.get('discarded_totalizer_events') or 0) > 0:
-        return 'Validación parcial', 'partial'
     return 'Validado', 'validated'
 
 
@@ -121,6 +149,9 @@ def _report_row(item: dict[str, Any]) -> dict[str, Any]:
     discarded = _as_float(item.get('discarded_volume_m3')) or 0.0
     validation, validation_status = _volume_validation(item, validated)
     return {
+        'operational_key': item.get('operational_key'),
+        'sensor_id': item.get('sensor_id'),
+        'module': item.get('module'),
         'name': item.get('name') or item.get('nombre'),
         'flow': item.get('current_flow'),
         'flow_unit': item.get('flow_unit') or 'L/s',
@@ -159,6 +190,8 @@ def _module_validated_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
         'validated_volume_m3': round(sum(values), 6) if values else None,
         'discarded_volume_m3': round(discarded, 6),
         'calculable_count': len(values),
+        'active_count': sum(1 for row in rows if str(row.get('activity') or '').lower().startswith('con actividad')),
+        'inactive_count': sum(1 for row in rows if str(row.get('activity') or '').lower().startswith('sin actividad')),
         'partial_validation_count': partial_validation_count,
         'without_validated_volume_count': without_validated_volume_count,
         # Compatibility alias for clients from the previous report release.
@@ -224,25 +257,32 @@ def get_daily_water_report(
 
     well_summary = _module_validated_summary(wells)
     line_summary = _module_validated_summary(lines)
+    lavadoras, jarabes = _split_flow_rows(flows)
+    lavadora_summary = _module_validated_summary(lavadoras)
+    jarabes_summary = _module_validated_summary(jarabes)
     flow_summary = _module_validated_summary(flows)
     module_values = [
         well_summary['validated_volume_m3'],
         line_summary['validated_volume_m3'],
-        flow_summary['validated_volume_m3'],
+        lavadora_summary['validated_volume_m3'],
+        jarabes_summary['validated_volume_m3'],
     ]
     calculable_values = [float(value) for value in module_values if value is not None]
     total_validated = round(sum(calculable_values), 6) if calculable_values else None
-    partial_validation_count = sum(item['partial_validation_count'] for item in (well_summary, line_summary, flow_summary))
-    without_validated_volume_count = sum(item['without_validated_volume_count'] for item in (well_summary, line_summary, flow_summary))
+    partial_validation_count = sum(item['partial_validation_count'] for item in (well_summary, line_summary, lavadora_summary, jarabes_summary))
+    without_validated_volume_count = sum(item['without_validated_volume_count'] for item in (well_summary, line_summary, lavadora_summary, jarabes_summary))
     latest = max((str(item.get('last_update') or '') for item in [*wells, *lines, *flows]), default='')
     period_label = start_day.strftime('%d/%m/%Y') if start_day == end_day else f'{start_day:%d/%m/%Y} al {end_day:%d/%m/%Y}'
     aggregation = _history_aggregation(start_day, end_day)
-    history = {'aggregation': aggregation, 'wells': {}, 'lines': {}, 'flows': {}}
+    history = {'aggregation': aggregation, 'wells': {}, 'lines': {}, 'flows': {}, 'washers': {}, 'jarabes': {}}
     if include_history:
+        flow_history = _report_history('flow', start_day, end_day, aggregation)
         history.update({
             'wells': _report_history('well', start_day, end_day, aggregation),
             'lines': _report_history('line', start_day, end_day, aggregation),
-            'flows': _report_history('flow', start_day, end_day, aggregation),
+            'flows': flow_history,
+            'washers': _filter_history(flow_history, LAVADORA_KEYS),
+            'jarabes': _filter_history(flow_history, JARABES_KEYS),
         })
 
     return {
@@ -259,24 +299,31 @@ def get_daily_water_report(
             'well_volume_m3': well_summary['validated_volume_m3'],
             'line_volume_m3': line_summary['validated_volume_m3'],
             'flow_volume_m3': flow_summary['validated_volume_m3'],
+            'washer_volume_m3': lavadora_summary['validated_volume_m3'],
+            'jarabes_volume_m3': jarabes_summary['validated_volume_m3'],
             'total_operational_m3': total_validated,
             # Explicit fields for every report output.
             'well_validated_volume_m3': well_summary['validated_volume_m3'],
             'line_validated_volume_m3': line_summary['validated_volume_m3'],
             'flow_validated_volume_m3': flow_summary['validated_volume_m3'],
-            'washer_validated_volume_m3': flow_summary['validated_volume_m3'],
+            'washer_validated_volume_m3': lavadora_summary['validated_volume_m3'],
+            'jarabes_validated_volume_m3': jarabes_summary['validated_volume_m3'],
             'total_validated_operational_m3': total_validated,
             'discarded_volume_m3': round(
                 well_summary['discarded_volume_m3']
                 + line_summary['discarded_volume_m3']
-                + flow_summary['discarded_volume_m3'],
+                + lavadora_summary['discarded_volume_m3']
+                + jarabes_summary['discarded_volume_m3'],
                 6,
             ),
             'wells_active': summaries['wells']['active_count'],
             'lines_active': summaries['lines']['active_count'],
             'flows_active': summaries['flows']['active_count'],
+            'washers_active': lavadora_summary['active_count'],
+            'jarabes_active': jarabes_summary['active_count'],
             'partial_validation_count': partial_validation_count,
             'without_validated_volume_count': without_validated_volume_count,
+            'validated_items_count': sum(1 for item in [*wells, *lines, *lavadoras, *jarabes] if item.get('validated_volume_m3') is not None),
             'review_count': partial_validation_count,
             'communication': 'Revisar comunicación' if any(item['communication'] != 'Actualizado' for item in [*wells, *lines, *flows]) else 'Actualizado',
             'last_update': latest or None,
@@ -285,7 +332,8 @@ def get_daily_water_report(
         'wells': {'rows': wells, **summaries['wells']},
         'production_lines': {'rows': lines, **summaries['lines']},
         'operational_flows': {'rows': flows, **summaries['flows']},
-        'washers': {'rows': flows, **summaries['flows']},
+        'washers': {'rows': lavadoras, **lavadora_summary},
+        'jarabes': {'rows': jarabes, **jarabes_summary},
         'validated_segment_start': period.get('validated_segment_start'),
         'crosses_scada_cutover': period.get('crosses_scada_cutover', False),
         'legacy_notice': period.get('legacy_notice'),
@@ -444,11 +492,10 @@ def _validated_volume_drawing(rows: list[dict[str, Any]], *, width: float) -> Dr
         drawing.add(String(0, y + 2.0, str(row.get('name') or 'Elemento'), fontName='Helvetica', fontSize=7.2, fillColor=colors.HexColor('#334155')))
         drawing.add(Rect(label_width, y, plot_width, 8.0, fillColor=colors.HexColor('#EDF3F7'), strokeColor=None))
         if value is not None:
-            color = '#F59E0B' if row.get('has_discontinuities') else '#1597D4'
+            color = '#1597D4'
             if value > 0:
                 drawing.add(Rect(label_width, y, plot_width * value / scale_max, 8.0, fillColor=colors.HexColor(color), strokeColor=None))
-            suffix = ' · parcial' if row.get('has_discontinuities') else ''
-            label = f'{value:,.2f} m³{suffix}'
+            label = f'{value:,.2f} m³'
         else:
             label = 'Sin registros' if int(row.get('samples') or 0) <= 0 else 'Sin volumen validado'
         drawing.add(String(label_width + plot_width + 6, y + 1.5, label, fontName='Helvetica', fontSize=6.8, fillColor=colors.HexColor('#475569')))
@@ -508,12 +555,12 @@ def build_daily_water_report_pdf(report: dict[str, Any]) -> tuple[bytes, str]:
     kpis = [
         ('Volumen validado de pozos', _fmt_volume(summary.get('well_validated_volume_m3'))),
         ('Volumen validado de líneas', _fmt_volume(summary.get('line_validated_volume_m3'))),
-        ('Volumen validado de flujos', _fmt_volume(summary.get('flow_validated_volume_m3'))),
+        ('Volumen validado de lavadoras', _fmt_volume(summary.get('washer_validated_volume_m3'))),
+        ('Volumen validado de Jarabes', _fmt_volume(summary.get('jarabes_validated_volume_m3'))),
         ('Total validado operativo', _fmt_volume(summary.get('total_validated_operational_m3'))),
         ('Pozos con actividad', f"{int(summary.get('wells_active') or 0)}/{len(report.get('wells', {}).get('rows', []))}"),
         ('Líneas con actividad', f"{int(summary.get('lines_active') or 0)}/{len(report.get('production_lines', {}).get('rows', []))}"),
-        ('Flujos con actividad', f"{int(summary.get('flows_active') or 0)}/{len(report.get('operational_flows', {}).get('rows', []))}"),
-        ('Elementos con validación parcial', str(int(summary.get('partial_validation_count') or summary.get('review_count') or 0))),
+        ('Lavadoras/Jarabes con actividad', f"{int(summary.get('washers_active') or 0) + int(summary.get('jarabes_active') or 0)}/{len(report.get('washers', {}).get('rows', [])) + len(report.get('jarabes', {}).get('rows', []))}"),
     ]
     cards = []
     for label, value in kpis:
@@ -554,7 +601,7 @@ def build_daily_water_report_pdf(report: dict[str, Any]) -> tuple[bytes, str]:
                 Paragraph(_fmt_volume(item['closing_m3']), right),
                 Paragraph(escape(_report_volume_display(item)), right),
                 Paragraph(escape(str(item['activity'])), center),
-                Paragraph(escape('Parcial' if item.get('validation_status') == 'partial' else str(item.get('validation') or 'Sin volumen validado')), center),
+                Paragraph(escape(str(item.get('validation') or 'Sin volumen validado')), center),
                 Paragraph(escape(str(item['communication'])), center),
                 Paragraph(escape(_fmt_date(item['last_update'])), center),
             ])
@@ -578,7 +625,8 @@ def build_daily_water_report_pdf(report: dict[str, Any]) -> tuple[bytes, str]:
     for title, section, history_key, first_name in [
         ('Pozos', report['wells'], 'wells', 'Pozo'),
         ('Líneas', report['production_lines'], 'lines', 'Línea'),
-        ('Flujos', report['operational_flows'], 'flows', 'Flujo'),
+        ('Lavadoras', report['washers'], 'washers', 'Lavadora'),
+        ('Jarabes', report['jarabes'], 'jarabes', 'Jarabes'),
     ]:
         story.append(PageBreak())
         story.append(KeepTogether(section_block(title, section, report_history.get(history_key) or {}, first_name)))
@@ -588,7 +636,7 @@ def build_daily_water_report_pdf(report: dict[str, Any]) -> tuple[bytes, str]:
         story.append(Paragraph('Cortes por turno', heading))
         story.append(Paragraph('Cortes administrativos calculados con las mismas lecturas normalizadas del dashboard.', small))
         story.append(Spacer(1, 2 * mm))
-        shift_rows = [['Turno', 'Horario', 'Pozos', 'Líneas', 'Flujos', 'Total operativo', 'Estado']]
+        shift_rows = [['Turno', 'Horario', 'Pozos', 'Líneas', 'Lavadoras', 'Jarabes', 'Total operativo', 'Estado']]
         for shift in report['shifts']:
             summary_shift = shift.get('summary') or {}
             shift_rows.append([
@@ -596,11 +644,12 @@ def build_daily_water_report_pdf(report: dict[str, Any]) -> tuple[bytes, str]:
                 shift.get('schedule'),
                 _fmt_volume((summary_shift.get('wells') or {}).get('total_m3')),
                 _fmt_volume((summary_shift.get('lines') or {}).get('total_m3')),
-                _fmt_volume((summary_shift.get('flows') or {}).get('total_m3')),
-                _fmt_volume(summary_shift.get('total_operational_m3')),
+                _fmt_volume(_module_validated_summary([item for item in shift.get('flows') or [] if _is_lavadora(item)])['validated_volume_m3']),
+                _fmt_volume(_module_validated_summary([item for item in shift.get('flows') or [] if _is_jarabes(item)])['validated_volume_m3']),
+                _fmt_volume(summary_shift.get('total_operational_m3')), 
                 shift.get('cut_status'),
             ])
-        story.append(_pdf_table(shift_rows, [22 * mm, 26 * mm, 25 * mm, 25 * mm, 28 * mm, 32 * mm, 28 * mm]))
+        story.append(_pdf_table(shift_rows, [20 * mm, 24 * mm, 23 * mm, 23 * mm, 25 * mm, 23 * mm, 29 * mm, 19 * mm]))
 
     doc.build(story, onFirstPage=_report_footer, onLaterPages=_report_footer)
     filename = f"reporte-diario-control-hidrico-durango-{report.get('start_date')}.pdf"
@@ -651,9 +700,10 @@ def build_daily_water_report_excel(report: dict[str, Any]) -> tuple[bytes, str]:
         ('Fecha de generación', datetime.fromisoformat(report['generated_at']).replace(tzinfo=None)),
         ('Volumen validado de pozos (m³)', summary['well_validated_volume_m3']),
         ('Volumen validado de líneas (m³)', summary['line_validated_volume_m3']),
-        ('Volumen validado de flujos (m³)', summary['flow_validated_volume_m3']),
+        ('Volumen validado de lavadoras (m³)', summary['washer_validated_volume_m3']),
+        ('Volumen validado de Jarabes (m³)', summary['jarabes_validated_volume_m3']),
         ('Total validado operativo (m³)', summary['total_validated_operational_m3']),
-        ('Elementos con validación parcial', summary.get('partial_validation_count', summary.get('review_count', 0))),
+        ('Elementos validados', summary.get('validated_items_count', 0)),
         ('Estado de comunicación', summary['communication']),
         ('Criterio de cálculo', summary.get('note') or SUMMARY_NOTE),
     ]:
@@ -702,10 +752,11 @@ def build_daily_water_report_excel(report: dict[str, Any]) -> tuple[bytes, str]:
 
     add_items_sheet('Pozos', report['wells']['rows'])
     add_items_sheet('Líneas', report['production_lines']['rows'])
-    add_items_sheet('Flujos', report['operational_flows']['rows'])
+    add_items_sheet('Lavadoras', report['washers']['rows'])
+    add_items_sheet('Jarabes', report['jarabes']['rows'])
 
     shifts = wb.create_sheet('Turnos')
-    shifts.append(['Turno', 'Horario', 'Pozos (m³)', 'Líneas (m³)', 'Flujos (m³)', 'Total operativo (m³)', 'Estado'])
+    shifts.append(['Turno', 'Horario', 'Pozos (m³)', 'Líneas (m³)', 'Lavadoras (m³)', 'Jarabes (m³)', 'Total operativo (m³)', 'Estado'])
     for shift in report.get('shifts') or []:
         shift_summary = shift.get('summary') or {}
         shifts.append([
@@ -713,12 +764,13 @@ def build_daily_water_report_excel(report: dict[str, Any]) -> tuple[bytes, str]:
             shift.get('schedule'),
             (shift_summary.get('wells') or {}).get('total_m3'),
             (shift_summary.get('lines') or {}).get('total_m3'),
-            (shift_summary.get('flows') or {}).get('total_m3'),
+            _module_validated_summary([item for item in shift.get('flows') or [] if _is_lavadora(item)])['validated_volume_m3'],
+            _module_validated_summary([item for item in shift.get('flows') or [] if _is_jarabes(item)])['validated_volume_m3'],
             shift_summary.get('total_operational_m3'),
             shift.get('cut_status'),
         ])
     for row in range(2, shifts.max_row + 1):
-        for column in range(3, 7):
+        for column in range(3, 8):
             if isinstance(shifts.cell(row, column).value, (int, float)):
                 shifts.cell(row, column).number_format = '#,##0.00'
     _style_sheet(shifts)
@@ -780,14 +832,33 @@ def build_daily_water_report_excel(report: dict[str, Any]) -> tuple[bytes, str]:
     report_history = report.get('history') or {}
     add_history_sheet('Histórico Pozos', report_history.get('wells') or {})
     add_history_sheet('Histórico Líneas', report_history.get('lines') or {})
-    add_history_sheet('Histórico Flujos', report_history.get('flows') or {})
+    add_history_sheet('Histórico Lavadoras', report_history.get('washers') or {})
+    add_history_sheet('Histórico Jarabes', report_history.get('jarabes') or {})
 
     if report.get('shifts'):
         detail = wb.create_sheet('Detalle turnos')
         detail.append(['Turno', 'Grupo', 'Elemento', 'Apertura (m³)', 'Cierre (m³)', 'Volumen validado (m³)', 'Validación', 'Flujo promedio (L/s)', 'Flujo mínimo (L/s)', 'Flujo máximo (L/s)', 'Muestras', 'Actividad', 'Estado'])
         for shift in report['shifts']:
-            for group_key, group_name in [('wells', 'Pozos'), ('lines', 'Líneas'), ('flows', 'Flujos')]:
+            for group_key, group_name in [('wells', 'Pozos'), ('lines', 'Líneas')]:
                 for item in shift.get(group_key) or []:
+                    validation, _ = _volume_validation(item)
+                    detail.append([
+                        shift.get('name'),
+                        group_name,
+                        item.get('name'),
+                        item.get('period_open_m3'),
+                        item.get('period_close_m3'),
+                        item.get('validated_volume_m3'),
+                        validation,
+                        item.get('flow_avg'),
+                        item.get('flow_min'),
+                        item.get('flow_max'),
+                        item.get('samples'),
+                        item.get('activity'),
+                        shift.get('cut_status'),
+                    ])
+            for group_name, allowed in [('Lavadoras', LAVADORA_KEYS), ('Jarabes', JARABES_KEYS)]:
+                for item in [flow for flow in shift.get('flows') or [] if _operational_key(flow) in allowed]:
                     validation, _ = _volume_validation(item)
                     detail.append([
                         shift.get('name'),

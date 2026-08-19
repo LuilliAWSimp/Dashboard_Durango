@@ -63,3 +63,36 @@ test('el selector compartido de turnos conserva etiqueta y estilos accesibles', 
   assert.match(styles, /\.shift-selector-field select\s*\{/);
   assert.match(styles, /\.shift-selector-field select:focus-visible/);
 });
+
+import {
+  JARABES_SECTION_CONFIG,
+  LAVADORAS_SECTION_CONFIG,
+} from '../src/pages/pozos/operationalSectionConfig.ts';
+
+test('Lavadoras y Jarabes tienen catálogos de presentación separados', () => {
+  assert.deepEqual(LAVADORAS_SECTION_CONFIG.allowedOperationalKeys, ['lavadora_linea_2', 'lavadora_vidrio', 'lavadora_ref_pet']);
+  assert.deepEqual(JARABES_SECTION_CONFIG.allowedOperationalKeys, ['jarabes']);
+  assert.equal(LAVADORAS_SECTION_CONFIG.labels.totalKpi, 'Total de lavadoras');
+  assert.equal(LAVADORAS_SECTION_CONFIG.labels.operatingKpi, 'Lavadoras operando');
+  assert.equal(LAVADORAS_SECTION_CONFIG.labels.noFlowKpi, 'Lavadoras sin flujo');
+  assert.equal(LAVADORAS_SECTION_CONFIG.labels.readingsKpi, 'Lecturas de lavadoras');
+  assert.equal(JARABES_SECTION_CONFIG.labels.totalKpi, 'Elementos monitoreados');
+  assert.equal(JARABES_SECTION_CONFIG.labels.operatingKpi, 'Jarabes operando');
+  assert.equal(JARABES_SECTION_CONFIG.labels.noFlowKpi, 'Jarabes sin flujo');
+  assert.equal(JARABES_SECTION_CONFIG.labels.readingsKpi, 'Lecturas de Jarabes');
+});
+
+test('las secciones nuevas pasan configuración al componente operativo reutilizable', () => {
+  const lavadoras = readFileSync(new URL('../src/pages/pozos/sections/FlujosSection.tsx', import.meta.url), 'utf8');
+  const jarabes = readFileSync(new URL('../src/pages/pozos/sections/JarabesSection.tsx', import.meta.url), 'utf8');
+  const moduleSection = readFileSync(new URL('../src/pages/pozos/components/OperationalModuleSection.tsx', import.meta.url), 'utf8');
+  const historyPanel = readFileSync(new URL('../src/pages/pozos/components/ModuleHistoryPanel.tsx', import.meta.url), 'utf8');
+  const shiftPanel = readFileSync(new URL('../src/pages/pozos/components/ShiftConsumptionPanel.tsx', import.meta.url), 'utf8');
+
+  assert.match(lavadoras, /sectionConfig=\{LAVADORAS_SECTION_CONFIG\}/);
+  assert.match(jarabes, /sectionConfig=\{JARABES_SECTION_CONFIG\}/);
+  assert.match(moduleSection, /rowMatchesAllowedItems/);
+  assert.match(moduleSection, /filteredSummary\(rows\)/);
+  assert.match(historyPanel, /seriesMatchesAllowed/);
+  assert.match(shiftPanel, /matchesAllowedItem/);
+});

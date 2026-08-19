@@ -11,6 +11,7 @@ import {
 } from '../operationalNavigation';
 import type { OperationalIdentity, OperationalModule } from '../operationalNavigation';
 import type { DashboardData, DateRange, FlexibleRecord } from '../types';
+import type { OperationalSectionConfig, OperationalSectionItem } from '../operationalSectionConfig';
 import ChartEmptyState from './ChartEmptyState';
 import DateRangeControls from './DateRangeControls';
 import MetricPair from './MetricPair';
@@ -25,7 +26,10 @@ interface Props {
   module: OperationalModule;
   sensorId: OperationalIdentity;
   backPath: string;
+  sectionConfig?: OperationalSectionConfig;
 }
+
+type ConfiguredItem = ReturnType<typeof configuredOperationalItems>[number] | OperationalSectionItem;
 
 function array(value: unknown): FlexibleRecord[] {
   return Array.isArray(value) ? value as FlexibleRecord[] : [];
@@ -64,7 +68,24 @@ function statusType(item?: FlexibleRecord): string {
   return 'normal';
 }
 
-export default function OperationalDetailSection({ module, sensorId, backPath }: Props) {
+function itemIdentity(item: ConfiguredItem): OperationalIdentity {
+  return item.sensorId ?? item.operationalKey;
+}
+
+function rowOperationalKey(row: FlexibleRecord): string {
+  return String(row.operational_key || row.operationalKey || '').trim();
+}
+
+function rowMatchesItems(row: FlexibleRecord, index: number, module: OperationalModule, items?: ConfiguredItem[]) {
+  if (!items?.length) return true;
+  const key = rowOperationalKey(row);
+  const allowedKeys = new Set(items.map((item) => item.operationalKey));
+  if (key) return allowedKeys.has(key);
+  const allowedIdentities = new Set(items.map((item) => String(itemIdentity(item))));
+  return allowedIdentities.has(String(resolveOperationalIdentity(row, index, module)));
+}
+
+export default function OperationalDetailSection({ module, sensorId, backPath, sectionConfig }: Props) {
   const navigate = useNavigate();
   const location = useLocation();
   const [initialContext] = useState(() => readOperationalNavigationContext(location.search, module));
@@ -82,15 +103,17 @@ export default function OperationalDetailSection({ module, sensorId, backPath }:
     initialAggregation: initialContext.aggregation,
   });
   const dashboard = current.dashboard as DashboardData | null;
-  const item = moduleRows(dashboard, module).find(
+  const allowedItems = sectionConfig?.items;
+  const rows = moduleRows(dashboard, module).filter((row, index) => rowMatchesItems(row, index, module, allowedItems));
+  const item = rows.find(
     (row, index) => String(resolveOperationalIdentity(row, index, module)) === String(sensorId),
   );
   const navigationItems = useMemo(
-    () => configuredOperationalItems(module).map((configured) => ({
-      identity: configuredOperationalIdentity(configured),
+    () => (allowedItems?.length ? allowedItems : configuredOperationalItems(module)).map((configured) => ({
+      identity: allowedItems?.length ? itemIdentity(configured) : configuredOperationalIdentity(configured),
       name: configured.name,
     })),
-    [module],
+    [allowedItems, module],
   );
   const currentIndex = navigationItems.findIndex((configured) => String(configured.identity) === String(sensorId));
   const previous = currentIndex > 0 ? navigationItems[currentIndex - 1] : null;
@@ -101,8 +124,10 @@ export default function OperationalDetailSection({ module, sensorId, backPath }:
   const name = String(item?.name || item?.nombre || configuredName || `Elemento ${sensorId}`);
   const flowUnit = String(item?.flow_unit || history.data?.flow_unit || 'L/s');
   const activity = String(item?.period_activity || item?.activity || 'Sin registros');
-  const currentState = String(item?.current_state || (num(item?.current_flow ?? item?.flow_lps) === null ? 'Sin registros' : Number(item?.current_flow ?? item?.flow_lps) > 0 ? 'Activo' : 'Apagado con datos'));
+  const currentState = String(item?.current_state || (num(item?.current_flow ?? item?.flow_lps) === null ? 'Sin registros' : Number(item?.current_flow ?? item?.flow_lps) > 0 ? 'Activo' : 'Sin flujo'));
   const communication = String(item?.communication || item?.estado_comunicacion || 'Sin lectura');
+  const labels = sectionConfig?.labels;
+  const navigationLabel = labels?.navigationLabel || (module === 'well' ? 'pozos' : module === 'line' ? 'líneas' : 'flujos');
 
   useEffect(() => {
     const search = buildOperationalNavigationSearch(history.range, history.aggregation, module);
@@ -143,9 +168,6 @@ export default function OperationalDetailSection({ module, sensorId, backPath }:
     });
   };
   const goBack = () => {
-    // Always rebuild the module URL from the *current* detail context. Using
-    // navigate(-1) returned to the stale range that was active before the
-    // user changed dates or aggregation inside the detail view.
     navigate(`${backPath}${activeSearch}`);
   };
 
@@ -156,7 +178,7 @@ export default function OperationalDetailSection({ module, sensorId, backPath }:
           <button type="button" className="back-inline-button" onClick={goBack}>
             <ArrowLeft size={16} /> Volver
           </button>
-          <nav className="operational-sibling-navigation" aria-label={`Navegación entre ${module === 'well' ? 'pozos' : module === 'line' ? 'líneas' : 'flujos'}`}>
+          <nav className="operational-sibling-navigation" aria-label={`Navegación entre ${navigationLabel}`}>
             {previous ? (
               <button type="button" onClick={() => navigateToSibling(previous.identity)}>
                 <ChevronLeft size={15} /> {previous.name}
@@ -174,7 +196,7 @@ export default function OperationalDetailSection({ module, sensorId, backPath }:
             <h2>{name}</h2>
             <StatusBadge type={statusType({ ...item, current_state: currentState })}>{currentState}</StatusBadge>
           </div>
-          <p>Análisis individual del elemento para el periodo seleccionado.</p>
+          <p>{labels?.detailSubtitle || 'Análisis individual del elemento para el periodo seleccionado.'}</p>
         </div>
         <div className="well-detail-hero-metrics">
           <article><span>Flujo actual</span><strong>{fmt(item?.current_flow ?? item?.flow_lps)} <small>{flowUnit}</small></strong></article>
@@ -225,6 +247,8 @@ export default function OperationalDetailSection({ module, sensorId, backPath }:
         itemIdentity={sensorId}
         date={String(history.range.endDate || history.range.startDate || '')}
         title={`Cortes por turno · ${name}`}
+        items={allowedItems}
+        emptyMessage={labels?.emptyState}
       />
     </>
   );

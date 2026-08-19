@@ -18,6 +18,7 @@ from app.services.water_daily_report_service import (
 def period_item(
     name: str,
     *,
+    operational_key: str | None = None,
     validated: float | None,
     reliable: bool,
     discarded: float = 0.0,
@@ -26,6 +27,7 @@ def period_item(
 ) -> dict:
     return {
         'name': name,
+        'operational_key': operational_key,
         'current_flow': 12.5,
         'flow_unit': 'L/s',
         'period_open_m3': 100.0,
@@ -55,9 +57,10 @@ class DurangoReportValidatedSummaryTests(unittest.TestCase):
                 period_item('Línea 1', validated=24.21, reliable=False, discarded=500.0, discontinuity=True, activity='Con actividad'),
             ],
             'flows': [
-                period_item('Lavadora Línea 2', validated=0.0, reliable=True, activity='Sin actividad en el periodo'),
-                period_item('Lavadora Vidrio', validated=None, reliable=False, activity='Sin registros guardados'),
-                period_item('Lavadora Ref Pet', validated=None, reliable=False, activity='Sin registros guardados'),
+                period_item('Lavadora Línea 2', operational_key='lavadora_linea_2', validated=0.0, reliable=True, activity='Sin actividad en el periodo'),
+                period_item('Lavadora Vidrio', operational_key='lavadora_vidrio', validated=None, reliable=False, activity='Sin registros guardados'),
+                period_item('Lavadora Ref Pet', operational_key='lavadora_ref_pet', validated=None, reliable=False, activity='Sin registros guardados'),
+                period_item('Jarabes', operational_key='jarabes', validated=11.43, reliable=True, activity='Con actividad'),
             ],
             'summary': {
                 'wells': {'total_m3': None, 'active_count': 0, 'review_count': 2},
@@ -89,15 +92,20 @@ class DurangoReportValidatedSummaryTests(unittest.TestCase):
         summary = report['summary']
         self.assertAlmostEqual(summary['well_validated_volume_m3'], 175.65, places=6)
         self.assertAlmostEqual(summary['line_validated_volume_m3'], 24.21, places=6)
-        self.assertEqual(summary['flow_validated_volume_m3'], 0.0)
-        self.assertAlmostEqual(summary['total_validated_operational_m3'], 199.86, places=6)
+        self.assertAlmostEqual(summary['flow_validated_volume_m3'], 11.43, places=6)
+        self.assertEqual(summary['washer_validated_volume_m3'], 0.0)
+        self.assertAlmostEqual(summary['jarabes_validated_volume_m3'], 11.43, places=6)
+        self.assertAlmostEqual(summary['total_validated_operational_m3'], 211.29, places=6)
         self.assertAlmostEqual(summary['discarded_volume_m3'], 15950.839845, places=6)
-        self.assertEqual(summary['review_count'], 3)
-        self.assertEqual(summary['partial_validation_count'], 3)
+        self.assertEqual(summary['review_count'], 0)
+        self.assertEqual(summary['partial_validation_count'], 0)
+        self.assertEqual(summary['validated_items_count'], 5)
         self.assertEqual(summary['note'], SUMMARY_NOTE)
         self.assertEqual(report['notes'], [])
         self.assertNotIn('Lavadora Línea 2', [item['name'] for item in report['production_lines']['rows']])
         self.assertEqual([item['name'] for item in report['operational_flows']['rows']].count('Lavadora Línea 2'), 1)
+        self.assertEqual([item['name'] for item in report['washers']['rows']], ['Lavadora Línea 2', 'Lavadora Vidrio', 'Lavadora Ref Pet'])
+        self.assertEqual([item['name'] for item in report['jarabes']['rows']], ['Jarabes'])
 
     def test_excel_uses_numeric_validated_values_and_same_summary(self) -> None:
         report = self.build_report()
@@ -107,14 +115,15 @@ class DurangoReportValidatedSummaryTests(unittest.TestCase):
         summary_values = {summary_sheet.cell(row, 1).value: summary_sheet.cell(row, 2).value for row in range(2, summary_sheet.max_row + 1)}
         self.assertAlmostEqual(summary_values['Volumen validado de pozos (m³)'], 175.65, places=6)
         self.assertAlmostEqual(summary_values['Volumen validado de líneas (m³)'], 24.21, places=6)
-        self.assertEqual(summary_values['Volumen validado de flujos (m³)'], 0)
-        self.assertAlmostEqual(summary_values['Total validado operativo (m³)'], 199.86, places=6)
+        self.assertEqual(summary_values['Volumen validado de lavadoras (m³)'], 0)
+        self.assertAlmostEqual(summary_values['Volumen validado de Jarabes (m³)'], 11.43, places=6)
+        self.assertAlmostEqual(summary_values['Total validado operativo (m³)'], 211.29, places=6)
         wells_sheet = workbook['Pozos']
         self.assertIsInstance(wells_sheet['E2'].value, (int, float))
         self.assertAlmostEqual(wells_sheet['E2'].value, 0.67, places=6)
-        self.assertEqual(wells_sheet['F2'].value, 'Validación parcial')
+        self.assertEqual(wells_sheet['F2'].value, 'Validado')
         self.assertEqual(wells_sheet['G2'].value, 'Con actividad')
-        self.assertEqual(workbook.sheetnames[:5], ['Resumen', 'Pozos', 'Líneas', 'Flujos', 'Turnos'])
+        self.assertEqual(workbook.sheetnames[:6], ['Resumen', 'Pozos', 'Líneas', 'Lavadoras', 'Jarabes', 'Turnos'])
 
     def test_pdf_is_generated_from_same_report_object(self) -> None:
         report = self.build_report()

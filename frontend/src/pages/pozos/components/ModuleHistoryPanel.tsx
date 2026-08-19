@@ -22,12 +22,22 @@ import PanelHeader from './PanelHeader';
 const COLORS = ['#FE019A', '#FEE301', '#a78bfa', '#34d399', '#f59e0b', '#fb7185'];
 const MODULE_LABELS: Record<ComparisonModule, string> = { well: 'Pozos', line: 'Líneas', flow: 'Flujos' };
 
+type HistoryItem = {
+  sensorId: number | null;
+  operationalKey: string;
+  name: string;
+  flowUnit?: string;
+};
+
 interface Props {
   range: DateRange;
   fixedModule?: ComparisonModule;
   aggregation?: HistoryAggregation;
   onAggregationChange?: (value: HistoryAggregation) => void;
   colors?: string[];
+  items?: HistoryItem[];
+  panelTitle?: string;
+  panelSubtitle?: string;
 }
 
 function intervalLabel(startValue: unknown, endValue: unknown, aggregation: HistoryAggregation): string {
@@ -49,27 +59,37 @@ function formatNumber(value: unknown): string {
     : 'Sin datos';
 }
 
+function identityText(identity: OperationalIdentity): string {
+  return String(identity);
+}
+
+function seriesMatchesAllowed(series: { sensor_id?: number | null; operational_key?: string }, allowed: Set<string>) {
+  if (!allowed.size) return true;
+  const identity = comparisonSeriesIdentity(series);
+  const key = String(series.operational_key || '').trim();
+  return allowed.has(identityText(identity)) || (key ? allowed.has(key) : false);
+}
+
 function ModuleTooltip({
   active,
   payload,
   aggregation,
   selected,
-  module,
   metric,
   palette,
+  items,
 }: {
   active?: boolean;
   payload?: Array<{ payload?: ComparisonRow }>;
   aggregation: HistoryAggregation;
   selected: OperationalIdentity[];
-  module: ComparisonModule;
   metric: ComparisonMetric;
   palette: string[];
+  items: HistoryItem[];
 }) {
   if (!active || !payload?.length) return null;
   const row = payload.find((entry) => entry.payload)?.payload;
   if (!row) return null;
-  const items = comparisonModuleItems[module];
   return (
     <div className="chart-tooltip solid-tooltip pozos-tooltip module-history-tooltip">
       <div className="chart-tooltip-label">{intervalLabel(row.bucketStart, row.bucketEnd, aggregation)}</div>
@@ -112,15 +132,18 @@ function tick(value: number, aggregation: HistoryAggregation): string {
   return date.toLocaleString('es-MX', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
-export default function ModuleHistoryPanel({ range, fixedModule, aggregation: controlledAggregation, onAggregationChange, colors }: Props) {
+export default function ModuleHistoryPanel({ range, fixedModule, aggregation: controlledAggregation, onAggregationChange, colors, items, panelTitle, panelSubtitle }: Props) {
   const [tabModule, setTabModule] = useState<ComparisonModule>(fixedModule || 'well');
   const module = fixedModule || tabModule;
   const palette = colors?.length ? colors : COLORS;
+  const activeItems = useMemo<HistoryItem[]>(() => (items?.length ? items : comparisonModuleItems[module]).map((item) => ({ ...item })), [items, module]);
+  const activeIdentities = useMemo(() => activeItems.map(configuredComparisonIdentity), [activeItems]);
+  const allowedTokens = useMemo(() => new Set(activeItems.flatMap((item) => [String(configuredComparisonIdentity(item)), item.operationalKey])), [activeItems]);
   const [internalAggregation, setInternalAggregation] = useState<HistoryAggregation>(() => controlledAggregation || recommendedHistoryAggregation(range));
   const aggregation = controlledAggregation || internalAggregation;
   const [metric, setMetric] = useState<ComparisonMetric>('flow');
   const [data, setData] = useState<WaterModuleHistoryResponse | null>(null);
-  const [selected, setSelected] = useState<OperationalIdentity[]>(() => comparisonModuleItems[module].map(configuredComparisonIdentity));
+  const [selected, setSelected] = useState<OperationalIdentity[]>(() => activeIdentities);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
@@ -132,8 +155,8 @@ export default function ModuleHistoryPanel({ range, fixedModule, aggregation: co
   useEffect(() => {
     setData(null);
     dataRef.current = null;
-    setSelected(comparisonModuleItems[module].map(configuredComparisonIdentity));
-  }, [module]);
+    setSelected(activeIdentities);
+  }, [module, activeIdentities]);
 
   const setAggregation = (value: HistoryAggregation) => {
     if (onAggregationChange) onAggregationChange(value);
@@ -165,20 +188,22 @@ export default function ModuleHistoryPanel({ range, fixedModule, aggregation: co
   useEffect(() => { void load(Boolean(range.refreshKey), false); }, [load, range.refreshKey]);
   useAutoRefresh(rangeIncludesToday(range), () => { void load(true, true); });
 
-  const rows = useMemo(() => buildModuleComparisonRows(data), [data]);
-  const visible = selected.filter((identity) => data?.series?.some((series) => comparisonSeriesIdentity(series) === identity));
-  const hasAny = data?.series?.some((series) => series.has_data) || false;
-  const hasFuture = Boolean(data?.has_future_intervals || data?.series?.some((series) => series.has_future_intervals));
-  const activeItems = comparisonModuleItems[module];
-  const allIdentities = activeItems.map(configuredComparisonIdentity);
+  const filteredData = useMemo<WaterModuleHistoryResponse | null>(() => {
+    if (!data) return null;
+    return { ...data, series: data.series.filter((series) => seriesMatchesAllowed(series, allowedTokens)) };
+  }, [data, allowedTokens]);
+  const rows = useMemo(() => buildModuleComparisonRows(filteredData), [filteredData]);
+  const visible = selected.filter((identity) => filteredData?.series?.some((series) => comparisonSeriesIdentity(series) === identity));
+  const hasAny = filteredData?.series?.some((series) => series.has_data) || false;
+  const hasFuture = Boolean(filteredData?.has_future_intervals || filteredData?.series?.some((series) => series.has_future_intervals));
   const axes = comparisonAxis(metric);
   const toggle = (identity: OperationalIdentity) => setSelected((current) => toggleComparisonSelection(current, identity));
 
   return (
     <section className="panel chart-panel fade-up module-history-panel operational-module-comparison">
       <PanelHeader
-        title={fixedModule ? `Comparativa de ${MODULE_LABELS[module].toLowerCase()}` : 'Histórico operativo por módulo'}
-        subtitle="Compara flujo y totalizador observado; los huecos permanecen como ausencia de registro"
+        title={panelTitle || (fixedModule ? `Comparativa de ${MODULE_LABELS[module].toLowerCase()}` : 'Histórico operativo por módulo')}
+        subtitle={panelSubtitle || 'Compara flujo y totalizador observado; los huecos permanecen como ausencia de registro'}
       />
       <div className="module-history-toolbar">
         {!fixedModule ? <div className="module-history-tabs" role="tablist">
@@ -197,7 +222,7 @@ export default function ModuleHistoryPanel({ range, fixedModule, aggregation: co
       </div>
       <div className="module-selection-heading">
         <span>Elementos visibles</span>
-        <div><button type="button" onClick={() => setSelected(allIdentities)}>Seleccionar todos</button><button type="button" onClick={() => setSelected([])}>Deseleccionar todos</button></div>
+        <div><button type="button" onClick={() => setSelected(activeIdentities)}>Seleccionar todos</button><button type="button" onClick={() => setSelected([])}>Deseleccionar todos</button></div>
       </div>
       <div className="module-history-sensors">
         {activeItems.map((item) => {
@@ -217,12 +242,12 @@ export default function ModuleHistoryPanel({ range, fixedModule, aggregation: co
             <XAxis dataKey="timestamp" type="number" scale="time" domain={['dataMin', 'dataMax']} tickFormatter={(value) => tick(Number(value), aggregation)} minTickGap={32} stroke="#b9e7ff" />
             {axes.showFlow ? <YAxis yAxisId="flow" stroke="#7dd3fc" width={62} tickFormatter={(value) => Number(value).toLocaleString('es-MX')} label={{ value: 'L/s', angle: -90, position: 'insideLeft', fill: '#7dd3fc' }} /> : null}
             {axes.showTotalizer ? <YAxis yAxisId="totalizer" orientation={axes.independentAxes ? 'right' : 'left'} stroke="#c4b5fd" width={72} tickFormatter={(value) => Number(value).toLocaleString('es-MX')} label={{ value: 'm³', angle: axes.independentAxes ? 90 : -90, position: axes.independentAxes ? 'insideRight' : 'insideLeft', fill: '#c4b5fd' }} /> : null}
-            <Tooltip content={<ModuleTooltip aggregation={aggregation} selected={visible} module={module} metric={metric} palette={palette} />} filterNull={false} wrapperStyle={{ zIndex: 60, pointerEvents: 'none' }} offset={16} />
+            <Tooltip content={<ModuleTooltip aggregation={aggregation} selected={visible} metric={metric} palette={palette} items={activeItems} />} filterNull={false} allowEscapeViewBox={{ x: true, y: true }} wrapperStyle={{ zIndex: 120, pointerEvents: 'none' }} offset={16} />
             <Legend />
             <Line yAxisId={axes.showFlow ? 'flow' : 'totalizer'} dataKey="tooltipAnchor" stroke="transparent" dot={false} activeDot={false} legendType="none" isAnimationActive={false} />
             {visible.flatMap((identity) => {
               const itemIndex = activeItems.findIndex((item) => configuredComparisonIdentity(item) === identity);
-              const series = data?.series.find((item) => comparisonSeriesIdentity(item) === identity);
+              const series = filteredData?.series.find((item) => comparisonSeriesIdentity(item) === identity);
               const color = palette[Math.max(itemIndex, 0) % palette.length];
               const chartSeries = [];
               if (axes.showFlow) chartSeries.push(<Line key={`flow-${identity}`} yAxisId="flow" type="linear" dataKey={`flow_${identity}`} name={`${series?.name || identity} · Flujo (L/s)`} stroke={color} strokeWidth={2.4} dot={false} activeDot={{ r: 4 }} connectNulls={false} isAnimationActive={false} />);
