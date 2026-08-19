@@ -54,11 +54,9 @@ const iconMap: Record<string, LucideIcon> = {
   'pozos-flujos': Waves,
   'pozos-balance': ArrowLeftRight,
   'pozos-concesion': ShieldCheck,
-  UsersRound,
   'pozos-revision': FileBarChart2,
   'pozos-cip': FlaskConical,
   'pozos-uv': ShieldCheck,
-  UsersRound,
   'pozos-reportes': FileBarChart2,
   usuarios: UsersRound,
 };

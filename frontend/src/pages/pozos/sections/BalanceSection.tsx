@@ -23,8 +23,12 @@ function number(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-const LAVADORA_KEYS = new Set(DURANGO_CAPABILITIES.flows.filter((item) => item.operationalKey.startsWith('lavadora_')).map((item) => item.operationalKey));
-const JARABES_KEYS = new Set(DURANGO_CAPABILITIES.flows.filter((item) => item.operationalKey === 'jarabes').map((item) => item.operationalKey));
+const LAVADORA_KEYS: ReadonlySet<string> = new Set([
+  'lavadora_linea_2',
+  'lavadora_vidrio',
+  'lavadora_ref_pet',
+]);
+const JARABES_KEYS: ReadonlySet<string> = new Set(['jarabes']);
 
 function keyOf(item: FlexibleRecord): string {
   return String(item.operational_key || item.operationalKey || '').toLowerCase();
