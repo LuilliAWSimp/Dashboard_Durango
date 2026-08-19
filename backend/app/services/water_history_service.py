@@ -21,6 +21,7 @@ from app.services.durango_capabilities import (
     clamp_to_validated_segment,
     flow_unit_for_sensor,
     identity_key,
+    is_jarabes_identity,
     item_contract,
     normalize_flow_lps,
     sensor_contract,
@@ -397,6 +398,8 @@ def _empty(
         'active_samples': 0,
         'active_minutes': 0.0,
         'interval_state': 'Sin registros' if status == 'no_data' else 'Configuración anterior pendiente',
+        'validation': metrics['validation'],
+        'validation_status': metrics['validation_status'],
         'flow_avg_lps': None,
         'flow_active_avg_lps': None,
         'flow_min_lps': None,
@@ -467,6 +470,8 @@ def _build_points(
                 'active_samples': metrics['active_samples'],
                 'active_minutes': metrics['active_minutes'],
                 'interval_state': metrics['interval_state'],
+                'validation': metrics['validation'],
+                'validation_status': metrics['validation_status'],
                 'flow_avg_lps': flow_avg,
                 'flow_active_avg_lps': item.get('flow_active_avg'),
                 'flow_min_lps': item['flow_min'],
@@ -587,7 +592,8 @@ def _store_cache(cache_key: str, value: dict[str, Any], ttl_seconds: int) -> dic
 
 def get_water_history(*, module: str, sensor_id: Any, start_date: str, end_date: str, aggregation: str, force_refresh: bool = False) -> dict[str, Any]:
     module, aggregation, start, end = _validate(module, sensor_id, start_date, end_date, aggregation)
-    identity: Any = int(sensor_id) if str(sensor_id).isdigit() else identity_key(sensor_id)
+    identity_key_value = identity_key(sensor_id)
+    identity: Any = int(identity_key_value) if identity_key_value.isdigit() else identity_key_value
     now_local = local_now_naive()
     requested_start_dt = datetime.combine(start, time.min)
     requested_end_dt = datetime.combine(end + timedelta(days=1), time.min)
@@ -607,7 +613,7 @@ def get_water_history(*, module: str, sensor_id: Any, start_date: str, end_date:
     rows: list[dict[str, Any]] = []
     validation_rows: list[dict[str, Any]] = []
     if not legacy_only and module == 'flow' and contract.get('table') != 'dbo.SensorsBOS_Linea':
-        if str(identity) == '3010':
+        if is_jarabes_identity(identity):
             raw_rows = query_jarabes_rows(query_start_dt, query_end_dt)
             source = 'dbo.SensorsBOS_Tanque' if raw_rows else 'no_data'
         else:
@@ -815,11 +821,11 @@ def get_water_history_module(*, module: str, start_date: str, end_date: str, agg
             except WaterHistoryError as exc:
                 query_error = exc
         washer_rows = query_lavadora_rows(query_start_dt, query_end_dt)
-        jarabes_rows = query_jarabes_rows(query_start_dt, query_end_dt) if 3010 in identities else []
+        jarabes_rows = query_jarabes_rows(query_start_dt, query_end_dt) if any(is_jarabes_identity(identity) for identity in identities) else []
         for identity in identities:
             if item_contract(identity).get('table') == 'dbo.SensorsBOS_Linea':
                 continue
-            raw_rows = jarabes_rows if str(identity) == '3010' else washer_rows.get(str(identity), [])
+            raw_rows = jarabes_rows if is_jarabes_identity(identity) else washer_rows.get(str(identity), [])
             grouped[identity] = _bos_rows_to_15m(identity, raw_rows)
             validation_grouped[identity] = raw_rows
     elif not legacy_only:
@@ -850,7 +856,7 @@ def get_water_history_module(*, module: str, start_date: str, end_date: str, agg
             else 'readings_minute'
             if contract.get('table') == 'dbo.SensorsBOS_Linea'
             else 'dbo.SensorsBOS_Tanque'
-            if module == 'flow' and str(identity) == '3010'
+            if module == 'flow' and is_jarabes_identity(identity)
             else 'dbo.SensorsBOS_Lavadoras'
             if module == 'flow'
             else 'readings_minute'
@@ -868,7 +874,7 @@ def get_water_history_module(*, module: str, start_date: str, end_date: str, agg
         )
         contract = sensor_contract(identity)
         series.append({
-            'sensor_id': identity if isinstance(identity, int) else None,
+            'sensor_id': identity if isinstance(identity, int) else contract.get('sensor_id'),
             'operational_key': contract.get('operational_key') or str(identity),
             'name': contract.get('display_name'),
             'flow_unit': flow_unit_for_sensor(identity),

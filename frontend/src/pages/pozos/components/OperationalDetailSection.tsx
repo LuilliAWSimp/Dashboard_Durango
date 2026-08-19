@@ -52,10 +52,10 @@ function moduleRows(dashboard: DashboardData | null, module: OperationalModule):
 
 function statusType(item?: FlexibleRecord): string {
   const currentState = String(item?.current_state || '').toLowerCase();
-  if (currentState.includes('revisión')) return 'warning';
-  if (currentState.includes('sin registro')) return 'communication';
-  if (currentState.includes('apagado')) return 'idle';
-  if (currentState.includes('activo')) return 'normal';
+  if (currentState.includes('revisión') || currentState.includes('atrasada') || currentState.includes('comunicación') || currentState.includes('comunicacion')) return 'warning';
+  if (currentState.includes('sin registro') || currentState.includes('sin lectura') || currentState.includes('sin datos')) return 'communication';
+  if (currentState.includes('apagado') || currentState.includes('sin flujo')) return 'idle';
+  if (currentState.includes('activo') || currentState.includes('operando')) return 'normal';
   const status = String(item?.period_data_status || item?.data_status || '').toLowerCase();
   const activity = String(item?.period_activity || item?.activity || '').toLowerCase();
   if (status.includes('review') || activity.includes('revisión') || activity.includes('parcial')) return 'warning';
