@@ -7,6 +7,7 @@ import {
   type OperationalIdentity,
   type OperationalModule,
 } from './operationalNavigation.ts';
+import { routeBaseForOperationalIdentity } from './operationalSectionConfig.ts';
 import type { DashboardData, DateRange, FlexibleRecord, HistoryAggregation } from './types.ts';
 
 export type WaterOperationalAlertSeverity = 'critical' | 'warning';
@@ -80,16 +81,17 @@ function itemName(row: FlexibleRecord, index: number, module: OperationalModule,
   return configuredName(module, identity, text(row.name || row.nombre || row.alias || fallback));
 }
 
-function routeFor(module: WaterOperationalAlertModule, identity: OperationalIdentity | 'plant') {
+function routeFor(module: WaterOperationalAlertModule, identity: OperationalIdentity | 'plant', operationalKey?: string | null) {
   if (module === 'plant') return '/pozos/dashboard';
-  return `${MODULE_ROUTES[module]}/${encodeURIComponent(String(identity))}`;
+  const routeBase = routeBaseForOperationalIdentity(module, identity, operationalKey);
+  return `${routeBase}/${encodeURIComponent(String(identity))}`;
 }
 
 export function buildWaterAlertRoute(alert: WaterOperationalAlert, context: WaterAlertRouteContext = {}): string {
   if (alert.module === 'plant' || alert.identity === 'plant') return '/pozos/dashboard';
   const range = context.range || defaultTodayRange();
   const aggregation = context.aggregation || recommendedHistoryAggregation(range);
-  return buildOperationalDetailPath(MODULE_ROUTES[alert.module], alert.identity, range, aggregation, alert.module);
+  return buildOperationalDetailPath(routeBaseForOperationalIdentity(alert.module, alert.identity), alert.identity, range, aggregation, alert.module);
 }
 
 function communicationTokens(row: FlexibleRecord): string[] {
@@ -184,7 +186,7 @@ function makeAlert(
     name,
     title,
     message,
-    route: routeFor(module, identity),
+    route: routeFor(module, identity, row.operational_key as string | null),
     detectedAt: new Date().toISOString(),
     lastUpdate: lastUpdate(row),
     readingAgeMinutes: readingAge(row),

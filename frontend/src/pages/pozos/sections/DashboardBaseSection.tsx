@@ -95,7 +95,8 @@ export default function DashboardBaseSection() {
           {[
             ['Pozos', 'Elementos operativos confirmados', '/pozos/pozos', 'normal'],
             ['Líneas', 'Producción clasificada desde configuración', '/pozos/lineas', 'normal'],
-            ['Flujos', 'Lavadoras y Jarabes operativos', '/pozos/flujos', 'normal'],
+            ['Lavadoras', 'Tres lavadoras operativas confirmadas', '/pozos/flujos', 'normal'],
+            ['Jarabes', 'Elemento operativo independiente', '/pozos/jarabes', 'normal'],
             ['Revisión diaria', 'Cierres por fecha y turnos', '/pozos/revision', 'normal'],
             ['Reportes', 'PDF, Excel, HTML y correo', '/pozos/reportes', 'normal'],
           ].map(([title, detail, path, type]) => (

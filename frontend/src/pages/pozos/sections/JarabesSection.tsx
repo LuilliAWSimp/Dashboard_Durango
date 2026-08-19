@@ -1,5 +1,6 @@
 import OperationalModuleSection from '../components/OperationalModuleSection';
 import OperationalDetailSection from '../components/OperationalDetailSection';
+import { JARABES_SECTION_CONFIG } from '../operationalSectionConfig';
 
 interface Props {
   itemId?: string;
@@ -13,16 +14,17 @@ export default function JarabesSection({ itemId }: Props) {
       <OperationalDetailSection
         module="flow"
         sensorId={identity}
-        backPath="/pozos/jarabes"
+        backPath={JARABES_SECTION_CONFIG.routeBase}
+        sectionConfig={JARABES_SECTION_CONFIG}
       />
     )
     : (
       <OperationalModuleSection
         module="flow"
-        title="Jarabes"
-        subtitle="Seguimiento de flujo y totalizador de Jarabes"
-        route="/pozos/jarabes"
-        filterItems={(item) => item.operationalKey === 'jarabes'}
+        title={JARABES_SECTION_CONFIG.title}
+        subtitle={JARABES_SECTION_CONFIG.subtitle}
+        route={JARABES_SECTION_CONFIG.routeBase}
+        sectionConfig={JARABES_SECTION_CONFIG}
       />
     );
 }

@@ -12,6 +12,7 @@ import {
 } from '../operationalNavigation';
 import type { OperationalIdentity, OperationalModule } from '../operationalNavigation';
 import type { DashboardData, FlexibleRecord } from '../types';
+import type { OperationalSectionConfig, OperationalSectionItem } from '../operationalSectionConfig';
 import ChartEmptyState from './ChartEmptyState';
 import MetricPair from './MetricPair';
 import ModuleHistoryPanel from './ModuleHistoryPanel';
@@ -23,6 +24,8 @@ import useSqlChartDashboard from '../hooks/useSqlChartDashboard';
 
 export type { OperationalIdentity, OperationalModule } from '../operationalNavigation';
 
+type ConfiguredItem = ReturnType<typeof configuredOperationalItems>[number] | OperationalSectionItem;
+
 interface Props {
   module: OperationalModule;
   title: string;
@@ -30,7 +33,7 @@ interface Props {
   route: string;
   confirmedSensorIds?: OperationalIdentity[];
   filterItems?: (item: ReturnType<typeof configuredOperationalItems>[number]) => boolean;
-
+  sectionConfig?: OperationalSectionConfig;
 }
 
 function array(value: unknown): FlexibleRecord[] {
@@ -58,8 +61,8 @@ function statusType(value: unknown): string {
   const text = String(value || '').toLowerCase();
   if (text.includes('revisión') || text.includes('atrasada') || text.includes('parcial')) return 'warning';
   if (text.includes('sin histórico') || text.includes('sin registro') || text.includes('sin lectura')) return 'communication';
-  if (text.includes('apagado')) return 'idle';
-  if (text.includes('activo')) return 'normal';
+  if (text.includes('apagado') || text.includes('sin flujo')) return 'idle';
+  if (text.includes('activo') || text.includes('operando')) return 'normal';
   if (text.includes('actividad')) return text.includes('sin actividad') ? 'idle' : 'normal';
   return 'idle';
 }
@@ -107,30 +110,111 @@ function mergeDuplicateRows(previous: FlexibleRecord | undefined, next: Flexible
   return merged;
 }
 
+function itemIdentity(item: ConfiguredItem): OperationalIdentity {
+  return item.sensorId ?? item.operationalKey;
+}
+
+function operationalKey(row: FlexibleRecord): string {
+  return String(row.operational_key || row.operationalKey || '').trim();
+}
+
+function rowMatchesAllowedItems(
+  row: FlexibleRecord,
+  index: number,
+  module: OperationalModule,
+  allowedItems?: ConfiguredItem[],
+): boolean {
+  if (!allowedItems?.length) return true;
+  const allowedKeys = new Set(allowedItems.map((item) => item.operationalKey));
+  const key = operationalKey(row);
+  if (key) return allowedKeys.has(key);
+  const allowedIdentities = new Set(allowedItems.map((item) => String(itemIdentity(item))));
+  return allowedIdentities.has(String(resolveOperationalIdentity(row, index, module)));
+}
+
 function uniqueModuleRows(
   dashboard: DashboardData | null,
   module: OperationalModule,
   confirmedSensorIds?: OperationalIdentity[],
+  allowedItems?: ConfiguredItem[],
 ): FlexibleRecord[] {
   const rawRows = rawModuleRows(dashboard, module);
-  const confirmed = confirmedSensorIds?.length
-    ? confirmedSensorIds
-    : configuredOperationalItems(module).map(configuredOperationalIdentity);
-  const bySensor = new Map<OperationalIdentity, FlexibleRecord>();
+  const confirmed = allowedItems?.length
+    ? allowedItems.map(itemIdentity)
+    : confirmedSensorIds?.length
+      ? confirmedSensorIds
+      : configuredOperationalItems(module).map(configuredOperationalIdentity);
+  const byIdentity = new Map<string, FlexibleRecord>();
 
   rawRows.forEach((row, index) => {
-    const sensorId = resolveOperationalIdentity(row, index, module);
-    if (!confirmed.includes(sensorId)) return;
-    bySensor.set(sensorId, mergeDuplicateRows(bySensor.get(sensorId), {
+    if (!rowMatchesAllowedItems(row, index, module, allowedItems)) return;
+    const identity = resolveOperationalIdentity(row, index, module);
+    if (!confirmed.map(String).includes(String(identity))) return;
+    const key = String(identity);
+    byIdentity.set(key, mergeDuplicateRows(byIdentity.get(key), {
       ...row,
-      ...(typeof sensorId === 'number' ? { sensor_id: sensorId } : { operational_key: sensorId }),
+      ...(typeof identity === 'number' ? { sensor_id: identity } : { operational_key: identity }),
     }));
   });
 
-  return confirmed.flatMap((sensorId) => {
-    const row = bySensor.get(sensorId);
+  return confirmed.flatMap((identity) => {
+    const row = byIdentity.get(String(identity));
     return row ? [row] : [];
   });
+}
+
+function currentFlow(row: FlexibleRecord): number | null {
+  return number(row.current_flow ?? row.flow_lps ?? row.flow);
+}
+
+function isOperating(row: FlexibleRecord): boolean {
+  const flow = currentFlow(row);
+  const state = String(row.current_state || row.status || '').toLowerCase();
+  return (flow !== null && flow > 0) || state.includes('operando') || state.includes('activo');
+}
+
+function isNoFlow(row: FlexibleRecord): boolean {
+  const flow = currentFlow(row);
+  const state = String(row.current_state || row.period_activity || row.activity || '').toLowerCase();
+  return (flow !== null && flow <= 0) || state.includes('sin flujo') || state.includes('apagado') || state.includes('sin actividad');
+}
+
+function isNoHistory(row: FlexibleRecord): boolean {
+  const status = String(row.period_data_status || row.data_status || '').toLowerCase();
+  return status === 'no_history' || status === 'no_data' || status.includes('sin histórico') || status.includes('sin registros');
+}
+
+function isReview(row: FlexibleRecord): boolean {
+  const tokens = [row.period_data_status, row.data_status, row.validation, row.activity, row.period_activity]
+    .map((value) => String(value || '').toLowerCase());
+  return Boolean(row.has_discontinuities)
+    || tokens.some((token) => token.includes('revisión') || token.includes('revision') || token.includes('parcial') || token.includes('invalid'));
+}
+
+function rowsWithReading(rows: FlexibleRecord[]): number {
+  return rows.filter((row) => (
+    row.current_reading_available !== false
+    && (currentFlow(row) !== null || number(row.current_totalizer_m3 ?? row.totalizador_m3) !== null || Boolean(row.last_update || row.ultima_lectura))
+  )).length;
+}
+
+function reliableVolume(row: FlexibleRecord): number | null {
+  const value = number(row.validated_volume_m3 ?? row.period_m3 ?? row.period_delta_m3);
+  if (value === null) return null;
+  if (row.period_m3_reliable === false || row.volume_reliable === false) return null;
+  return value;
+}
+
+function filteredSummary(rows: FlexibleRecord[]) {
+  const volumes = rows.map(reliableVolume).filter((value): value is number => value !== null);
+  return {
+    totalM3: volumes.length ? volumes.reduce((total, value) => total + value, 0) : null,
+    operating: rows.filter(isOperating).length,
+    noFlow: rows.filter(isNoFlow).length,
+    noHistory: rows.filter(isNoHistory).length,
+    review: rows.filter(isReview).length,
+    readings: rowsWithReading(rows),
+  };
 }
 
 export default function OperationalModuleSection({
@@ -140,6 +224,7 @@ export default function OperationalModuleSection({
   route,
   confirmedSensorIds,
   filterItems,
+  sectionConfig,
 }: Props) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -153,43 +238,33 @@ export default function OperationalModuleSection({
     autoRefresh: true,
   });
   const dashboard = controller.dashboard as DashboardData | null;
-  
-  const rows = useMemo(() => {
-  const filteredConfirmedSensorIds = filterItems
-    ? configuredOperationalItems(module)
-        .filter(filterItems)
-        .map(configuredOperationalIdentity)
-    : confirmedSensorIds;
+  const configuredItems = useMemo<ConfiguredItem[] | undefined>(() => {
+    if (sectionConfig) return sectionConfig.items;
+    if (!filterItems) return undefined;
+    return configuredOperationalItems(module).filter(filterItems);
+  }, [filterItems, module, sectionConfig]);
 
-  return uniqueModuleRows(
+  const rows = useMemo(() => uniqueModuleRows(
     dashboard,
     module,
-    filteredConfirmedSensorIds,
-  );
-}, [dashboard, module, confirmedSensorIds, filterItems]);
+    confirmedSensorIds,
+    configuredItems,
+  ), [dashboard, module, confirmedSensorIds, configuredItems]);
+
   useEffect(() => {
     const search = buildOperationalNavigationSearch(controller.range, aggregation, module);
     if (location.search === search) return;
     navigate({ pathname: location.pathname, search }, { replace: true, state: location.state });
   }, [aggregation, controller.range, location.pathname, location.search, location.state, module, navigate]);
 
-  const summaryKey = module === 'well' ? 'wells' : module === 'line' ? 'lines' : 'flows';
-  const rawSummary = dashboard?.operational_summary?.[summaryKey];
-  const moduleSummary = rawSummary && typeof rawSummary === 'object' && !Array.isArray(rawSummary)
-    ? rawSummary as FlexibleRecord
-    : {};
-  const total = number(moduleSummary.total_m3);
-  const active = Number(moduleSummary.active_count || 0);
-  const inactive = Number(moduleSummary.inactive_count || 0);
-  const currentFlow = Number(moduleSummary.current_flow_count || 0);
-  const review = Number(moduleSummary.review_count || 0);
-  const noHistory = Number(moduleSummary.no_history_count || 0);
-  const hasPartial = Boolean(moduleSummary.has_partial_volume);
-  const openDetail = (sensorId: OperationalIdentity) => {
-    navigate(buildOperationalDetailPath(route, sensorId, controller.range, aggregation, module), {
+  const rawSummary = filteredSummary(rows);
+  const expectedCount = configuredItems?.length || rows.length;
+  const openDetail = (identity: OperationalIdentity) => {
+    navigate(buildOperationalDetailPath(route, identity, controller.range, aggregation, module), {
       state: { fromOperationalModule: true },
     });
   };
+  const labels = sectionConfig?.labels;
 
   return (
     <>
@@ -203,40 +278,49 @@ export default function OperationalModuleSection({
         subtitle="El rango y la agrupación se conservan al abrir el detalle de un elemento."
       />
 
-      <section className="cards-grid stagger-grid">
-        <KpiCard
-          label="Volumen validado del periodo"
-          value={total === null ? 'No disponible' : fmt(total)}
-          unit={total === null ? '' : 'm³'}
-          trend={total === null ? 'No disponible' : hasPartial ? 'Volumen validado parcial' : 'Suma de incrementos validados'}
-          accent="cyan"
-        />
-        <KpiCard label="Con actividad en el periodo" value={String(active)} unit="elementos" trend="Flujo positivo o movimiento validado" accent="teal" />
-        <KpiCard label="Con flujo actual" value={String(currentFlow)} unit="elementos" trend="Lectura reciente por encima del umbral" accent="teal" />
-        <KpiCard label="Sin actividad" value={String(inactive)} unit="elementos" trend="Muestras válidas sin movimiento" accent="blue" />
-        <KpiCard label="Validación parcial o sin histórico" value={String(review + noHistory)} unit="elementos" trend="Se presentan separados de la actividad" accent="brown" />
-      </section>
+      {sectionConfig ? (
+        <section className="cards-grid stagger-grid">
+          <KpiCard label={labels?.totalKpi || 'Elementos monitoreados'} value={String(rows.length)} unit={sectionConfig.plural} trend={`${rows.length}/${expectedCount} identidades permitidas`} accent="cyan" />
+          <KpiCard label={labels?.operatingKpi || 'Elementos operando'} value={String(rawSummary.operating)} unit={sectionConfig.plural} trend="Flujo actual positivo o estado operativo" accent="teal" />
+          <KpiCard label={labels?.noFlowKpi || 'Elementos sin flujo'} value={String(rawSummary.noFlow)} unit={sectionConfig.plural} trend="Cero válido o estado sin actividad" accent="blue" />
+          <KpiCard label={labels?.readingsKpi || 'Lecturas'} value={`${rawSummary.readings}/${expectedCount}`} unit="lecturas" trend="Lectura actual disponible dentro de la sección" accent="teal" />
+          <KpiCard label={labels?.reviewKpi || 'Lecturas en revisión'} value={String(rawSummary.review + rawSummary.noHistory)} unit="elementos" trend="Sin histórico o validación parcial del periodo" accent="brown" />
+        </section>
+      ) : (
+        <section className="cards-grid stagger-grid">
+          <KpiCard
+            label="Volumen validado del periodo"
+            value={rawSummary.totalM3 === null ? 'No disponible' : fmt(rawSummary.totalM3)}
+            unit={rawSummary.totalM3 === null ? '' : 'm³'}
+            trend={rawSummary.totalM3 === null ? 'No disponible' : 'Suma de incrementos validados'}
+            accent="cyan"
+          />
+          <KpiCard label="Con actividad en el periodo" value={String(rawSummary.operating)} unit="elementos" trend="Flujo positivo o movimiento validado" accent="teal" />
+          <KpiCard label="Con flujo actual" value={String(rawSummary.operating)} unit="elementos" trend="Lectura reciente por encima del umbral" accent="teal" />
+          <KpiCard label="Sin actividad" value={String(rawSummary.noFlow)} unit="elementos" trend="Muestras válidas sin movimiento" accent="blue" />
+          <KpiCard label="Validación parcial o sin histórico" value={String(rawSummary.review + rawSummary.noHistory)} unit="elementos" trend="Se presentan separados de la actividad" accent="brown" />
+        </section>
+      )}
 
       <section className="panel fade-up">
-        <PanelHeader title={`Elementos de ${title.toLowerCase()}`} subtitle="Lectura actual y métricas generales; selecciona una tarjeta para abrir su análisis" />
+        <PanelHeader title={labels?.cardTitle || `Elementos de ${title.toLowerCase()}`} subtitle="Lectura actual y métricas generales; selecciona una tarjeta para abrir su análisis" />
         {controller.error ? <div className="status-pill alert">{controller.error}</div> : null}
 
-        {/* Single canonical card block. Legacy well cards are intentionally not rendered. */}
         <div className={`operational-card-grid ${module === 'well' ? 'operational-well-grid' : ''}`}>
           {rows.map((row, index) => {
-            const sensorId = resolveOperationalIdentity(row, index, module);
+            const identity = resolveOperationalIdentity(row, index, module);
             const activity = periodMessage(row);
-            const currentState = String(row.current_state || (number(row.current_flow ?? row.flow_lps ?? row.flow) === null ? 'Sin registros' : number(row.current_flow ?? row.flow_lps ?? row.flow)! > 0 ? 'Activo' : 'Apagado con datos'));
+            const state = String(row.current_state || (currentFlow(row) === null ? 'Sin registros' : currentFlow(row)! > 0 ? 'Activo' : 'Sin flujo'));
             const communication = String(row.communication || row.estado_comunicacion || 'Sin lectura');
             const volume = number(row.period_m3);
-            const flow = number(row.current_flow ?? row.flow_lps ?? row.flow);
+            const flow = currentFlow(row);
             const totalizer = number(row.current_totalizer_m3 ?? row.totalizador_m3);
             return (
-              <article key={`${module}-${sensorId}`} className="operational-element-card">
+              <article key={`${module}-${identity}`} className="operational-element-card">
                 <button
                   type="button"
                   className="operational-card-action"
-                  onClick={() => openDetail(sensorId)}
+                  onClick={() => openDetail(identity)}
                   aria-label={`Abrir detalle de ${itemName(row, index)}`}
                 >
                   <div className="operational-card-main">
@@ -245,7 +329,7 @@ export default function OperationalModuleSection({
                         <span>{title}</span>
                         <strong>{itemName(row, index)}</strong>
                       </div>
-                      <StatusBadge type={statusType(currentState)}>{currentState}</StatusBadge>
+                      <StatusBadge type={statusType(state)}>{state}</StatusBadge>
                     </div>
                     <div className="metric-pairs-grid operational-metric-grid">
                       <MetricPair label="Flujo actual" value={flow === null ? 'Sin dato' : fmt(flow)} unit={flow === null ? '' : String(row.flow_unit || 'L/s')} />
@@ -271,7 +355,7 @@ export default function OperationalModuleSection({
             );
           })}
         </div>
-        {!rows.length && !controller.loading ? <ChartEmptyState message="Sin registros para el periodo seleccionado." /> : null}
+        {!rows.length && !controller.loading ? <ChartEmptyState message={labels?.emptyState || 'Sin registros para el periodo seleccionado.'} /> : null}
       </section>
 
       <ModuleHistoryPanel
@@ -279,12 +363,21 @@ export default function OperationalModuleSection({
         fixedModule={module}
         aggregation={aggregation}
         onAggregationChange={setAggregation}
+        items={configuredItems}
+        panelTitle={labels?.historyTitle}
+        panelSubtitle={labels?.historySubtitle}
       />
 
-      <ShiftConsumptionPanel group={module} date={String(controller.range.endDate || controller.range.startDate || '')} title={`Cortes por turno · ${title}`} />
+      <ShiftConsumptionPanel
+        group={module}
+        date={String(controller.range.endDate || controller.range.startDate || '')}
+        title={labels?.shiftsTitle || `Cortes por turno · ${title}`}
+        items={configuredItems}
+        emptyMessage={labels?.emptyState}
+      />
 
       <section className="panel fade-up">
-        <PanelHeader title="Tabla operativa" subtitle="La tabla y las tarjetas usan la misma respuesta del periodo" />
+        <PanelHeader title={labels?.tableTitle || 'Tabla operativa'} subtitle={labels?.tableSubtitle || 'La tabla y las tarjetas usan la misma respuesta del periodo'} />
         <div className="pozos-table-scroll">
           <table className="pozos-operacion-table">
             <thead>
@@ -292,12 +385,12 @@ export default function OperationalModuleSection({
             </thead>
             <tbody>
               {rows.map((row, index) => {
-                const sensorId = resolveOperationalIdentity(row, index, module);
+                const identity = resolveOperationalIdentity(row, index, module);
                 return (
-                  <tr key={`table-${module}-${sensorId}`}>
+                  <tr key={`table-${module}-${identity}`}>
                     <td>{itemName(row, index)}</td>
                     <td>{String(row.current_state || 'Sin registros')}</td>
-                    <td>{number(row.current_flow ?? row.flow_lps) === null ? '—' : `${fmt(row.current_flow ?? row.flow_lps)} ${String(row.flow_unit || 'L/s')}`}</td>
+                    <td>{currentFlow(row) === null ? '—' : `${fmt(currentFlow(row))} ${String(row.flow_unit || 'L/s')}`}</td>
                     <td>{number(row.period_open_m3) === null ? '—' : `${fmt(row.period_open_m3)} m³`}</td>
                     <td>{number(row.period_close_m3) === null ? '—' : `${fmt(row.period_close_m3)} m³`}</td>
                     <td>{number(row.period_m3) === null ? 'No disponible' : row.has_discontinuities ? `Volumen validado parcial: ${fmt(row.period_m3)} m³` : `${fmt(row.period_m3)} m³`}</td>
@@ -312,6 +405,7 @@ export default function OperationalModuleSection({
             </tbody>
           </table>
         </div>
+        {!rows.length ? <ChartEmptyState message={labels?.emptyState || 'Sin registros para el periodo seleccionado.'} /> : null}
       </section>
     </>
   );

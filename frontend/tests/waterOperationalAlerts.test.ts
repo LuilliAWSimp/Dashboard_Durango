@@ -112,6 +112,12 @@ test('click de alerta Lavadora Vidrio usa operational_key no numérico', () => {
   assert.equal(route, '/pozos/flujos/lavadora_vidrio?start=2026-08-07&end=2026-08-07&aggregation=quarter_hour&source=flow');
 });
 
+test('click de alerta Jarabes conserva la ruta separada de Jarabes', () => {
+  const [alert] = evaluateDurangoWaterAlerts(dashboard({ flows: [normal({ sensor_id: 3004, operational_key: 'jarabes', name: 'Jarabes', communication_status: 'offline' })] }));
+  const route = buildWaterAlertRoute(alert, { range: { startDate: '2026-08-07', endDate: '2026-08-07' }, aggregation: 'quarter_hour' });
+  assert.equal(route, '/pozos/jarabes/3004?start=2026-08-07&end=2026-08-07&aggregation=quarter_hour&source=flow');
+});
+
 test('correo exitoso usa toast y no mensaje técnico SMTP', () => {
   const reports = readFileSync(new URL('../src/pages/pozos/sections/ReportesSection.tsx', import.meta.url), 'utf8');
   assert.match(reports, /title: 'Correo enviado correctamente'/);
