@@ -1,22 +1,53 @@
-import api from './api';
+import api, { clearAuthSession, hasBrowserSession, setAuthSession, setCsrfToken } from './api';
 
-const TOKEN_KEY = 'siem_demo_token';
-const USER_KEY = 'siem_demo_user';
+export { hasBrowserSession };
 
-export async function login(username, password) {
-  const { data } = await api.post('/auth/login', { username, password });
-  localStorage.setItem(TOKEN_KEY, data.access_token);
-  localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+export async function getSetupStatus() {
+  const { data } = await api.get('/auth/setup-status');
   return data;
 }
 
-export function logout() {
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(USER_KEY);
+export async function login(username, password) {
+  const { data } = await api.post('/auth/login', { username, password });
+  setAuthSession(data.browser_session, data.csrf_token);
+  return data;
 }
 
-export function getAuth() {
-  const token = localStorage.getItem(TOKEN_KEY);
-  const user = localStorage.getItem(USER_KEY);
-  return { token, user: user ? JSON.parse(user) : null };
+export async function getCurrentSession() {
+  const { data } = await api.get('/auth/me');
+  setCsrfToken(data.csrf_token);
+  return data;
+}
+
+export async function logout() {
+  try {
+    await api.post('/auth/logout');
+  } finally {
+    clearAuthSession({ broadcast: true, notify: true });
+  }
+}
+
+export async function listUsers() {
+  const { data } = await api.get('/auth/users');
+  return data;
+}
+
+export async function createUser(payload) {
+  const { data } = await api.post('/auth/users', payload);
+  return data;
+}
+
+export async function updateUser(userId, payload) {
+  const { data } = await api.patch(`/auth/users/${userId}`, payload);
+  return data;
+}
+
+export async function resetUserPassword(userId, password) {
+  const { data } = await api.post(`/auth/users/${userId}/reset-password`, { password });
+  return data;
+}
+
+export async function revokeUserSessions(userId) {
+  const { data } = await api.post(`/auth/users/${userId}/revoke-sessions`);
+  return data;
 }

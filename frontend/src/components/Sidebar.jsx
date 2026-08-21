@@ -17,6 +17,7 @@ import {
   Snowflake,
   Truck,
   Waves,
+  UsersRound,
   ShieldCheck,
 } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
@@ -55,6 +56,7 @@ const iconMap = {
   'pozos-cip': FlaskConical,
   'pozos-uv': ShieldCheck,
   'pozos-reportes': FileBarChart2,
+  usuarios: UsersRound,
 };
 
 function getIcon(key, iconKey) {

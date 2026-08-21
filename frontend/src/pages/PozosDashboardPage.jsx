@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from 'react';
+import { Navigate } from 'react-router-dom';
 import { downloadWaterReport } from '../services/waterExportService';
 import RevisionDiariaSection from './pozos/sections/RevisionDiariaSection';
 import BalanceSection from './pozos/sections/BalanceSection';
@@ -10,6 +11,7 @@ import FlujosSection from './pozos/sections/FlujosSection';
 import ConcesionSection from './pozos/sections/ConcesionSection';
 import ReportesSection from './pozos/sections/ReportesSection';
 import JarabesSection from './pozos/sections/JarabesSection';
+import UsersPage from './UsersPage';
 
 const pieColors = ['#14b8ff', '#0ea5e9', '#38bdf8'];
 const axisColor = '#b9e7ff';
@@ -59,18 +61,22 @@ const sectionMap = {
   },
   reportes: {
     title: 'Reportes',
-    render: () => <ReportesSection />,
+    render: ({ user } = {}) => <ReportesSection currentUser={user} />,
+  },
+  usuarios: {
+    title: 'Usuarios',
+    render: ({ user } = {}) => user?.role === 'admin' ? <UsersPage /> : <Navigate to="/pozos/dashboard" replace />,
   },
 };
 
-export default function PozosDashboardPage({ section = 'dashboard', itemId, setHeaderMeta }) {
+export default function PozosDashboardPage({ section = 'dashboard', itemId, setHeaderMeta, user }) {
   const current = sectionMap[section] || sectionMap.dashboard;
 
   useEffect(() => {
     setHeaderMeta({
       title: current.title,
       subtitle: '',
-      onExport: section === 'reportes' ? null : async (format) => {
+      onExport: section === 'reportes' || section === 'usuarios' ? null : async (format) => {
         try {
           await downloadWaterReport(section, format, { itemId, title: current.title });
         } catch (error) {
@@ -82,7 +88,7 @@ export default function PozosDashboardPage({ section = 'dashboard', itemId, setH
     });
   }, [current, section, itemId, setHeaderMeta]);
 
-  const content = useMemo(() => current.render({ itemId }), [current, itemId]);
+  const content = useMemo(() => current.render({ itemId, user }), [current, itemId, user]);
 
   return (
     <div className="page-grid pozos-page" data-export-root data-section={section}>

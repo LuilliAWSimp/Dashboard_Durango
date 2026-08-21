@@ -17,6 +17,7 @@ import {
   Snowflake,
   Truck,
   Waves,
+  UsersRound,
   ShieldCheck,
   type LucideIcon,
 } from 'lucide-react';
@@ -57,6 +58,7 @@ const iconMap: Record<string, LucideIcon> = {
   'pozos-cip': FlaskConical,
   'pozos-uv': ShieldCheck,
   'pozos-reportes': FileBarChart2,
+  usuarios: UsersRound,
 };
 
 function getIcon(key: string, iconKey?: string): LucideIcon {

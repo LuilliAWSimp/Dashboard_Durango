@@ -1,26 +1,39 @@
-import { useState, type FormEvent } from 'react';
-import { Lock, User as UserIcon } from 'lucide-react';
+import { useEffect, useState, type FormEvent } from 'react';
+import { Eye, EyeOff, Lock, User as UserIcon } from 'lucide-react';
 import BrandLogo from '../components/BrandLogo';
-import { login } from '../services/authService';
+import { getSetupStatus, login } from '../services/authService';
 import type { User } from '../types';
 
 interface LoginPageProps {
   onSuccess: (user: User) => void;
 }
 
-interface LoginError {
-  response?: {
-    data?: {
-      detail?: string;
-    };
-  };
+function readableError(error: unknown): string {
+  const candidate = error as { response?: { data?: { detail?: string } } };
+  return candidate.response?.data?.detail || 'No fue posible iniciar sesión.';
 }
 
 export default function LoginPage({ onSuccess }: LoginPageProps) {
-  const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('demo123');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [setupMessage, setSetupMessage] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    getSetupStatus()
+      .then((result) => {
+        if (active && !result.configured) {
+          setSetupMessage('No hay un administrador configurado. Cree el primer administrador desde la consola del servidor.');
+        }
+      })
+      .catch(() => {
+        if (active) setError('No fue posible comprobar el estado de autenticación del servidor.');
+      });
+    return () => { active = false; };
+  }, []);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -30,7 +43,7 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
       const data = await login(username, password);
       onSuccess(data.user);
     } catch (err) {
-      setError((err as LoginError).response?.data?.detail || 'No fue posible iniciar sesión');
+      setError(readableError(err));
     } finally {
       setLoading(false);
     }
@@ -43,26 +56,33 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
         <div className="login-brand">
           <div className="login-brand-frame">
             <div className="login-brand-glow" />
-            <div className="login-brand-inner">
-              <BrandLogo className="brand-logo login-logo" />
-            </div>
+            <div className="login-brand-inner"><BrandLogo className="brand-logo login-logo" /></div>
           </div>
-
           <div className="login-brand-copy">
-            <span className="login-brand-eyebrow">CONTROL HIDRICO</span>
+            <span className="login-brand-eyebrow">CONTROL HÍDRICO</span>
             <h1 className="login-brand-plant">PLANTA DURANGO</h1>
-            <p className="login-brand-caption">Monitoreo Hidrico y operacion en tiempo real</p>
+            <p className="login-brand-caption">Monitoreo hídrico y operación en tiempo real</p>
           </div>
         </div>
+
         <form className="login-form" onSubmit={handleSubmit}>
-          <label className="field-label">Usuario</label>
-          <div className="field-wrap"><UserIcon size={16} /><input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="admin" /></div>
-          <label className="field-label">Contraseña</label>
-          <div className="field-wrap"><Lock size={16} /><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="demo123" /></div>
-          {error ? <div className="login-error">{error}</div> : null}
-          <button className="login-button" disabled={loading}>{loading ? 'Entrando…' : 'Entrar al sistema'}</button>
+          <label className="field-label" htmlFor="login-username">Usuario</label>
+          <div className="field-wrap">
+            <UserIcon size={16} />
+            <input id="login-username" value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" disabled={loading} required />
+          </div>
+          <label className="field-label" htmlFor="login-password">Contraseña</label>
+          <div className="field-wrap login-password-wrap">
+            <Lock size={16} />
+            <input id="login-password" type={showPassword ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" disabled={loading} required />
+            <button type="button" className="login-password-toggle" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'} disabled={loading}>
+              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
+          </div>
+          {setupMessage ? <div className="login-info" role="status">{setupMessage}</div> : null}
+          {error ? <div className="login-error" role="alert">{error}</div> : null}
+          <button className="login-button" type="submit" disabled={loading || Boolean(setupMessage)}>{loading ? 'Iniciando sesión…' : 'Entrar al sistema'}</button>
         </form>
-        <div className="login-hint">Credenciales: <strong>admin / demo123</strong> o <strong>operacion / operacion123</strong></div>
       </div>
     </div>
   );
