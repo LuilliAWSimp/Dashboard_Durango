@@ -152,10 +152,9 @@ function ReportPreviewSection({ report, section }: { report: any; section: { key
   );
 }
 
-export default function ReportesSection({ user }: { user?: { role?: string } } = {}) {
+export default function ReportesSection() {
   const today = todayInputDate();
   const { notify } = useNotifications();
-  const canEmail = user?.role === 'admin' || user?.role === 'operator';
   const [mode, setMode] = useState<ReportMode>('day');
   const [date, setDate] = useState(today);
   const [startDate, setStartDate] = useState(today);
@@ -327,7 +326,7 @@ export default function ReportesSection({ user }: { user?: { role?: string } } =
                 <button type="button" className="report-action-button primary-action" disabled={isBusy} onClick={() => void runExport('pdf')}><FileDown size={17} /> {exportAction === 'pdf' ? 'Generando PDF...' : 'Generar PDF'}</button>
                 <button type="button" className="report-action-button" disabled={isBusy} onClick={() => void runExport('xlsx')}><FileSpreadsheet size={17} /> {exportAction === 'xlsx' ? 'Generando Excel...' : 'Exportar Excel'}</button>
                 <button type="button" className="report-action-button" disabled={isBusy} onClick={() => void runExport('html')}><Eye size={17} /> {exportAction === 'html' ? 'Generando vista...' : 'Vista HTML'}</button>
-                {canEmail ? <button type="button" className="report-action-button" disabled={sending} onClick={() => setEmailOpen(true)}><Mail size={17} /> Enviar por correo</button> : null}
+                <button type="button" className="report-action-button" disabled={sending} onClick={() => setEmailOpen(true)}><Mail size={17} /> Enviar por correo</button>
               </div>
             </div>
           </div>
@@ -354,7 +353,7 @@ export default function ReportesSection({ user }: { user?: { role?: string } } =
         </section>
       </> : !loading ? <ChartEmptyState message="Sin reporte cargado." /> : null}
 
-      {emailOpen && canEmail ? <div className="modal-backdrop" onClick={() => setEmailOpen(false)}><div className="email-report-modal" onClick={(event) => event.stopPropagation()}>
+      {emailOpen ? <div className="modal-backdrop" onClick={() => setEmailOpen(false)}><div className="email-report-modal" onClick={(event) => event.stopPropagation()}>
         <h3>Enviar Reporte Diario de Control Hídrico Durango</h3>
         <label>Para<input value={form.to} onChange={(event) => setForm({ ...form, to: event.target.value })} placeholder="correo@dominio.com" /></label>
         <label>CC<input value={form.cc} onChange={(event) => setForm({ ...form, cc: event.target.value })} placeholder="Opcional" /></label>

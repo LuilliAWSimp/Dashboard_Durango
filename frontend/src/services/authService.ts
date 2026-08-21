@@ -1,73 +1,31 @@
-import api, { clearCsrfToken, clearTabSession, hasTabSession, setCsrfToken, setTabSession } from './api';
-import type { User } from '../types';
+import api from './api';
+import type { AuthState, User } from '../types';
 
-export { hasTabSession };
+const TOKEN_KEY = 'siem_demo_token';
+const USER_KEY = 'siem_demo_user';
 
-export interface SessionResponse {
+interface LoginResponse {
+  access_token: string;
   user: User;
-  csrf_token: string;
-  tab_session?: string;
-  expires_at: string;
+  [key: string]: unknown;
 }
 
-export interface SetupStatusResponse {
-  configured: boolean;
-}
+type StoredAuth = Pick<AuthState, 'token' | 'user'>;
 
-export interface UserCreatePayload {
-  username: string;
-  display_name: string;
-  password: string;
-  role: 'admin' | 'operator' | 'viewer';
-  is_active?: boolean;
-}
-
-export async function getSetupStatus(): Promise<SetupStatusResponse> {
-  const { data } = await api.get<SetupStatusResponse>('/auth/setup-status');
+export async function login(username: string, password: string): Promise<LoginResponse> {
+  const { data } = await api.post<LoginResponse>('/auth/login', { username, password });
+  localStorage.setItem(TOKEN_KEY, data.access_token);
+  localStorage.setItem(USER_KEY, JSON.stringify(data.user));
   return data;
 }
 
-export async function login(username: string, password: string): Promise<SessionResponse> {
-  const { data } = await api.post<SessionResponse>('/auth/login', { username, password });
-  setTabSession(data.tab_session);
-  setCsrfToken(data.csrf_token);
-  return data;
+export function logout(): void {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
 }
 
-export async function getCurrentSession(): Promise<SessionResponse> {
-  const { data } = await api.get<SessionResponse>('/auth/me');
-  setCsrfToken(data.csrf_token);
-  return data;
-}
-
-export async function logout(): Promise<void> {
-  try {
-    await api.post('/auth/logout');
-  } finally {
-    clearCsrfToken();
-    clearTabSession();
-  }
-}
-
-export async function listUsers(): Promise<User[]> {
-  const { data } = await api.get<User[]>('/auth/users');
-  return data;
-}
-
-export async function createUser(payload: UserCreatePayload): Promise<User> {
-  const { data } = await api.post<User>('/auth/users', payload);
-  return data;
-}
-
-export async function updateUser(userId: number | string, payload: Partial<UserCreatePayload>): Promise<User> {
-  const { data } = await api.patch<User>(`/auth/users/${userId}`, payload);
-  return data;
-}
-
-export async function resetUserPassword(userId: number | string, password: string): Promise<void> {
-  await api.post(`/auth/users/${userId}/reset-password`, { password });
-}
-
-export async function revokeUserSessions(userId: number | string): Promise<void> {
-  await api.post(`/auth/users/${userId}/revoke-sessions`);
+export function getAuth(): StoredAuth {
+  const token = localStorage.getItem(TOKEN_KEY);
+  const user = localStorage.getItem(USER_KEY);
+  return { token, user: user ? (JSON.parse(user) as User) : null };
 }

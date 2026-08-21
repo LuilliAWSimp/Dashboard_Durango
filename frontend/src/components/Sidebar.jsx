@@ -18,7 +18,6 @@ import {
   Truck,
   Waves,
   ShieldCheck,
-  UsersRound,
 } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import BrandLogo from './BrandLogo';
@@ -56,7 +55,6 @@ const iconMap = {
   'pozos-cip': FlaskConical,
   'pozos-uv': ShieldCheck,
   'pozos-reportes': FileBarChart2,
-  usuarios: UsersRound,
 };
 
 function getIcon(key, iconKey) {

@@ -12,15 +12,8 @@ export interface User {
   id?: ID;
   username?: string;
   name?: string;
-  display_name?: string;
   email?: string;
-  role?: 'admin' | 'operator' | 'viewer' | string;
-  is_active?: boolean;
-  is_locked?: boolean;
-  locked_until?: string | null;
-  created_at?: string | null;
-  updated_at?: string | null;
-  last_login_at?: string | null;
+  role?: string;
   permissions?: string[];
   plantId?: ID;
   plantIds?: ID[];

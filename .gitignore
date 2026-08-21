@@ -21,6 +21,3 @@ frontend/dist/*
 # Node modules
 node_modules/
 node_modules
-# Local auth database
-backend/data/auth.sqlite3
-backend/data/auth.sqlite3-*
