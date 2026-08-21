@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
+from app.auth.dependencies import require_roles
 from app.database import get_db
 from app.demo.catalog import DEFAULT_PLANT_ID
 from app.schemas.export import EmailReportRequest
@@ -11,7 +12,7 @@ from app.services.export_service import export_excel, export_html, export_pdf, e
 router = APIRouter(prefix='/email', tags=['email'])
 
 
-@router.post('/report')
+@router.post('/report', dependencies=[Depends(require_roles('admin', 'operator'))])
 def send_report(request: EmailReportRequest, db: Session = Depends(get_db)):
     plant_id = request.plant_id or DEFAULT_PLANT_ID
     payload = get_dashboard_payload(db, plant_id, request.section)

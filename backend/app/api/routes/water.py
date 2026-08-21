@@ -3,8 +3,9 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, File, HTTPException, Query, Response, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
 
+from app.auth.dependencies import require_roles
 from app.schemas.export import DailyWaterReportEmailRequest
 from app.schemas.water import WaterDashboardPayload, WaterSourceActivateResponse, WaterSourceInfo, WaterSourceValidation
 from app.services.email_service import EmailDeliveryError, EmailNotConfiguredError, ensure_smtp_configured, send_email_with_bytes_attachments
@@ -149,7 +150,7 @@ def download_daily_water_report_excel(date: Optional[str] = Query(None), start_d
     return Response(content=content, media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', headers={'Content-Disposition': f'attachment; filename="{filename}"'})
 
 
-@router.post('/reports/daily/email')
+@router.post('/reports/daily/email', dependencies=[Depends(require_roles('admin', 'operator'))])
 def email_daily_water_report(request: DailyWaterReportEmailRequest):
     try:
         ensure_smtp_configured()
@@ -200,17 +201,17 @@ def read_water_sources():
     return list_sources()
 
 
-@router.post('/sources/validate', response_model=WaterSourceValidation)
+@router.post('/sources/validate', response_model=WaterSourceValidation, dependencies=[Depends(require_roles('admin'))])
 async def validate_water_source(file: UploadFile = File(...)):
     return validate_source_data(await read_upload_json(file))
 
 
-@router.post('/sources/upload', response_model=WaterSourceInfo)
+@router.post('/sources/upload', response_model=WaterSourceInfo, dependencies=[Depends(require_roles('admin'))])
 async def upload_water_source(file: UploadFile = File(...), activate: bool = True):
     return await register_upload(file, activate=activate)
 
 
-@router.post('/sources/{source_id}/activate', response_model=WaterSourceActivateResponse)
+@router.post('/sources/{source_id}/activate', response_model=WaterSourceActivateResponse, dependencies=[Depends(require_roles('admin'))])
 def activate_water_source(source_id: str):
     source = activate_source(source_id)
     return WaterSourceActivateResponse(active_source=source, message='Fuente hídrica activada')

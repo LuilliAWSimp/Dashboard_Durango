@@ -1,7 +1,4 @@
-import axios from 'axios';
-
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1',
-});
-
-export default api;
+// Fuente canonica de runtime: api.js. Se reexporta para mantener una sola logica
+// mientras el proyecto termina de migrar sus consumidores a TypeScript.
+export { default } from './api.js';
+export * from './api.js';

@@ -12,17 +12,20 @@ export interface User {
   id?: ID;
   username?: string;
   name?: string;
+  display_name?: string;
+  is_active?: boolean;
+  is_locked?: boolean;
+  locked_until?: string | null;
+  last_login_at?: string | null;
   email?: string;
   role?: string;
   permissions?: string[];
   plantId?: ID;
   plantIds?: ID[];
-  token?: string;
   metadata?: FlexibleRecord;
 }
 
 export interface AuthState {
-  token: string | null;
   user: User | null;
   isAuthenticated?: boolean;
   isLoading?: boolean;

@@ -152,9 +152,10 @@ function ReportPreviewSection({ report, section }: { report: any; section: { key
   );
 }
 
-export default function ReportesSection() {
+export default function ReportesSection({ currentUser }: { currentUser?: { role?: string } | null }) {
   const today = todayInputDate();
   const { notify } = useNotifications();
+  const canEmail = currentUser?.role === 'admin' || currentUser?.role === 'operator';
   const [mode, setMode] = useState<ReportMode>('day');
   const [date, setDate] = useState(today);
   const [startDate, setStartDate] = useState(today);
@@ -238,6 +239,10 @@ export default function ReportesSection() {
   };
 
   const send = async () => {
+    if (!canEmail) {
+      notify({ tone: 'error', title: 'Acción no permitida', message: 'Su rol no permite enviar reportes por correo.' });
+      return;
+    }
     const selectedFormats = [formats.pdf ? 'pdf' : null, formats.xlsx ? 'xlsx' : null].filter(Boolean);
     if (!selectedFormats.length) {
       setEmailStatus('Selecciona al menos un formato para adjuntar.');
@@ -326,7 +331,7 @@ export default function ReportesSection() {
                 <button type="button" className="report-action-button primary-action" disabled={isBusy} onClick={() => void runExport('pdf')}><FileDown size={17} /> {exportAction === 'pdf' ? 'Generando PDF...' : 'Generar PDF'}</button>
                 <button type="button" className="report-action-button" disabled={isBusy} onClick={() => void runExport('xlsx')}><FileSpreadsheet size={17} /> {exportAction === 'xlsx' ? 'Generando Excel...' : 'Exportar Excel'}</button>
                 <button type="button" className="report-action-button" disabled={isBusy} onClick={() => void runExport('html')}><Eye size={17} /> {exportAction === 'html' ? 'Generando vista...' : 'Vista HTML'}</button>
-                <button type="button" className="report-action-button" disabled={sending} onClick={() => setEmailOpen(true)}><Mail size={17} /> Enviar por correo</button>
+                {canEmail ? <button type="button" className="report-action-button" disabled={sending} onClick={() => setEmailOpen(true)}><Mail size={17} /> Enviar por correo</button> : null}
               </div>
             </div>
           </div>
@@ -353,7 +358,7 @@ export default function ReportesSection() {
         </section>
       </> : !loading ? <ChartEmptyState message="Sin reporte cargado." /> : null}
 
-      {emailOpen ? <div className="modal-backdrop" onClick={() => setEmailOpen(false)}><div className="email-report-modal" onClick={(event) => event.stopPropagation()}>
+      {emailOpen && canEmail ? <div className="modal-backdrop" onClick={() => setEmailOpen(false)}><div className="email-report-modal" onClick={(event) => event.stopPropagation()}>
         <h3>Enviar Reporte Diario de Control Hídrico Durango</h3>
         <label>Para<input value={form.to} onChange={(event) => setForm({ ...form, to: event.target.value })} placeholder="correo@dominio.com" /></label>
         <label>CC<input value={form.cc} onChange={(event) => setForm({ ...form, cc: event.target.value })} placeholder="Opcional" /></label>

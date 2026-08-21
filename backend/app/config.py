@@ -1,4 +1,5 @@
 from functools import lru_cache
+from pathlib import Path
 from typing import List
 from urllib.parse import quote_plus
 
@@ -19,9 +20,29 @@ class Settings(BaseSettings):
     database_url: str = Field(default="sqlite:///./energy_dashboard.db", alias="DATABASE_URL")
     db_mode: str = Field(default="sqlserver", validation_alias=AliasChoices("DB_MODE", "DATABASE_MODE"))
     allowed_origins_raw: str = Field(
-        default="http://localhost:5173,http://127.0.0.1:5173",
+        default=(
+            "https://durango.dashboardrsrc.com.mx,"
+            "http://localhost:5173,"
+            "http://127.0.0.1:5173"
+        ),
         alias="ALLOWED_ORIGINS",
     )
+
+    # Autenticacion local independiente de Planta Durango.
+    auth_database_path: str = Field(default="data/auth.sqlite3", alias="AUTH_DATABASE_PATH")
+    auth_cookie_name: str = Field(default="arca_dgo_session", alias="AUTH_COOKIE_NAME")
+    auth_cookie_secure: bool = Field(default=True, alias="AUTH_COOKIE_SECURE")
+    auth_cookie_session_only: bool = Field(default=True, alias="AUTH_COOKIE_SESSION_ONLY")
+    auth_cookie_samesite: str = Field(default="lax", alias="AUTH_COOKIE_SAMESITE")
+    auth_session_idle_hours: int = Field(default=8, alias="AUTH_SESSION_IDLE_HOURS")
+    auth_session_absolute_hours: int = Field(default=12, alias="AUTH_SESSION_ABSOLUTE_HOURS")
+    auth_require_browser_session: bool = Field(
+        default=True,
+        validation_alias=AliasChoices("AUTH_REQUIRE_BROWSER_SESSION", "AUTH_REQUIRE_TAB_SESSION"),
+    )
+    auth_max_failed_attempts: int = Field(default=5, alias="AUTH_MAX_FAILED_ATTEMPTS")
+    auth_lock_minutes: int = Field(default=15, alias="AUTH_LOCK_MINUTES")
+    auth_csrf_header: str = Field(default="X-CSRF-Token", alias="AUTH_CSRF_HEADER")
 
     smtp_host: str = Field(default="smtp.office365.com", alias="SMTP_HOST")
     smtp_port: int = Field(default=587, alias="SMTP_PORT")
@@ -48,7 +69,29 @@ class Settings(BaseSettings):
 
     @property
     def allowed_origins(self) -> List[str]:
-        return [item.strip() for item in self.allowed_origins_raw.split(",") if item.strip()]
+        required_origins = [
+            "https://durango.dashboardrsrc.com.mx",
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+        ]
+        configured = [
+            item.strip().rstrip("/")
+            for item in self.allowed_origins_raw.split(",")
+            if item.strip() and item.strip() != "*"
+        ]
+        origins: List[str] = []
+        for origin in [*configured, *required_origins]:
+            if origin not in origins:
+                origins.append(origin)
+        return origins
+
+    @property
+    def auth_database_file(self) -> Path:
+        configured = Path(self.auth_database_path).expanduser()
+        if configured.is_absolute():
+            return configured
+        backend_root = Path(__file__).resolve().parents[1]
+        return (backend_root / configured).resolve()
 
     @property
     def resolved_database_url(self) -> str:
@@ -84,6 +127,7 @@ class Settings(BaseSettings):
             return f"mssql+pyodbc:///?odbc_connect={quote_plus(connection_string)}"
 
         return self.database_url
+
 
 @lru_cache
 def get_settings() -> Settings:

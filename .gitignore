@@ -21,3 +21,7 @@ frontend/dist/*
 # Node modules
 node_modules/
 node_modules
+backend/data/auth.sqlite3
+backend/data/auth.sqlite3-shm
+backend/data/auth.sqlite3-wal
+backend/data/*.bak

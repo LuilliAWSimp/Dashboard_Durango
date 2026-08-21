@@ -6969,3 +6969,171 @@ th { color: #c1d0e8; font-weight: 700; position: sticky; top: 0; background: #0f
   z-index: 140 !important;
   pointer-events: none;
 }
+
+/* Durango · autenticación local y administración de usuarios */
+.login-password-wrap {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.login-password-toggle {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 9px;
+  color: #a8dff3;
+  background: transparent;
+  cursor: pointer;
+}
+
+.login-password-toggle:hover,
+.login-password-toggle:focus-visible {
+  color: #ffffff;
+  background: rgba(14, 165, 233, .16);
+  outline: 2px solid rgba(56, 189, 248, .35);
+  outline-offset: 1px;
+}
+
+.login-info {
+  padding: 11px 13px;
+  border: 1px solid rgba(245, 158, 11, .35);
+  border-radius: 12px;
+  color: #fde68a;
+  background: rgba(120, 53, 15, .2);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.users-admin-header,
+.users-create-panel,
+.users-list-panel {
+  min-width: 0;
+}
+
+.users-create-form {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(160px, 1fr)) auto;
+  align-items: end;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.users-create-form label {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.users-create-form label > span {
+  color: #8fd8f4;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.users-create-form input,
+.users-create-form select,
+.users-table select,
+.users-inline-input {
+  min-height: 42px;
+  width: 100%;
+  border: 1px solid rgba(56, 189, 248, .26);
+  border-radius: 12px;
+  padding: 0 12px;
+  color: #effbff;
+  background: #061827;
+}
+
+.users-create-form input:focus-visible,
+.users-create-form select:focus-visible,
+.users-table select:focus-visible,
+.users-inline-input:focus-visible {
+  border-color: #38bdf8;
+  outline: 2px solid rgba(56, 189, 248, .24);
+  outline-offset: 1px;
+}
+
+.users-create-button {
+  min-height: 42px;
+  white-space: nowrap;
+}
+
+.users-status {
+  margin-top: 12px;
+}
+
+.users-list-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.users-table-wrap {
+  margin-top: 14px;
+  overflow-x: auto;
+  border: 1px solid rgba(56, 189, 248, .16);
+  border-radius: 14px;
+}
+
+.users-table {
+  width: 100%;
+  min-width: 1080px;
+  border-collapse: collapse;
+}
+
+.users-table th,
+.users-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(148, 163, 184, .12);
+  color: #dceef7;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.users-table th {
+  color: #8fd8f4;
+  background: rgba(2, 16, 29, .72);
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.users-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.users-table select {
+  min-height: 36px;
+  min-width: 130px;
+}
+
+.users-inline-input {
+  min-width: 180px;
+  min-height: 36px;
+}
+
+.users-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.users-row-actions .ghost-action {
+  min-height: 34px;
+  padding: 7px 10px;
+  font-size: 12px;
+}
+
+@media (max-width: 1100px) {
+  .users-create-form { grid-template-columns: repeat(2, minmax(180px, 1fr)); }
+  .users-create-button { width: fit-content; }
+}
+
+@media (max-width: 640px) {
+  .users-create-form { grid-template-columns: 1fr; }
+  .users-list-heading { flex-direction: column; }
+}
