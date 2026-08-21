@@ -31,6 +31,9 @@ class LoginResponse(BaseModel):
     browser_session: str
     csrf_token: str
     expires_at: str
+    # Solo se entrega para el modo local/BOS. En HTTPS permanece None y la
+    # autenticacion principal sigue exclusivamente en cookie HttpOnly.
+    local_session_token: str | None = None
 
 
 class MeResponse(BaseModel):

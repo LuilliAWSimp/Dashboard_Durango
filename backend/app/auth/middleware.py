@@ -1,14 +1,52 @@
 from __future__ import annotations
 
 import logging
+import ipaddress
 
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from app.config import get_settings
+
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 BROWSER_SESSION_HEADER = "X-ARCA-Browser-Session"
+LOCAL_SESSION_HEADER = "X-ARCA-Local-Session"
 USER_ACTIVITY_HEADER = "X-ARCA-User-Activity"
 logger = logging.getLogger(__name__)
+settings = get_settings()
+
+
+
+
+def _request_origin(request) -> str:
+    origin = (request.headers.get("origin") or "").strip().rstrip("/")
+    if not origin or origin.lower() == "null":
+        return ""
+    return origin
+
+
+def _is_loopback_client(request) -> bool:
+    host = request.client.host if request.client else ""
+    try:
+        return bool(host and ipaddress.ip_address(host).is_loopback)
+    except ValueError:
+        return host.lower() in {"localhost", "testclient"}
+
+
+def _bos_local_compat_request(request) -> bool:
+    if not settings.auth_bos_local_compat_mode:
+        return False
+    origin = _request_origin(request)
+    if origin and origin not in settings.auth_local_http_origins:
+        return False
+    if origin.lower().startswith("https://"):
+        return False
+    forwarded_proto = (request.headers.get("x-forwarded-proto") or "").split(",")[0].strip().lower()
+    if forwarded_proto == "https":
+        return False
+    if request.headers.get("cf-connecting-ip") or request.headers.get("cf-ray"):
+        return False
+    return _is_loopback_client(request) and request.url.scheme.lower() == "http"
 
 
 class LocalAuthMiddleware(BaseHTTPMiddleware):
@@ -42,20 +80,35 @@ class LocalAuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         service = request.app.state.auth_service
-        session_token = request.cookies.get(self.cookie_name)
+        bos_local_compat = _bos_local_compat_request(request)
+        raw_session_cookie = request.cookies.get(self.cookie_name)
+        local_session_header = request.headers.get(LOCAL_SESSION_HEADER) if bos_local_compat else None
+        embedded_browser_session = None
+        session_token = raw_session_cookie or local_session_header
+        if session_token and '~' in session_token:
+            session_token, embedded_browser_session = session_token.split('~', 1)
+
         # La cookie HttpOnly auxiliar permite que Blue Open Studio funcione aun
         # cuando su WebBrowser no soporte storage/BroadcastChannel de forma fiable.
         browser_session = (
             request.cookies.get(self.browser_cookie_name)
             or request.headers.get(BROWSER_SESSION_HEADER)
+            or embedded_browser_session
         )
-        session = service.get_session(session_token, browser_session)
+        session = service.get_session(
+            session_token,
+            browser_session,
+            require_browser_session=False if bos_local_compat else None,
+        )
         if not session:
-            logger.info(
-                'auth_session_rejected path=%s session_cookie=%s browser_binding=%s',
+            logger.warning(
+                'auth_session_rejected path=%s session_cookie=%s local_header=%s browser_binding=%s composite_cookie=%s bos_local_compat=%s',
                 path,
-                bool(session_token),
+                bool(raw_session_cookie),
+                bool(local_session_header),
                 bool(browser_session),
+                bool(embedded_browser_session),
+                bos_local_compat,
             )
             return JSONResponse(status_code=401, content={"detail": "Sesión no válida o expirada."})
 

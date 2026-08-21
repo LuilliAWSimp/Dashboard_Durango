@@ -42,6 +42,10 @@ class Settings(BaseSettings):
         default=True,
         validation_alias=AliasChoices("AUTH_REQUIRE_BROWSER_SESSION", "AUTH_REQUIRE_TAB_SESSION"),
     )
+    # Compatibilidad controlada para WebBrowser/Blue Open Studio en HTTP local.
+    # Solo relaja el browser binding en accesos locales; el dominio HTTPS conserva
+    # cookie Secure y binding completo.
+    auth_bos_local_compat_mode: bool = Field(default=True, alias="AUTH_BOS_LOCAL_COMPAT_MODE")
     auth_max_failed_attempts: int = Field(default=5, alias="AUTH_MAX_FAILED_ATTEMPTS")
     auth_lock_minutes: int = Field(default=15, alias="AUTH_LOCK_MINUTES")
     auth_csrf_header: str = Field(default="X-CSRF-Token", alias="AUTH_CSRF_HEADER")

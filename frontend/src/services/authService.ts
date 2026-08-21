@@ -1,4 +1,4 @@
-import api, { clearAuthSession, hasBrowserSession, setAuthSession, setCsrfToken } from './api';
+import api, { clearAuthSession, hasBrowserSession, setAuthSession, setBosLocalSessionToken, setCsrfToken } from './api';
 import type { User } from '../types';
 
 export { hasBrowserSession };
@@ -11,11 +11,13 @@ export interface LoginResponse {
   user: User;
   browser_session: string;
   csrf_token: string;
+  local_session_token?: string | null;
 }
 
 export interface CurrentSessionResponse {
   user: User;
   csrf_token: string;
+  local_session_token?: string | null;
 }
 
 export interface CreateUserPayload {
@@ -40,6 +42,7 @@ export async function getSetupStatus(): Promise<SetupStatusResponse> {
 export async function login(username: string, password: string): Promise<LoginResponse> {
   const { data } = await api.post<LoginResponse>('/auth/login', { username, password });
   setAuthSession(data.browser_session, data.csrf_token);
+  setBosLocalSessionToken(data.local_session_token || '');
   return data;
 }
 
