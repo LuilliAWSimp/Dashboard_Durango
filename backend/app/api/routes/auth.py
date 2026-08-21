@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ipaddress
+from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
@@ -43,7 +44,32 @@ def _client_ip(request: Request) -> str | None:
     return request.client.host if request.client else None
 
 
-def _set_session_cookie(response: Response, token: str) -> None:
+def _request_origin(request: Request) -> str:
+    origin = (request.headers.get('origin') or '').strip().rstrip('/')
+    if origin:
+        return origin
+    referer = (request.headers.get('referer') or '').strip()
+    if not referer:
+        return ''
+    try:
+        parsed = urlsplit(referer)
+    except ValueError:
+        return ''
+    if not parsed.scheme or not parsed.netloc:
+        return ''
+    return f"{parsed.scheme}://{parsed.netloc}".rstrip('/')
+
+
+def _cookie_secure_for_request(request: Request) -> bool:
+    # Produccion continua usando Secure. La excepcion se limita a origenes HTTP
+    # locales/LAN declarados de forma explicita para BOS WebBrowser y pruebas.
+    origin = _request_origin(request)
+    if origin and origin in settings.auth_local_http_origins:
+        return False
+    return settings.auth_cookie_secure
+
+
+def _set_session_cookie(request: Request, response: Response, token: str) -> None:
     cookie_options: dict[str, int] = {}
     if not settings.auth_cookie_session_only:
         cookie_options['max_age'] = settings.auth_session_absolute_hours * 3600
@@ -51,7 +77,7 @@ def _set_session_cookie(response: Response, token: str) -> None:
         key=settings.auth_cookie_name,
         value=token,
         httponly=True,
-        secure=settings.auth_cookie_secure,
+        secure=_cookie_secure_for_request(request),
         samesite=settings.auth_cookie_samesite,
         path='/',
         **cookie_options,
@@ -80,7 +106,7 @@ def login(payload: LoginRequest, request: Request, response: Response):
         )
     except (InvalidCredentialsError, AccountLockedError, InactiveUserError) as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Usuario o contraseña incorrectos.') from exc
-    _set_session_cookie(response, session.token)
+    _set_session_cookie(request, response, session.token)
     return LoginResponse(
         user=AuthUser(**session.user),
         browser_session=session.browser_session,
@@ -105,7 +131,7 @@ def logout(request: Request, response: Response):
     response.delete_cookie(
         key=settings.auth_cookie_name,
         path='/',
-        secure=settings.auth_cookie_secure,
+        secure=_cookie_secure_for_request(request),
         httponly=True,
         samesite=settings.auth_cookie_samesite,
     )

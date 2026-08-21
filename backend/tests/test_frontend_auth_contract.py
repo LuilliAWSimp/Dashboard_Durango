@@ -53,9 +53,26 @@ class FrontendAuthContractTests(unittest.TestCase):
         self.assertIn("currentUser?.role === 'admin' || currentUser?.role === 'operator'", source)
         self.assertIn('canEmail ?', source)
 
-    def test_servicios_ts_reexportan_runtime_js_para_evitar_deriva(self):
-        self.assertIn("export * from './authService.js'", self.read('frontend/src/services/authService.ts'))
-        self.assertIn("export { default } from './api.js'", self.read('frontend/src/services/api.ts'))
+    def test_servicios_ts_conservan_contrato_del_runtime_sin_reexports_circulares(self):
+        auth_ts = self.read('frontend/src/services/authService.ts')
+        api_ts = self.read('frontend/src/services/api.ts')
+        for symbol in (
+            'getSetupStatus', 'login', 'getCurrentSession', 'logout',
+            'listUsers', 'createUser', 'updateUser', 'resetUserPassword', 'revokeUserSessions',
+        ):
+            self.assertIn(f'function {symbol}', auth_ts)
+        self.assertIn('withCredentials: true', api_ts)
+        self.assertIn('X-ARCA-Browser-Session', api_ts)
+        self.assertIn('X-CSRF-Token', api_ts)
+        self.assertNotIn("export { default } from './api.js'", api_ts)
+        self.assertNotIn("export * from './authService.js'", auth_ts)
+
+    def test_webview_tiene_fallback_de_storage_y_broadcastchannel(self):
+        source = self.read('frontend/src/services/api.js')
+        self.assertIn('safeStorage', source)
+        self.assertIn('memoryStorage', source)
+        self.assertIn("tabStorage?.setItem", source)
+        self.assertIn('createAuthChannel', source)
 
 
 if __name__ == '__main__':

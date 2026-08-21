@@ -43,15 +43,20 @@ AUTH_REQUIRE_BROWSER_SESSION=true
 AUTH_MAX_FAILED_ATTEMPTS=5
 AUTH_LOCK_MINUTES=15
 AUTH_CSRF_HEADER=X-CSRF-Token
-ALLOWED_ORIGINS=https://durango.dashboardrsrc.com.mx,http://localhost:5173,http://127.0.0.1:5173
+ALLOWED_ORIGINS=https://durango.dashboardrsrc.com.mx,http://localhost:5173,http://127.0.0.1:5173,http://100.102.159.109:5173
+AUTH_LOCAL_HTTP_ORIGINS=http://localhost:5173,http://127.0.0.1:5173,http://100.102.159.109:5173
 ```
 
 `AUTH_REQUIRE_TAB_SESSION` se acepta temporalmente como alias de compatibilidad, pero el nombre recomendado es `AUTH_REQUIRE_BROWSER_SESSION`.
 
-### HTTPS y desarrollo local
+### HTTPS, BOS WebBrowser y acceso local
 
-- Dominio real `https://durango.dashboardrsrc.com.mx`: `AUTH_COOKIE_SECURE=true`.
-- Desarrollo estrictamente local mediante `http://localhost:5173`: usar `AUTH_COOKIE_SECURE=false` sólo en el `.env` local.
+- Dominio real `https://durango.dashboardrsrc.com.mx`: la cookie permanece `Secure`.
+- `http://localhost:5173`, `http://127.0.0.1:5173` y la IP LAN autorizada pueden usar una cookie host-only sin `Secure` exclusivamente para esa sesión HTTP local.
+- No es necesario cambiar globalmente `AUTH_COOKIE_SECURE=false`; producción conserva `AUTH_COOKIE_SECURE=true`.
+- La excepción HTTP se limita a `AUTH_LOCAL_HTTP_ORIGINS`; no acepta comodines.
+
+Esto permite que el widget WebBrowser de Blue Open Studio abra `http://localhost:5173` sin quedar atrapado en Login por rechazo de una cookie `Secure`. El frontend también tiene fallback seguro de almacenamiento para WebViews que restrinjan `localStorage` o `BroadcastChannel`.
 
 Con Cloudflare + Vite, el navegador accede por HTTPS al frontend y Vite puede seguir proxyando `/api` hacia `http://127.0.0.1:8000`.
 
@@ -96,6 +101,7 @@ Orígenes admitidos explícitamente:
 - `https://durango.dashboardrsrc.com.mx`
 - `http://localhost:5173`
 - `http://127.0.0.1:5173`
+- `http://100.102.159.109:5173`
 
 No se usa `*` porque las solicitudes llevan credenciales. CORS es la capa exterior de usuario y cubre también respuestas 401, 403, 422 y errores 500 transformados por el boundary interno. `OPTIONS` no exige sesión ni CSRF.
 

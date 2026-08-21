@@ -23,7 +23,8 @@ class Settings(BaseSettings):
         default=(
             "https://durango.dashboardrsrc.com.mx,"
             "http://localhost:5173,"
-            "http://127.0.0.1:5173"
+            "http://127.0.0.1:5173,"
+            "http://100.102.159.109:5173"
         ),
         alias="ALLOWED_ORIGINS",
     )
@@ -43,6 +44,16 @@ class Settings(BaseSettings):
     auth_max_failed_attempts: int = Field(default=5, alias="AUTH_MAX_FAILED_ATTEMPTS")
     auth_lock_minutes: int = Field(default=15, alias="AUTH_LOCK_MINUTES")
     auth_csrf_header: str = Field(default="X-CSRF-Token", alias="AUTH_CSRF_HEADER")
+    # Origenes HTTP locales autorizados para clientes embebidos (BOS/WebBrowser)
+    # y acceso LAN. La cookie sigue siendo Secure en el dominio HTTPS de Durango.
+    auth_local_http_origins_raw: str = Field(
+        default=(
+            "http://localhost:5173,"
+            "http://127.0.0.1:5173,"
+            "http://100.102.159.109:5173"
+        ),
+        alias="AUTH_LOCAL_HTTP_ORIGINS",
+    )
 
     smtp_host: str = Field(default="smtp.office365.com", alias="SMTP_HOST")
     smtp_port: int = Field(default=587, alias="SMTP_PORT")
@@ -73,6 +84,7 @@ class Settings(BaseSettings):
             "https://durango.dashboardrsrc.com.mx",
             "http://localhost:5173",
             "http://127.0.0.1:5173",
+            "http://100.102.159.109:5173",
         ]
         configured = [
             item.strip().rstrip("/")
@@ -84,6 +96,17 @@ class Settings(BaseSettings):
             if origin not in origins:
                 origins.append(origin)
         return origins
+
+    @property
+    def auth_local_http_origins(self) -> List[str]:
+        allowed = []
+        for item in self.auth_local_http_origins_raw.split(","):
+            origin = item.strip().rstrip("/")
+            if not origin or origin == "*" or not origin.lower().startswith("http://"):
+                continue
+            if origin not in allowed:
+                allowed.append(origin)
+        return allowed
 
     @property
     def auth_database_file(self) -> Path:

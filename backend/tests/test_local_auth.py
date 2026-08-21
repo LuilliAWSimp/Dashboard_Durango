@@ -34,6 +34,8 @@ from app.auth.service import (
 COOKIE_NAME = 'arca_dgo_session'
 CSRF_HEADER = 'X-CSRF-Token'
 ORIGIN = 'https://durango.dashboardrsrc.com.mx'
+LOCAL_ORIGIN = 'http://localhost:5173'
+LAN_ORIGIN = 'http://100.102.159.109:5173'
 ADMIN_PASSWORD = 'Administrador2026!'
 VIEWER_PASSWORD = 'Consulta2026!'
 OPERATOR_PASSWORD = 'Operador2026!'
@@ -88,7 +90,7 @@ class LocalAuthTests(unittest.TestCase):
         app.add_middleware(ApiExceptionBoundaryMiddleware)
         app.add_middleware(
             CORSMiddleware,
-            allow_origins=[ORIGIN, 'http://localhost:5173', 'http://127.0.0.1:5173'],
+            allow_origins=[ORIGIN, LOCAL_ORIGIN, 'http://127.0.0.1:5173', LAN_ORIGIN],
             allow_credentials=True,
             allow_methods=['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
             allow_headers=['Accept', 'Content-Type', CSRF_HEADER, BROWSER_SESSION_HEADER, USER_ACTIVITY_HEADER],
@@ -165,6 +167,33 @@ class LocalAuthTests(unittest.TestCase):
         client = TestClient(self.build_app(), base_url='https://testserver')
         response = client.post('/api/v1/auth/login', json={'username': 'adminlocal', 'password': ADMIN_PASSWORD})
         self.assertIn('secure', response.headers['set-cookie'].lower())
+
+    def test_cookie_local_http_no_secure_sin_debilitar_https(self):
+        auth_routes.settings.auth_cookie_secure = True
+        client = TestClient(self.build_app())
+        local = client.post(
+            '/api/v1/auth/login',
+            json={'username': 'adminlocal', 'password': ADMIN_PASSWORD},
+            headers={'Origin': LOCAL_ORIGIN},
+        )
+        self.assertEqual(local.status_code, 200)
+        self.assertNotIn('secure', local.headers['set-cookie'].lower())
+
+        lan = TestClient(self.build_app()).post(
+            '/api/v1/auth/login',
+            json={'username': 'adminlocal', 'password': ADMIN_PASSWORD},
+            headers={'Origin': LAN_ORIGIN},
+        )
+        self.assertEqual(lan.status_code, 200)
+        self.assertNotIn('secure', lan.headers['set-cookie'].lower())
+
+        production = TestClient(self.build_app(), base_url='https://testserver').post(
+            '/api/v1/auth/login',
+            json={'username': 'adminlocal', 'password': ADMIN_PASSWORD},
+            headers={'Origin': ORIGIN},
+        )
+        self.assertEqual(production.status_code, 200)
+        self.assertIn('secure', production.headers['set-cookie'].lower())
 
     def test_login_incorrecto_usuario_inactivo_y_bloqueo(self):
         with self.assertRaises(InvalidCredentialsError):
@@ -307,6 +336,18 @@ class LocalAuthTests(unittest.TestCase):
         self.assertEqual(preflight.status_code, 200)
         self.assertEqual(preflight.headers.get('access-control-allow-origin'), ORIGIN)
         self.assertEqual(preflight.headers.get('access-control-allow-credentials'), 'true')
+
+        lan_preflight = client.options(
+            '/api/v1/auth/me',
+            headers={
+                'Origin': LAN_ORIGIN,
+                'Access-Control-Request-Method': 'GET',
+                'Access-Control-Request-Headers': f'{BROWSER_SESSION_HEADER},{CSRF_HEADER}',
+            },
+        )
+        self.assertEqual(lan_preflight.status_code, 200)
+        self.assertEqual(lan_preflight.headers.get('access-control-allow-origin'), LAN_ORIGIN)
+        self.assertEqual(lan_preflight.headers.get('access-control-allow-credentials'), 'true')
 
         public = client.get('/api/v1/auth/setup-status', headers={'Origin': ORIGIN})
         self.assertEqual(public.status_code, 200)

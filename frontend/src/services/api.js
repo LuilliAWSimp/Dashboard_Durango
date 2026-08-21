@@ -12,22 +12,43 @@ const LEGACY_USER_KEY = 'siem_demo_user';
 const AUTH_CHANNEL = 'arca-dgo-auth';
 const USER_ACTIVITY_WINDOW_MS = 30_000;
 
-const sharedStorage = typeof window !== 'undefined' ? window.localStorage : undefined;
-const tabStorage = typeof window !== 'undefined' ? window.sessionStorage : undefined;
-const authChannel = typeof window !== 'undefined' && 'BroadcastChannel' in window
-  ? new BroadcastChannel(AUTH_CHANNEL)
-  : null;
+function safeStorage(kind) {
+  if (typeof window === 'undefined') return undefined;
+  try { return window[kind]; } catch { return undefined; }
+}
+
+function createAuthChannel() {
+  if (typeof window === 'undefined' || !('BroadcastChannel' in window)) return null;
+  try { return new BroadcastChannel(AUTH_CHANNEL); } catch { return null; }
+}
+
+const sharedStorage = safeStorage('localStorage');
+const tabStorage = safeStorage('sessionStorage');
+const authChannel = createAuthChannel();
+const memoryStorage = new Map();
 
 function readSharedValue(key) {
-  try { return sharedStorage?.getItem(key) || ''; } catch { return ''; }
+  try {
+    const value = sharedStorage?.getItem(key);
+    if (value) return value;
+  } catch { /* continuar con fallback */ }
+  try {
+    const value = tabStorage?.getItem(key);
+    if (value) return value;
+  } catch { /* continuar con fallback */ }
+  return memoryStorage.get(key) || '';
 }
 
 function writeSharedValue(key, value) {
-  try { sharedStorage?.setItem(key, value); } catch { /* memoria de la pestaña sigue funcionando */ }
+  memoryStorage.set(key, value);
+  try { sharedStorage?.setItem(key, value); } catch { /* fallback abajo */ }
+  try { tabStorage?.setItem(key, value); } catch { /* memoria mantiene la sesión de esta vista */ }
 }
 
 function removeSharedValue(key) {
+  memoryStorage.delete(key);
   try { sharedStorage?.removeItem(key); } catch { /* sin acción */ }
+  try { tabStorage?.removeItem(key); } catch { /* sin acción */ }
 }
 
 function postAuthMessage(message) {
