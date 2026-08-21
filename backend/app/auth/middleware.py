@@ -14,10 +14,11 @@ logger = logging.getLogger(__name__)
 class LocalAuthMiddleware(BaseHTTPMiddleware):
     """Valida sesion/CSRF para toda la API y aplica denegacion segura por defecto."""
 
-    def __init__(self, app, *, api_prefix: str, cookie_name: str, csrf_header: str):
+    def __init__(self, app, *, api_prefix: str, cookie_name: str, browser_cookie_name: str, csrf_header: str):
         super().__init__(app)
         self.api_prefix = api_prefix.rstrip("/")
         self.cookie_name = cookie_name
+        self.browser_cookie_name = browser_cookie_name
         self.csrf_header = csrf_header
         self.public_paths = {
             "/",
@@ -41,11 +42,21 @@ class LocalAuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         service = request.app.state.auth_service
-        session = service.get_session(
-            request.cookies.get(self.cookie_name),
-            request.headers.get(BROWSER_SESSION_HEADER),
+        session_token = request.cookies.get(self.cookie_name)
+        # La cookie HttpOnly auxiliar permite que Blue Open Studio funcione aun
+        # cuando su WebBrowser no soporte storage/BroadcastChannel de forma fiable.
+        browser_session = (
+            request.cookies.get(self.browser_cookie_name)
+            or request.headers.get(BROWSER_SESSION_HEADER)
         )
+        session = service.get_session(session_token, browser_session)
         if not session:
+            logger.info(
+                'auth_session_rejected path=%s session_cookie=%s browser_binding=%s',
+                path,
+                bool(session_token),
+                bool(browser_session),
+            )
             return JSONResponse(status_code=401, content={"detail": "Sesión no válida o expirada."})
 
         user = session["user"]

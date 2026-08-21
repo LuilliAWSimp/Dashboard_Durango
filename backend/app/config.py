@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     # Autenticacion local independiente de Planta Durango.
     auth_database_path: str = Field(default="data/auth.sqlite3", alias="AUTH_DATABASE_PATH")
     auth_cookie_name: str = Field(default="arca_dgo_session", alias="AUTH_COOKIE_NAME")
+    auth_browser_cookie_name: str = Field(default="arca_dgo_browser_session", alias="AUTH_BROWSER_COOKIE_NAME")
     auth_cookie_secure: bool = Field(default=True, alias="AUTH_COOKIE_SECURE")
     auth_cookie_session_only: bool = Field(default=True, alias="AUTH_COOKIE_SESSION_ONLY")
     auth_cookie_samesite: str = Field(default="lax", alias="AUTH_COOKIE_SAMESITE")

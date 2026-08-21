@@ -34,6 +34,7 @@ Agregar al `.env` real de Durango únicamente si no existen ya estas variables. 
 ```env
 AUTH_DATABASE_PATH=data/auth.sqlite3
 AUTH_COOKIE_NAME=arca_dgo_session
+AUTH_BROWSER_COOKIE_NAME=arca_dgo_browser_session
 AUTH_COOKIE_SECURE=true
 AUTH_COOKIE_SESSION_ONLY=true
 AUTH_COOKIE_SAMESITE=lax
@@ -56,7 +57,9 @@ AUTH_LOCAL_HTTP_ORIGINS=http://localhost:5173,http://127.0.0.1:5173,http://100.1
 - No es necesario cambiar globalmente `AUTH_COOKIE_SECURE=false`; producción conserva `AUTH_COOKIE_SECURE=true`.
 - La excepción HTTP se limita a `AUTH_LOCAL_HTTP_ORIGINS`; no acepta comodines.
 
-Esto permite que el widget WebBrowser de Blue Open Studio abra `http://localhost:5173` sin quedar atrapado en Login por rechazo de una cookie `Secure`. El frontend también tiene fallback seguro de almacenamiento para WebViews que restrinjan `localStorage` o `BroadcastChannel`.
+Esto permite que el widget WebBrowser de Blue Open Studio abra `http://localhost:5173` sin quedar atrapado en Login por rechazo de una cookie `Secure`. Además, el backend emite un binding auxiliar HttpOnly (`arca_dgo_browser_session`) y lo acepta como fallback cuando el WebBrowser no conserva `localStorage` o no envía `X-ARCA-Browser-Session`. El token principal continúa exclusivamente en `arca_dgo_session`.
+
+Si BOS omite `Origin` y `Referer`, el backend detecta el proxy local por loopback siempre que no existan señales de Cloudflare/HTTPS. En ese caso únicamente esa sesión local HTTP usa cookies sin `Secure`; el dominio público sigue usando `Secure`.
 
 Con Cloudflare + Vite, el navegador accede por HTTPS al frontend y Vite puede seguir proxyando `/api` hacia `http://127.0.0.1:8000`.
 

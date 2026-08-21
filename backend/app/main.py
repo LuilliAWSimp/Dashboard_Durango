@@ -47,6 +47,7 @@ app.add_middleware(
     LocalAuthMiddleware,
     api_prefix=settings.api_v1_prefix,
     cookie_name=settings.auth_cookie_name,
+    browser_cookie_name=settings.auth_browser_cookie_name,
     csrf_header=settings.auth_csrf_header,
 )
 app.add_middleware(ApiExceptionBoundaryMiddleware)

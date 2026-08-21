@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ipaddress
+import logging
 from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
@@ -28,6 +29,7 @@ from app.schemas.auth import (
 
 router = APIRouter(prefix='/auth', tags=['auth'])
 settings = get_settings()
+logger = logging.getLogger(__name__)
 _admin_required = Depends(require_roles('admin'))
 
 
@@ -60,27 +62,84 @@ def _request_origin(request: Request) -> str:
     return f"{parsed.scheme}://{parsed.netloc}".rstrip('/')
 
 
-def _cookie_secure_for_request(request: Request) -> bool:
-    # Produccion continua usando Secure. La excepcion se limita a origenes HTTP
-    # locales/LAN declarados de forma explicita para BOS WebBrowser y pruebas.
+def _cookie_secure_for_request(request: Request) -> tuple[bool, str]:
+    """Decide Secure sin depender exclusivamente de Origin/Referer.
+
+    Blue Open Studio puede omitir ambos encabezados. Cuando la peticion llega por
+    el proxy local de Vite desde loopback y no hay senales de Cloudflare/HTTPS,
+    se trata como acceso HTTP local. El dominio publico conserva Secure.
+    """
     origin = _request_origin(request)
-    if origin and origin in settings.auth_local_http_origins:
-        return False
-    return settings.auth_cookie_secure
+    if origin:
+        if origin in settings.auth_local_http_origins:
+            return False, 'explicit_local_http_origin'
+        if origin.lower().startswith('https://'):
+            return settings.auth_cookie_secure, 'explicit_https_origin'
+
+    forwarded_proto = (request.headers.get('x-forwarded-proto') or '').split(',')[0].strip().lower()
+    if forwarded_proto == 'https':
+        return settings.auth_cookie_secure, 'forwarded_https'
+
+    if request.headers.get('cf-connecting-ip') or request.headers.get('cf-ray'):
+        return settings.auth_cookie_secure, 'cloudflare'
+
+    client_host = request.client.host if request.client else ''
+    try:
+        is_loopback = bool(client_host and ipaddress.ip_address(client_host).is_loopback)
+    except ValueError:
+        is_loopback = client_host.lower() in {'localhost', 'testclient'}
+
+    if not origin and is_loopback and request.url.scheme.lower() == 'http' and forwarded_proto != 'https':
+        return False, 'loopback_without_browser_origin'
+
+    return settings.auth_cookie_secure, 'default'
 
 
-def _set_session_cookie(request: Request, response: Response, token: str) -> None:
+def _set_auth_cookie(
+    response: Response,
+    *,
+    key: str,
+    value: str,
+    secure: bool,
+) -> None:
     cookie_options: dict[str, int] = {}
     if not settings.auth_cookie_session_only:
         cookie_options['max_age'] = settings.auth_session_absolute_hours * 3600
     response.set_cookie(
-        key=settings.auth_cookie_name,
-        value=token,
+        key=key,
+        value=value,
         httponly=True,
-        secure=_cookie_secure_for_request(request),
+        secure=secure,
         samesite=settings.auth_cookie_samesite,
         path='/',
         **cookie_options,
+    )
+
+
+def _set_session_cookies(
+    request: Request,
+    response: Response,
+    *,
+    token: str,
+    browser_session: str,
+) -> None:
+    secure, policy_source = _cookie_secure_for_request(request)
+    _set_auth_cookie(response, key=settings.auth_cookie_name, value=token, secure=secure)
+    # Fallback HttpOnly para WebBrowser/BOS que no conserva localStorage o no
+    # envia X-ARCA-Browser-Session. No sustituye a la cookie principal.
+    _set_auth_cookie(
+        response,
+        key=settings.auth_browser_cookie_name,
+        value=browser_session,
+        secure=secure,
+    )
+    logger.info(
+        'auth_cookie_policy secure=%s source=%s client=%s origin_present=%s forwarded_proto=%s',
+        secure,
+        policy_source,
+        request.client.host if request.client else 'unknown',
+        bool(_request_origin(request)),
+        (request.headers.get('x-forwarded-proto') or '').split(',')[0].strip().lower() or 'missing',
     )
 
 
@@ -106,7 +165,12 @@ def login(payload: LoginRequest, request: Request, response: Response):
         )
     except (InvalidCredentialsError, AccountLockedError, InactiveUserError) as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Usuario o contraseña incorrectos.') from exc
-    _set_session_cookie(request, response, session.token)
+    _set_session_cookies(
+        request,
+        response,
+        token=session.token,
+        browser_session=session.browser_session,
+    )
     return LoginResponse(
         user=AuthUser(**session.user),
         browser_session=session.browser_session,
@@ -128,13 +192,15 @@ def me(request: Request):
 @router.post('/logout')
 def logout(request: Request, response: Response):
     request.app.state.auth_service.revoke_session(int(request.state.auth_session['id']))
-    response.delete_cookie(
-        key=settings.auth_cookie_name,
-        path='/',
-        secure=_cookie_secure_for_request(request),
-        httponly=True,
-        samesite=settings.auth_cookie_samesite,
-    )
+    secure, _ = _cookie_secure_for_request(request)
+    for cookie_name in (settings.auth_cookie_name, settings.auth_browser_cookie_name):
+        response.delete_cookie(
+            key=cookie_name,
+            path='/',
+            secure=secure,
+            httponly=True,
+            samesite=settings.auth_cookie_samesite,
+        )
     return {'message': 'Sesión cerrada.'}
 
 

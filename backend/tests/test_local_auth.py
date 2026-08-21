@@ -32,6 +32,7 @@ from app.auth.service import (
 )
 
 COOKIE_NAME = 'arca_dgo_session'
+BROWSER_COOKIE_NAME = 'arca_dgo_browser_session'
 CSRF_HEADER = 'X-CSRF-Token'
 ORIGIN = 'https://durango.dashboardrsrc.com.mx'
 LOCAL_ORIGIN = 'http://localhost:5173'
@@ -63,16 +64,19 @@ class LocalAuthTests(unittest.TestCase):
             role='admin',
         )
         self.original_cookie_name = auth_routes.settings.auth_cookie_name
+        self.original_browser_cookie_name = auth_routes.settings.auth_browser_cookie_name
         self.original_cookie_secure = auth_routes.settings.auth_cookie_secure
         self.original_cookie_session_only = auth_routes.settings.auth_cookie_session_only
         self.original_cookie_samesite = auth_routes.settings.auth_cookie_samesite
         auth_routes.settings.auth_cookie_name = COOKIE_NAME
+        auth_routes.settings.auth_browser_cookie_name = BROWSER_COOKIE_NAME
         auth_routes.settings.auth_cookie_secure = False
         auth_routes.settings.auth_cookie_session_only = True
         auth_routes.settings.auth_cookie_samesite = 'lax'
 
     def tearDown(self):
         auth_routes.settings.auth_cookie_name = self.original_cookie_name
+        auth_routes.settings.auth_browser_cookie_name = self.original_browser_cookie_name
         auth_routes.settings.auth_cookie_secure = self.original_cookie_secure
         auth_routes.settings.auth_cookie_session_only = self.original_cookie_session_only
         auth_routes.settings.auth_cookie_samesite = self.original_cookie_samesite
@@ -85,6 +89,7 @@ class LocalAuthTests(unittest.TestCase):
             LocalAuthMiddleware,
             api_prefix='/api/v1',
             cookie_name=COOKIE_NAME,
+            browser_cookie_name=BROWSER_COOKIE_NAME,
             csrf_header=CSRF_HEADER,
         )
         app.add_middleware(ApiExceptionBoundaryMiddleware)
@@ -157,6 +162,8 @@ class LocalAuthTests(unittest.TestCase):
         self.assertTrue(payload['browser_session'])
         self.assertTrue(payload['csrf_token'])
         cookie = response.headers['set-cookie'].lower()
+        self.assertIn(f'{COOKIE_NAME}=', cookie)
+        self.assertIn(f'{BROWSER_COOKIE_NAME}=', cookie)
         self.assertIn('httponly', cookie)
         self.assertIn('samesite=lax', cookie)
         self.assertNotIn('max-age', cookie)
@@ -194,6 +201,35 @@ class LocalAuthTests(unittest.TestCase):
         )
         self.assertEqual(production.status_code, 200)
         self.assertIn('secure', production.headers['set-cookie'].lower())
+
+    def test_bos_sin_origin_en_loopback_recibe_cookie_http_y_binding_cookie(self):
+        auth_routes.settings.auth_cookie_secure = True
+        client = TestClient(self.build_app(), client=('127.0.0.1', 50000))
+        response = client.post(
+            '/api/v1/auth/login',
+            json={'username': 'adminlocal', 'password': ADMIN_PASSWORD},
+        )
+        self.assertEqual(response.status_code, 200)
+        cookie = response.headers['set-cookie'].lower()
+        self.assertIn(f'{COOKIE_NAME}=', cookie)
+        self.assertIn(f'{BROWSER_COOKIE_NAME}=', cookie)
+        self.assertNotIn('secure', cookie)
+        # Sin X-ARCA-Browser-Session: el middleware usa el binding HttpOnly.
+        self.assertEqual(client.get('/api/v1/dashboard').status_code, 200)
+
+    def test_dominio_https_mantiene_secure_en_ambas_cookies(self):
+        auth_routes.settings.auth_cookie_secure = True
+        client = TestClient(self.build_app(), base_url='https://testserver')
+        response = client.post(
+            '/api/v1/auth/login',
+            json={'username': 'adminlocal', 'password': ADMIN_PASSWORD},
+            headers={'Origin': ORIGIN, 'X-Forwarded-Proto': 'https'},
+        )
+        self.assertEqual(response.status_code, 200)
+        cookie = response.headers['set-cookie'].lower()
+        self.assertIn(f'{COOKIE_NAME}=', cookie)
+        self.assertIn(f'{BROWSER_COOKIE_NAME}=', cookie)
+        self.assertGreaterEqual(cookie.count('secure'), 2)
 
     def test_login_incorrecto_usuario_inactivo_y_bloqueo(self):
         with self.assertRaises(InvalidCredentialsError):
