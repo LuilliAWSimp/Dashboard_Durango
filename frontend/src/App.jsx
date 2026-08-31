@@ -11,6 +11,15 @@ import { fetchWaterDashboard } from './services/waterService';
 import { NotificationProvider } from './pages/pozos/components/NotificationCenter';
 
 const DEFAULT_POZOS_SECTION = 'dashboard';
+const DURANGO_THEME_STORAGE_KEY = 'arca-durango-theme';
+
+function getStoredDurangoTheme() {
+  try {
+    return window.localStorage.getItem(DURANGO_THEME_STORAGE_KEY) === 'light' ? 'light' : 'dark';
+  } catch {
+    return 'dark';
+  }
+}
 
 const POZOS_MENU_ITEMS = [
   { key: 'dashboard', label: 'Resumen', iconKey: 'pozos-dashboard' },
@@ -76,7 +85,7 @@ function InitialPlantLoader({ status = 'loading', error, onRetry, onSkip }) {
   );
 }
 
-function Shell({ user, onLogout, sidebarProps, children, headerMeta, shellClass = '' }) {
+function Shell({ user, onLogout, sidebarProps, children, headerMeta, shellClass = '', theme = 'dark', onThemeToggle }) {
   const [clock, setClock] = useState(nowText());
   useEffect(() => {
     const interval = setInterval(() => setClock(nowText()), 1000);
@@ -84,8 +93,8 @@ function Shell({ user, onLogout, sidebarProps, children, headerMeta, shellClass 
   }, []);
 
   return (
-    <div className={`app-shell ${shellClass}`.trim()}>
-      <Sidebar {...sidebarProps} />
+    <div className={`app-shell ${shellClass} theme-${theme}`.trim()} data-theme={theme}>
+      <Sidebar {...sidebarProps} theme={theme} onThemeToggle={onThemeToggle} />
       <div className="main-shell">
         <Header title={headerMeta.title} subtitle={headerMeta.subtitle} now={clock} onExport={headerMeta.onExport} onEmail={headerMeta.onEmail} user={user} onLogout={onLogout} />
         <div className="plant-context-bar" aria-label="Nombre de planta"><span>{PLANT_NAME}</span></div>
@@ -98,6 +107,7 @@ function Shell({ user, onLogout, sidebarProps, children, headerMeta, shellClass 
 function PozosShell({ user, onLogout }) {
   const { section = DEFAULT_POZOS_SECTION, itemId } = useParams();
   const [collapsed, setCollapsed] = useState(true);
+  const [theme, setTheme] = useState(getStoredDurangoTheme);
   const [preloadState, setPreloadState] = useState({ status: 'loading', error: '' });
   const [headerMeta, setHeaderMeta] = useState({ title: 'Resumen hídrico', subtitle: '', onExport: () => {}, onEmail: () => {} });
 
@@ -117,6 +127,23 @@ function PozosShell({ user, onLogout }) {
 
   useEffect(() => { runPreload(); }, []);
 
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(DURANGO_THEME_STORAGE_KEY, theme);
+    } catch {
+      // La preferencia visual no debe bloquear la operación del dashboard.
+    }
+  }, [theme]);
+
+  useEffect(() => {
+    const syncTheme = (event) => {
+      if (event.key !== DURANGO_THEME_STORAGE_KEY) return;
+      setTheme(event.newValue === 'light' ? 'light' : 'dark');
+    };
+    window.addEventListener('storage', syncTheme);
+    return () => window.removeEventListener('storage', syncTheme);
+  }, []);
+
   if (preloadState.status !== 'ready') {
     return <InitialPlantLoader status={preloadState.status} error={preloadState.error} onRetry={runPreload} onSkip={() => setPreloadState({ status: 'ready', error: '' })} />;
   }
@@ -128,6 +155,8 @@ function PozosShell({ user, onLogout }) {
         onLogout={onLogout}
         headerMeta={headerMeta}
         shellClass="pozos-shell"
+        theme={theme}
+        onThemeToggle={() => setTheme((value) => value === 'dark' ? 'light' : 'dark')}
         sidebarProps={{
           collapsed,
           onToggle: () => setCollapsed((value) => !value),

@@ -19,6 +19,8 @@ import {
   Waves,
   UsersRound,
   ShieldCheck,
+  Sun,
+  Moon,
   type LucideIcon,
 } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
@@ -74,6 +76,8 @@ export interface SidebarProps {
   brandSubtitle?: string;
   domainSwitchPath?: string;
   domainSwitchLabel?: string;
+  theme?: 'dark' | 'light';
+  onThemeToggle?: () => void;
 }
 
 export default function Sidebar({
@@ -85,6 +89,8 @@ export default function Sidebar({
   brandSubtitle = '',
   domainSwitchPath,
   domainSwitchLabel = 'Cambiar dominio',
+  theme = 'dark',
+  onThemeToggle,
 }: SidebarProps) {
   return (
     <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
@@ -100,6 +106,22 @@ export default function Sidebar({
           </>
         )}
       </div>
+
+      {onThemeToggle ? (
+        <div className="sidebar-theme-control">
+          <button
+            type="button"
+            className="nav-item theme-toggle-button"
+            onClick={onThemeToggle}
+            aria-label={theme === 'dark' ? 'Activar modo claro' : 'Activar modo oscuro'}
+            aria-pressed={theme === 'light'}
+            title={collapsed ? (theme === 'dark' ? 'Modo claro' : 'Modo oscuro') : undefined}
+          >
+            {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
+            {!collapsed && <span>{theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}</span>}
+          </button>
+        </div>
+      ) : null}
 
       <nav className="sidebar-nav">
         {sections.map((group) => (

@@ -7699,3 +7699,394 @@ th { color: #c1d0e8; font-weight: 700; position: sticky; top: 0; background: #0f
     flex: 1 1 220px;
   }
 }
+
+/* Homologacion Durango 11: modo claro/oscuro y contrato visual global. */
+.theme-toggle-button {
+  width: 100%;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pozos-shell .theme-toggle-button svg { color: #fbbf24; }
+.pozos-shell.theme-light .theme-toggle-button svg { color: #dbeafe; }
+.pozos-shell.theme-dark { color-scheme: dark; }
+
+.pozos-shell.theme-light {
+  color-scheme: light;
+  --bg: #edf4fa;
+  --panel: linear-gradient(180deg, rgba(255,255,255,.99), rgba(247,251,255,.99));
+  --panel-soft: linear-gradient(135deg, rgba(224,242,254,.72), rgba(255,255,255,.98));
+  --border: rgba(2,132,199,.18);
+  --text: #10253d;
+  --muted: #5f748b;
+  --muted-2: #71869b;
+  --shadow: 0 14px 34px rgba(30,64,95,.10);
+  color: #10253d;
+  background: #edf4fa;
+}
+
+.pozos-shell.theme-light .main-shell {
+  background:
+    radial-gradient(circle at 82% 4%, rgba(14,165,233,.08), transparent 24%),
+    linear-gradient(180deg, #f7fbff 0%, #edf4fa 100%);
+}
+
+.pozos-shell.theme-light .page-content,
+.pozos-shell.theme-light .pozos-page { color: #10253d; }
+
+/* Sidebar azul permanente en ambos temas. */
+.pozos-shell .sidebar-theme-control {
+  flex: 0 0 auto;
+  padding: 10px 10px 2px;
+}
+.pozos-shell .sidebar-theme-control .theme-toggle-button {
+  width: 100%;
+  margin: 0;
+  background: rgba(8,47,73,.42);
+  border: 1px solid rgba(125,211,252,.16);
+}
+.pozos-shell .sidebar-theme-control .theme-toggle-button:hover {
+  background: rgba(14,116,144,.28);
+  border-color: rgba(125,211,252,.30);
+}
+.pozos-shell .sidebar.collapsed .sidebar-theme-control {
+  width: 100%;
+  padding: 8px 10px 4px;
+  display: grid;
+  place-items: center;
+}
+.pozos-shell .sidebar.collapsed .sidebar-theme-control .theme-toggle-button {
+  width: 48px;
+  min-width: 48px;
+  max-width: 48px;
+  height: 48px;
+  min-height: 48px;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 15px;
+}
+.pozos-shell .sidebar.collapsed .sidebar-theme-control .theme-toggle-button span { display: none !important; }
+
+.pozos-shell.theme-light .sidebar {
+  background:
+    radial-gradient(circle at 28px 24px, rgba(56,189,248,.20), transparent 28%),
+    linear-gradient(180deg, #062743 0%, #073454 58%, #05253f 100%);
+  border-right-color: rgba(125,211,252,.24);
+  box-shadow: 12px 0 34px rgba(15,61,94,.16);
+}
+.pozos-shell.theme-light .brand-row {
+  background: linear-gradient(90deg, rgba(14,165,233,.20), rgba(255,255,255,.025) 70%);
+}
+.pozos-shell.theme-light .brand-title { color: #ffffff; }
+.pozos-shell.theme-light .brand-subtitle,
+.pozos-shell.theme-light .nav-group-title { color: #addff1; }
+.pozos-shell.theme-light .menu-button,
+.pozos-shell.theme-light .sidebar .nav-item,
+.pozos-shell.theme-light .sidebar-footer .nav-item,
+.pozos-shell.theme-light .sidebar-theme-control .theme-toggle-button {
+  color: #eefaff;
+}
+.pozos-shell.theme-light .menu-button,
+.pozos-shell.theme-light .sidebar-footer .nav-item,
+.pozos-shell.theme-light .sidebar-theme-control .theme-toggle-button {
+  background: rgba(7,62,99,.66);
+  border-color: rgba(125,211,252,.22);
+}
+.pozos-shell.theme-light .sidebar .nav-item svg { color: #a7e5f7; }
+.pozos-shell.theme-light .sidebar .nav-item:hover,
+.pozos-shell.theme-light .sidebar-theme-control .theme-toggle-button:hover {
+  background: rgba(14,116,144,.34);
+  border-color: rgba(125,211,252,.28);
+}
+.pozos-shell.theme-light .sidebar .nav-item.active {
+  color: #ffffff;
+  background: linear-gradient(90deg, #0284c7, #0ea5e9);
+  box-shadow: inset 3px 0 0 #bae6fd, 0 10px 24px rgba(2,132,199,.22);
+}
+
+/* Encabezado y contexto siguen siendo azules para conservar identidad ARCA. */
+.pozos-shell.theme-light .header-bar {
+  background: linear-gradient(90deg, #083b63 0%, #0b4f7a 48%, #073657 100%);
+  border-bottom-color: rgba(186,230,253,.22);
+  box-shadow: 0 8px 24px rgba(15,61,94,.12);
+}
+.pozos-shell.theme-light .header-title,
+.pozos-shell.theme-light .header-button,
+.pozos-shell.theme-light .time-chip,
+.pozos-shell.theme-light .user-chip { color: #f8fcff; }
+.pozos-shell.theme-light .header-subtitle { color: #d7edf8; }
+.pozos-shell.theme-light .header-button,
+.pozos-shell.theme-light .time-chip,
+.pozos-shell.theme-light .user-chip {
+  background: rgba(255,255,255,.08);
+  border-color: rgba(186,230,253,.18);
+}
+.pozos-shell.theme-light .header-button:hover { background: rgba(255,255,255,.14); }
+.pozos-shell.theme-light .plant-context-bar { color: #0c4a6e; }
+.pozos-shell.theme-light .plant-context-bar span {
+  color: #075985;
+  background: #ffffff;
+  border-color: rgba(2,132,199,.22);
+  box-shadow: 0 6px 18px rgba(14,116,144,.08);
+}
+
+/* Superficies claras. */
+.pozos-shell.theme-light .panel,
+.pozos-shell.theme-light .chart-panel,
+.pozos-shell.theme-light .module-history-panel,
+.pozos-shell.theme-light .operational-module-comparison,
+.pozos-shell.theme-light .daily-review-status-card,
+.pozos-shell.theme-light .daily-report-preview,
+.pozos-shell.theme-light .report-hero-panel,
+.pozos-shell.theme-light .report-workflow-panel,
+.pozos-shell.theme-light .report-preview-panel,
+.pozos-shell.theme-light .report-data-panel,
+.pozos-shell.theme-light .operational-alerts-panel,
+.pozos-shell.theme-light .scheduled-email-panel,
+.pozos-shell.theme-light .users-admin-header,
+.pozos-shell.theme-light .users-create-panel,
+.pozos-shell.theme-light .users-list-panel {
+  color: #10253d;
+  background: #ffffff;
+  border-color: rgba(2,132,199,.16);
+  box-shadow: 0 14px 34px rgba(30,64,95,.09);
+}
+.pozos-shell.theme-light .panel::before { background: linear-gradient(180deg, rgba(14,165,233,.035), transparent 34%); }
+.pozos-shell.theme-light .compact-hero,
+.pozos-shell.theme-light .hero-panel,
+.pozos-shell.theme-light .report-hero-panel {
+  background: linear-gradient(135deg, #ffffff 0%, #f1f8fd 100%);
+}
+
+/* Todos los KPIs operativos se mantienen azules con texto blanco. */
+.pozos-shell.theme-light .kpi-card {
+  color: #f8fcff;
+  background: linear-gradient(145deg, #0b4f7a 0%, #073b61 100%);
+  border-color: rgba(56,189,248,.38);
+  box-shadow: 0 12px 28px rgba(8,67,103,.14);
+}
+.pozos-shell.theme-light .kpi-card::after { opacity: .12; }
+.pozos-shell.theme-light .kpi-card .kpi-label { color: #cdefff; }
+.pozos-shell.theme-light .kpi-card .kpi-value { color: #ffffff; }
+.pozos-shell.theme-light .kpi-card .kpi-unit { color: #dbeef8; }
+.pozos-shell.theme-light .kpi-card .kpi-trend { color: #bdd8e7; }
+.pozos-shell.theme-light .kpi-card .kpi-glow { opacity: .30; }
+
+/* Tarjetas operativas y de reporte. */
+.pozos-shell.theme-light .operational-element-card,
+.pozos-shell.theme-light .shift-summary-card,
+.pozos-shell.theme-light .shift-detail-disclosure,
+.pozos-shell.theme-light .report-summary-card,
+.pozos-shell.theme-light .summary-item,
+.pozos-shell.theme-light .scheduled-email-item {
+  color: #10253d;
+  background: #ffffff;
+  border-color: rgba(2,132,199,.16);
+  box-shadow: none;
+}
+.pozos-shell.theme-light .operational-element-card:hover,
+.pozos-shell.theme-light .operational-element-card.selected {
+  border-color: rgba(2,132,199,.48);
+  box-shadow: 0 14px 28px rgba(30,64,95,.10);
+}
+.pozos-shell.theme-light .operational-card-head span,
+.pozos-shell.theme-light .operational-metric-grid span,
+.pozos-shell.theme-light .summary-label,
+.pozos-shell.theme-light .report-summary-card span,
+.pozos-shell.theme-light .report-summary-card small,
+.pozos-shell.theme-light .shift-summary-card > span,
+.pozos-shell.theme-light .shift-summary-card > small,
+.pozos-shell.theme-light .scheduled-email-item p,
+.pozos-shell.theme-light .scheduled-email-item-meta { color: #60778d; }
+.pozos-shell.theme-light .operational-card-head strong,
+.pozos-shell.theme-light .operational-metric-grid strong,
+.pozos-shell.theme-light .summary-value,
+.pozos-shell.theme-light .report-summary-card strong,
+.pozos-shell.theme-light .shift-summary-card > strong,
+.pozos-shell.theme-light .scheduled-email-item-title strong,
+.pozos-shell.theme-light .scheduled-email-item-meta strong { color: #102f48; }
+.pozos-shell.theme-light .operational-card-footer {
+  color: #56758c;
+  background: #f2f8fc;
+  border-top-color: rgba(2,132,199,.12);
+}
+.pozos-shell.theme-light .open-detail-link { color: #0369a1; }
+
+/* Controles, formularios y selectores. */
+.pozos-shell.theme-light input,
+.pozos-shell.theme-light select,
+.pozos-shell.theme-light textarea,
+.pozos-shell.theme-light .date-range-fields input,
+.pozos-shell.theme-light .date-range-fields select,
+.pozos-shell.theme-light .module-history-aggregation select,
+.pozos-shell.theme-light .minute-flow-controls input,
+.pozos-shell.theme-light .users-create-form input,
+.pozos-shell.theme-light .users-create-form select,
+.pozos-shell.theme-light .users-table select,
+.pozos-shell.theme-light .users-inline-input,
+.pozos-shell.theme-light .scheduled-email-field input,
+.pozos-shell.theme-light .scheduled-email-field select,
+.pozos-shell.theme-light .scheduled-email-field textarea {
+  color: #12324a;
+  background: #ffffff;
+  border-color: rgba(2,132,199,.28);
+  color-scheme: light;
+}
+.pozos-shell.theme-light select option,
+.pozos-shell.theme-light select optgroup,
+.pozos-shell.theme-light .module-history-aggregation option {
+  color: #10253d;
+  background: #ffffff;
+}
+.pozos-shell.theme-light .date-range-fields label,
+.pozos-shell.theme-light .module-history-aggregation,
+.pozos-shell.theme-light .scheduled-email-field > span,
+.pozos-shell.theme-light .scheduled-email-formats legend,
+.pozos-shell.theme-light .users-create-form label > span { color: #075985; }
+.pozos-shell.theme-light .date-range-reset,
+.pozos-shell.theme-light .ghost-action,
+.pozos-shell.theme-light .module-history-tab,
+.pozos-shell.theme-light .sensor-chip {
+  color: #155170;
+  background: #eaf6fd;
+  border-color: rgba(2,132,199,.22);
+}
+.pozos-shell.theme-light .date-range-apply,
+.pozos-shell.theme-light .primary-action,
+.pozos-shell.theme-light .module-history-tab.active,
+.pozos-shell.theme-light .sensor-chip.active {
+  color: #ffffff;
+  background: linear-gradient(135deg, #0284c7, #0ea5e9);
+  border-color: rgba(2,132,199,.42);
+}
+.pozos-shell.theme-light .module-history-totalizer-control,
+.pozos-shell.theme-light .scheduled-email-helper {
+  color: #355a73;
+  background: #eef8ff;
+  border-color: rgba(14,116,178,.17);
+}
+.pozos-shell.theme-light .module-history-totalizer-control > span { color: #075985; }
+.pozos-shell.theme-light .scheduled-email-formats { border-color: rgba(2,132,199,.18); }
+.pozos-shell.theme-light .scheduled-email-formats label { color: #12324a; }
+
+/* Tablas. */
+.pozos-shell.theme-light table { background: transparent; }
+.pozos-shell.theme-light th,
+.pozos-shell.theme-light .pozos-operacion-table th,
+.pozos-shell.theme-light .shift-detail-table th,
+.pozos-shell.theme-light .shift-overview-table th,
+.pozos-shell.theme-light .daily-report-table th,
+.pozos-shell.theme-light .users-table th {
+  color: #155170;
+  background: #eaf5fb;
+  border-bottom-color: rgba(2,132,199,.16);
+}
+.pozos-shell.theme-light td,
+.pozos-shell.theme-light .pozos-operacion-table td,
+.pozos-shell.theme-light .shift-detail-table td,
+.pozos-shell.theme-light .shift-overview-table td,
+.pozos-shell.theme-light .daily-report-table td,
+.pozos-shell.theme-light .users-table td {
+  color: #18364e;
+  border-bottom-color: rgba(15,82,117,.10);
+}
+.pozos-shell.theme-light .pozos-table-scroll,
+.pozos-shell.theme-light .table-wrapper,
+.pozos-shell.theme-light .daily-report-table-wrap,
+.pozos-shell.theme-light .shift-detail-table-wrap,
+.pozos-shell.theme-light .shift-overview-table-wrap,
+.pozos-shell.theme-light .users-table-wrap {
+  background: #ffffff;
+  border-color: rgba(2,132,199,.14);
+}
+
+/* Estados: sin fondos grises; azul para normal, semanticos para advertencias. */
+.pozos-shell.theme-light .status-pill.normal,
+.pozos-shell.theme-light .status-pill.communication,
+.pozos-shell.theme-light .status-chip.success {
+  color: #ffffff;
+  background: #0b4f7a;
+  border-color: #0b4f7a;
+}
+.pozos-shell.theme-light .status-pill.idle,
+.pozos-shell.theme-light .status-pill.nodata,
+.pozos-shell.theme-light .status-chip.neutral {
+  color: #164e70;
+  background: #eaf6fd;
+  border-color: rgba(2,132,199,.22);
+}
+.pozos-shell.theme-light .status-pill.warning,
+.pozos-shell.theme-light .status-pill.alert,
+.pozos-shell.theme-light .shift-summary-card.partial {
+  color: #8a5800;
+  background: #fff4cf;
+  border-color: rgba(217,119,6,.32);
+}
+.pozos-shell.theme-light .status-pill.critical { color: #a61b1b; background: #fff1f2; border-color: #fecaca; }
+.pozos-shell.theme-light .shift-summary-card.pending { background: #edf8ff; border-color: rgba(2,132,199,.22); }
+.pozos-shell.theme-light .quality-diagnostic-cell small,
+.pozos-shell.theme-light .quality-reason-inline { color: #5d7588; }
+
+/* Graficas: se mantienen colores de series, se aclaran fondo/ejes/tooltips. */
+.pozos-shell.theme-light .recharts-cartesian-grid line,
+.pozos-shell.theme-light .recharts-cartesian-grid-horizontal line,
+.pozos-shell.theme-light .recharts-cartesian-grid-vertical line { stroke: rgba(71,100,124,.16) !important; }
+.pozos-shell.theme-light .recharts-cartesian-axis-line,
+.pozos-shell.theme-light .recharts-cartesian-axis-tick-line { stroke: #94a9bb !important; }
+.pozos-shell.theme-light .recharts-cartesian-axis-tick-value,
+.pozos-shell.theme-light .recharts-text,
+.pozos-shell.theme-light .recharts-label { fill: #405e75 !important; }
+.pozos-shell.theme-light .recharts-legend-item-text { color: #33566f !important; }
+.pozos-shell.theme-light .chart-tooltip,
+.pozos-shell.theme-light .solid-tooltip,
+.pozos-shell.theme-light .module-history-tooltip,
+.pozos-shell.theme-light .minute-well-tooltip {
+  color: #10253d;
+  background: rgba(255,255,255,.98);
+  border-color: rgba(2,132,199,.20);
+  box-shadow: 0 12px 30px rgba(30,64,95,.14);
+}
+.pozos-shell.theme-light .chart-tooltip-label,
+.pozos-shell.theme-light .chart-tooltip-name,
+.pozos-shell.theme-light .chart-tooltip-value,
+.pozos-shell.theme-light .module-history-tooltip-title,
+.pozos-shell.theme-light .module-history-tooltip-grid strong { color: #163a56; }
+.pozos-shell.theme-light .module-history-tooltip-grid span { color: #60788c; }
+
+/* Alertas/notificaciones y usuarios. */
+.pozos-shell.theme-light .notification-toast,
+.pozos-shell.theme-light .operational-alert-card {
+  color: #17384f;
+  background: #ffffff;
+  border-color: rgba(2,132,199,.18);
+  box-shadow: 0 16px 36px rgba(30,64,95,.13);
+}
+.pozos-shell.theme-light .notification-toast-copy strong,
+.pozos-shell.theme-light .operational-alert-copy strong,
+.pozos-shell.theme-light .operational-alerts-heading h2 { color: #14354d; }
+.pozos-shell.theme-light .notification-toast-copy span,
+.pozos-shell.theme-light .operational-alert-copy span,
+.pozos-shell.theme-light .operational-alerts-heading p { color: #60788c; }
+.pozos-shell.theme-light .notification-toast-close {
+  color: #164e70;
+  background: #eff8fd;
+  border-color: rgba(2,132,199,.22);
+}
+.pozos-shell.theme-light .users-table tbody tr:hover td { background: #f5fbff; }
+
+/* Exportaciones conservan codificacion visual. */
+.pozos-shell.theme-light .module-history-excel-button,
+.pozos-shell.theme-light .five-minute-excel-button,
+.pozos-shell.theme-light .historical-excel-button {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #16a34a, #15803d) !important;
+  border-color: #22c55e !important;
+}
+.pozos-shell.theme-light .module-history-pdf-button { color: #991b1b; background: #fff1f2; border-color: #fecaca; }
+
+@media (max-width: 760px) {
+  .pozos-shell .theme-toggle-button { min-height: 46px; }
+}
