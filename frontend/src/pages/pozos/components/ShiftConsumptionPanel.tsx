@@ -25,6 +25,7 @@ interface Props {
   title?: string;
   items?: AllowedItem[];
   emptyMessage?: string;
+  dataOverride?: WaterShiftsResponse | null;
 }
 
 function today(): string {
@@ -161,7 +162,7 @@ function DetailTable({ shift, group, selectedIdentity, allowedItems, emptyMessag
   );
 }
 
-export default function ShiftConsumptionPanel({ group = 'all', itemIdentity: selectedIdentity, date, showDateControls = true, reviewMode = false, title = 'Consumo por turno', items, emptyMessage }: Props) {
+export default function ShiftConsumptionPanel({ group = 'all', itemIdentity: selectedIdentity, date, showDateControls = true, reviewMode = false, title = 'Consumo por turno', items, emptyMessage, dataOverride }: Props) {
   const [draftDate, setDraftDate] = useState(date || today());
   const [selectedDate, setSelectedDate] = useState(date || today());
   const [selectedShift, setSelectedShift] = useState('all');
@@ -190,6 +191,7 @@ export default function ShiftConsumptionPanel({ group = 'all', itemIdentity: sel
   }, [date]);
 
   const load = useCallback(async (forceRefresh = false, background = false) => {
+    if (dataOverride) return;
     const identity = `${selectedDate}:${selectedShift}`;
     if (inFlightIdentityRef.current === identity) return;
     inFlightIdentityRef.current = identity;
@@ -213,15 +215,16 @@ export default function ShiftConsumptionPanel({ group = 'all', itemIdentity: sel
       }
       if (inFlightIdentityRef.current === identity) inFlightIdentityRef.current = '';
     }
-  }, [selectedDate, selectedShift]);
+  }, [selectedDate, selectedShift, dataOverride]);
 
-  useEffect(() => { void load(false, false); }, [load]);
-  useAutoRefresh(selectedDate === today(), () => { void load(true, true); });
+  useEffect(() => { if (!dataOverride) void load(false, false); }, [load, dataOverride]);
+  useAutoRefresh(!dataOverride && selectedDate === today(), () => { void load(true, true); });
 
+  const effectiveData = dataOverride || data;
   const visible = useMemo(() => {
-    const shifts = data?.shifts || [];
+    const shifts = effectiveData?.shifts || [];
     return selectedShift === 'all' ? shifts : shifts.filter((item) => item.id === selectedShift);
-  }, [data, selectedShift]);
+  }, [effectiveData, selectedShift]);
 
   return (
     <section className="panel fade-up shift-consumption-panel">
@@ -230,16 +233,16 @@ export default function ShiftConsumptionPanel({ group = 'all', itemIdentity: sel
         <div className="date-range-fields">
           {showDateControls ? <label><span>Día</span><div className="date-input-with-icon"><CalendarDays size={16} /><input type="date" value={draftDate} onChange={(event) => setDraftDate(event.target.value)} /></div></label> : null}
           <label className="shift-selector-field"><span>Turno operativo</span><select aria-label="Turno operativo" value={selectedShift} onChange={(event) => setSelectedShift(event.target.value)}><option value="all">Todos los turnos</option><option value="shift_1">Turno 1 · 00:00–07:00</option><option value="shift_2">Turno 2 · 07:00–15:00</option><option value="shift_3">Turno 3 · 15:00–24:00</option></select></label>
-          {showDateControls ? <button type="button" className="date-range-apply" onClick={() => { if (draftDate === selectedDate) void load(true, true); else setSelectedDate(draftDate); }}>Actualizar</button> : <button type="button" className="date-range-apply" onClick={() => void load(true, true)}>Actualizar turnos</button>}
+          {showDateControls ? <button type="button" className="date-range-apply" onClick={() => { if (draftDate === selectedDate) void load(true, true); else setSelectedDate(draftDate); }}>Actualizar</button> : dataOverride ? null : <button type="button" className="date-range-apply" onClick={() => void load(true, true)}>Actualizar turnos</button>}
           {showDateControls ? <button type="button" className="date-range-reset" onClick={() => { const value = today(); setDraftDate(value); setSelectedDate(value); setSelectedShift('all'); }}>Restablecer</button> : null}
         </div>
       </div>
       {refreshing ? <div className="status-pill auto-refresh-status">Actualizando cortes por turno…</div> : null}
       {error ? <div className="status-pill alert">{error}</div> : null}
-      {loading && !data ? <ChartEmptyState message="Calculando cortes por turno..." /> : null}
-      {data ? <>
+      {loading && !effectiveData ? <ChartEmptyState message="Calculando cortes por turno..." /> : null}
+      {effectiveData ? <>
         <div className="shift-summary-cards">
-          {data.shifts.map((shift) => {
+          {effectiveData.shifts.map((shift) => {
             const value = shiftTotal(shift, group, selectedIdentity, items);
             const groupSummary = group === 'all' ? null : summary(shift, group, items);
             const selectedRow = group === 'all' || selectedIdentity === undefined ? null : rows(shift, group, selectedIdentity, items)[0];

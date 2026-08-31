@@ -20,6 +20,8 @@ from app.services.durango_capabilities import (
 from app.services.operation_semantics import expected_minute_samples, interval_operation_metrics, period_activity_label
 from app.services.plant_time import local_now_naive, local_to_source_naive, source_to_local_naive
 from app.services.totalizer_quality import analyze_totalizer_series
+from app.services.water_interval_reconciliation import reconcile_interval
+from app.services.water_quality import classify_water_quality
 
 logger = logging.getLogger(__name__)
 MAX_LAVADORAS_ROWS = 200_000
@@ -125,6 +127,47 @@ def query_lavadora_rows(start_local: datetime, end_local: datetime, *, session: 
     return normalize_lavadora_rows(_query_rows(effective_start, effective_end, session=session))
 
 
+
+
+def query_lavadora_previous_readings(before_local: datetime, *, session: Any = None) -> dict[str, dict[str, Any]]:
+    """Return the last valid totalizer reading before ``before_local`` for each washer."""
+    before_utc = local_to_source_naive(before_local, 'UTC')
+    cutover_utc = local_to_source_naive(DURANGO_SCADA_CUTOVER_LOCAL, 'UTC')
+    result: dict[str, dict[str, Any]] = {}
+    with _session_scope(session) as active_session:
+        for contract in LAVADORAS:
+            key = str(contract['operational_key'])
+            instant_column = str(contract['instant_column'])
+            total_column = str(contract['total_column'])
+            sql = text(f"""
+                SELECT TOP (1)
+                    Time_Stamp AS source_timestamp,
+                    TRY_CONVERT(float, {instant_column}) AS instant_value,
+                    TRY_CONVERT(float, {total_column}) AS total_value
+                FROM dbo.SensorsBOS_Lavadoras
+                WHERE Time_Stamp >= :cutover_utc
+                  AND Time_Stamp < :before_utc
+                  AND TRY_CONVERT(float, {total_column}) IS NOT NULL
+                  AND TRY_CONVERT(float, {total_column}) > 0
+                ORDER BY Time_Stamp DESC
+            """)
+            row = active_session.execute(sql, {'cutover_utc': cutover_utc, 'before_utc': before_utc}).fetchone()
+            if row is None:
+                continue
+            raw = _mapping(row)
+            stamp = source_to_local_naive(raw.get('source_timestamp'), 'UTC')
+            if stamp is None:
+                continue
+            result[key] = {
+                'operational_ts': stamp,
+                'instant_value': normalize_flow_lps(key, raw.get('instant_value'), stamp),
+                'total_value': _number(raw.get('total_value')),
+                'source': 'dbo.SensorsBOS_Lavadoras',
+                'period_source': 'dbo.SensorsBOS_Lavadoras',
+            }
+    return result
+
+
 def _communication(stamp: datetime | None, end_day: date) -> tuple[str, str]:
     if stamp is None:
         return 'Sin lectura', 'no_data'
@@ -146,6 +189,7 @@ def build_lavadora_period_item(
     *,
     window_start: datetime | None = None,
     window_end: datetime | None = None,
+    previous_reading: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     key = str(contract['operational_key'])
     ordered = sorted(rows, key=lambda row: row.get('operational_ts') or datetime.min)
@@ -188,6 +232,41 @@ def build_lavadora_period_item(
         validated_volume_m3=analysis.validated_volume_m3,
         has_discontinuities=analysis.has_discontinuities,
     ).payload()
+    reconciliation = (
+        reconcile_interval(
+            ordered,
+            start=coverage_start,
+            end=coverage_end,
+            previous_reading=previous_reading,
+        )
+        if coverage_start and coverage_end
+        else None
+    )
+    reconciled_rows = list(ordered)
+    if previous_reading:
+        reconciled_rows.insert(0, dict(previous_reading))
+    reconciled_analysis = analyze_totalizer_series(
+        reconciled_rows,
+        sensor_id=None,
+        flow_unit='L/s',
+        require_flow_validation=bool(contract.get('require_flow_validation')),
+    ) if reconciled_rows else analysis
+    reconciled_volume = reconciled_analysis.validated_volume_m3
+    reconciled_reliable = bool(
+        reconciliation
+        and reconciliation.boundary_complete
+        and reconciled_analysis.reliable
+        and reconciliation.closing_m3 is not None
+    )
+    quality = classify_water_quality(
+        samples_received=operation['samples_received'],
+        samples_expected=operation['samples_expected'],
+        coverage_percent=operation['coverage_percent'],
+        volume_m3=reconciled_volume,
+        volume_reliable=reconciled_reliable,
+        boundary_complete=bool(reconciliation and reconciliation.boundary_complete),
+        has_discontinuities=reconciled_analysis.has_discontinuities,
+    )
     activity = period_activity_label(
         samples_received=operation['samples_received'],
         active_samples=operation['active_samples'],
@@ -268,6 +347,22 @@ def build_lavadora_period_item(
         'last_update': latest_stamp.isoformat(timespec='seconds') if latest_stamp else None,
         'ultima_lectura': latest_stamp.isoformat(timespec='seconds') if latest_stamp else None,
         'period_source': str(contract.get('table') or 'dbo.SensorsBOS_Lavadoras') if ordered else 'no_history',
+        'reconciled_open_m3': reconciliation.opening_m3 if reconciliation else None,
+        'reconciled_close_m3': reconciliation.closing_m3 if reconciliation else None,
+        'reconciled_validated_volume_m3': reconciled_volume,
+        'reconciled_volume_reliable': reconciled_reliable,
+        'reconciled_discarded_volume_m3': reconciled_analysis.discarded_volume_m3,
+        'reconciled_discarded_totalizer_events': reconciled_analysis.discarded_totalizer_events,
+        'reconciled_has_discontinuities': reconciled_analysis.has_discontinuities,
+        'opening_source': reconciliation.opening_source if reconciliation else 'no_data',
+        'missing_previous_reading': reconciliation.missing_previous_reading if reconciliation else True,
+        'boundary_complete': reconciliation.boundary_complete if reconciliation else False,
+        'previous_valid_reading': reconciliation.previous_valid_reading.payload() if reconciliation and reconciliation.previous_valid_reading else None,
+        'first_period_reading': reconciliation.first_period_reading.payload() if reconciliation and reconciliation.first_period_reading else None,
+        'quality_data_status': quality.data_status,
+        'quality_status': quality.quality_status,
+        'quality_label': quality.quality_label,
+        'quality_volume_reliable': quality.volume_reliable,
         'source_table': str(contract.get('table') or 'dbo.SensorsBOS_Lavadoras'),
         'source_key': contract['source_key'],
         'presentation_order': contract['presentation_order'],
@@ -284,6 +379,7 @@ def get_lavadora_period_items(
     window_end: datetime | None = None,
 ) -> list[dict[str, Any]]:
     grouped = query_lavadora_rows(start_local, end_local, session=session)
+    previous = query_lavadora_previous_readings(window_start or start_local, session=session)
     return [
         build_lavadora_period_item(
             contract,
@@ -291,6 +387,7 @@ def get_lavadora_period_items(
             end_day,
             window_start=window_start or start_local,
             window_end=window_end or end_local,
+            previous_reading=previous.get(str(contract['operational_key'])),
         )
         for contract in LAVADORAS
     ]

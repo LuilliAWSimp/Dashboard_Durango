@@ -146,7 +146,7 @@ def query_readings_window(sensor_ids: list[int], start_dt: datetime, end_dt: dat
         raise WaterPeriodError('No fue posible consultar la información del periodo.', status='sql_error') from exc
 
 
-def query_previous_closes(sensor_ids: list[int], before_dt: datetime) -> dict[int, tuple[datetime | None, float | None]]:
+def query_previous_closes(sensor_ids: list[int], before_dt: datetime) -> dict[int, tuple[datetime | None, float | None, float | None]]:
     placeholders, params = _sensor_params(sensor_ids)
     params['before_dt'] = local_to_source_naive(before_dt, LOCAL_TIMEZONE)
     sql = text(f"""
@@ -155,6 +155,7 @@ def query_previous_closes(sensor_ids: list[int], before_dt: datetime) -> dict[in
                 reading.sensor_id,
                 COALESCE(reading.ts_local, reading.ts_minute) AS operational_ts,
                 TRY_CONVERT(float, reading.total_value) AS total_value,
+                TRY_CONVERT(float, reading.instant_value) AS instant_value,
                 ROW_NUMBER() OVER (
                     PARTITION BY reading.sensor_id
                     ORDER BY COALESCE(reading.ts_local, reading.ts_minute) DESC
@@ -165,7 +166,7 @@ def query_previous_closes(sensor_ids: list[int], before_dt: datetime) -> dict[in
               AND TRY_CONVERT(float, reading.total_value) IS NOT NULL
               AND TRY_CONVERT(float, reading.total_value) > 0
         )
-        SELECT sensor_id, operational_ts, total_value
+        SELECT sensor_id, operational_ts, total_value, instant_value
         FROM ranked
         WHERE row_number = 1
     """)
@@ -175,7 +176,15 @@ def query_previous_closes(sensor_ids: list[int], before_dt: datetime) -> dict[in
                 return {}
             rows = session.execute(sql, params).fetchall()
         return {
-            int(row._mapping['sensor_id']): (source_to_local_naive(row._mapping.get('operational_ts'), LOCAL_TIMEZONE), _num(row._mapping.get('total_value')))
+            int(row._mapping['sensor_id']): (
+                source_to_local_naive(row._mapping.get('operational_ts'), LOCAL_TIMEZONE),
+                _num(row._mapping.get('total_value')),
+                normalize_flow_lps(
+                    row._mapping.get('sensor_id'),
+                    row._mapping.get('instant_value'),
+                    source_to_local_naive(row._mapping.get('operational_ts'), LOCAL_TIMEZONE),
+                ),
+            )
             for row in rows
         }
     except SQLAlchemyError:
@@ -233,7 +242,10 @@ def build_period_item(
     latest = ordered[-1] if ordered else None
     latest_time = _dt(latest.get('operational_ts')) if latest else None
     communication, communication_status = _communication(latest_time, end_day)
-    previous_stamp, previous_value = previous_close or (None, None)
+    previous_values = tuple(previous_close or ())
+    previous_stamp = previous_values[0] if len(previous_values) > 0 else None
+    previous_value = previous_values[1] if len(previous_values) > 1 else None
+    previous_flow = previous_values[2] if len(previous_values) > 2 else None
 
     totalizer_values = [_num(row.get('total_value')) for row in ordered]
     totalizer_values = [value for value in totalizer_values if value is not None and value > 0]
@@ -274,14 +286,30 @@ def build_period_item(
         if coverage_start and coverage_end
         else None
     )
+    reconciled_analysis_rows = list(ordered)
+    if previous_stamp is not None and previous_value is not None:
+        reconciled_analysis_rows.insert(0, {
+            'operational_ts': previous_stamp,
+            'total_value': previous_value,
+            'instant_value': previous_flow,
+            'source': 'previous_query',
+        })
+    reconciled_analysis = _analysis_rows(reconciled_analysis_rows, contract) if reconciled_analysis_rows else analysis
+    reconciled_volume = reconciled_analysis.validated_volume_m3
+    reconciled_reliable = bool(
+        reconciliation
+        and reconciliation.boundary_complete
+        and reconciled_analysis.reliable
+        and reconciliation.closing_m3 is not None
+    )
     quality = classify_water_quality(
         samples_received=operation['samples_received'],
         samples_expected=operation['samples_expected'],
         coverage_percent=operation['coverage_percent'],
-        volume_m3=period_volume,
-        volume_reliable=bool(analysis.reliable and totalizer_values),
+        volume_m3=reconciled_volume,
+        volume_reliable=reconciled_reliable,
         boundary_complete=bool(reconciliation and reconciliation.boundary_complete),
-        has_discontinuities=analysis.has_discontinuities,
+        has_discontinuities=reconciled_analysis.has_discontinuities,
     )
     activity = period_activity_label(
         samples_received=operation['samples_received'],
@@ -375,6 +403,11 @@ def build_period_item(
         # these explicit boundaries in the following homologation steps.
         'reconciled_open_m3': reconciliation.opening_m3 if reconciliation else None,
         'reconciled_close_m3': reconciliation.closing_m3 if reconciliation else None,
+        'reconciled_validated_volume_m3': reconciled_volume,
+        'reconciled_volume_reliable': reconciled_reliable,
+        'reconciled_discarded_volume_m3': reconciled_analysis.discarded_volume_m3,
+        'reconciled_discarded_totalizer_events': reconciled_analysis.discarded_totalizer_events,
+        'reconciled_has_discontinuities': reconciled_analysis.has_discontinuities,
         'opening_source': reconciliation.opening_source if reconciliation else 'no_data',
         'missing_previous_reading': reconciliation.missing_previous_reading if reconciliation else True,
         'boundary_complete': reconciliation.boundary_complete if reconciliation else False,

@@ -200,6 +200,28 @@ export async function fetchWaterShifts(options: WaterShiftRequestOptions): Promi
   });
 }
 
+export interface WaterDailyReviewRequestOptions {
+  date?: string;
+  includeShifts?: boolean;
+  includeComparatives?: boolean;
+  forceRefresh?: boolean;
+}
+
+export async function fetchWaterDailyReview(options: WaterDailyReviewRequestOptions = {}): Promise<unknown> {
+  const key = [PLANT_CACHE_KEY, 'review-daily', options.date || '', options.includeShifts === false ? 'no-shifts' : 'shifts', options.includeComparatives === false ? 'no-comparatives' : 'comparatives'].join(':');
+  const ttl = (options.date || localToday()) === localToday() ? TODAY_TTL_MS : HISTORY_TTL_MS;
+  return cachedRequest(key, ttl, options.forceRefresh, async () => {
+    const params = {
+      date: options.date || undefined,
+      include_shifts: options.includeShifts !== false,
+      include_comparatives: options.includeComparatives !== false,
+      force_refresh: Boolean(options.forceRefresh),
+    };
+    const { data } = await api.get<unknown>('/water/review/daily', { params, timeout: 45_000 });
+    return data;
+  });
+}
+
 export async function fetchWaterReportCatalog(options: WaterRequestOptions = {}): Promise<unknown> {
   const { data } = await api.get<unknown>('/water/reports/catalog', { params: buildParams(options) });
   return data;

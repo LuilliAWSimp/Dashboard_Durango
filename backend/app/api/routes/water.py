@@ -10,6 +10,7 @@ from app.schemas.export import DailyWaterReportEmailRequest
 from app.schemas.water import WaterDashboardPayload, WaterSourceActivateResponse, WaterSourceInfo, WaterSourceValidation
 from app.services.email_service import EmailDeliveryError, EmailNotConfiguredError, ensure_smtp_configured, send_email_with_bytes_attachments
 from app.services.water_daily_report_service import ReportDataUnavailableError, build_daily_water_report_excel, build_daily_water_report_pdf, get_daily_water_report
+from app.services.water_daily_review_service import DailyReviewError, get_daily_water_review
 from app.services.water_history_service import WaterHistoryError, get_water_history, get_water_history_module, get_wells_minute_flow
 from app.services.water_service import WATER_SECTION_META, get_water_dashboard_payload, get_water_report_catalog
 from app.services.water_shift_service import get_shift_consumption_data
@@ -76,6 +77,29 @@ def read_wells_minute_flow(start_datetime: str = Query(...), end_datetime: str =
     except Exception as exc:
         logger.exception('No fue posible consultar el flujo minuto a minuto de pozos: %s', exc)
         raise HTTPException(status_code=500, detail='No fue posible consultar el flujo minuto a minuto de pozos.') from exc
+
+
+@router.get('/review/daily')
+def read_daily_water_review(
+    date: Optional[str] = Query(None),
+    include_shifts: bool = Query(True),
+    include_comparatives: bool = Query(True),
+    force_refresh: bool = Query(False),
+):
+    try:
+        return get_daily_water_review(
+            review_date=date,
+            include_shifts=include_shifts,
+            include_comparatives=include_comparatives,
+            force_refresh=force_refresh,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except DailyReviewError as exc:
+        raise HTTPException(status_code=504 if exc.status == 'timeout' else 503, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception('No fue posible consultar la revisión diaria conciliada: %s', exc)
+        raise HTTPException(status_code=500, detail='No fue posible consultar la revisión diaria conciliada.') from exc
 
 
 @router.get('/shifts')

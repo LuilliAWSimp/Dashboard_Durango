@@ -206,6 +206,52 @@ def query_jarabes_rows(start_local: datetime, end_local: datetime, *, session: A
     return normalize_jarabes_rows(_query_rows(effective_start, effective_end, session=session))
 
 
+
+
+def query_jarabes_previous_reading(before_local: datetime, *, session: Any = None) -> dict[str, Any] | None:
+    """Resolve the last valid Jarabes totalizer before a local boundary across both physical channels."""
+    before_utc = local_to_source_naive(before_local, 'UTC')
+    with _session_scope(session) as active_session:
+        for segment in reversed(JARABES_SOURCE_SEGMENTS):
+            segment_start = segment.get('start_utc') or datetime.min
+            segment_end = segment.get('end_utc') or datetime.max
+            upper = min(before_utc, segment_end)
+            if upper <= segment_start:
+                continue
+            sensor_column = str(segment['sensor_column'])
+            instant_column = str(segment['instant_column'])
+            total_column = str(segment['total_column'])
+            sql = text(f"""
+                SELECT TOP (1)
+                    Time_Stamp AS source_timestamp,
+                    TRY_CONVERT(float, {sensor_column}) AS source_sensor_id,
+                    TRY_CONVERT(float, {instant_column}) AS raw_flow,
+                    TRY_CONVERT(float, {total_column}) AS total_value,
+                    :segment_sensor_id AS segment_sensor_id,
+                    :segment_slot_index AS segment_slot_index,
+                    :segment_source_key AS segment_source_key
+                FROM dbo.SensorsBOS_Tanque
+                WHERE Time_Stamp >= :segment_start
+                  AND Time_Stamp < :upper_utc
+                  AND TRY_CONVERT(float, {total_column}) IS NOT NULL
+                  AND TRY_CONVERT(float, {total_column}) > 0
+                ORDER BY Time_Stamp DESC
+            """)
+            row = active_session.execute(sql, {
+                'segment_start': segment_start,
+                'upper_utc': upper,
+                'segment_sensor_id': int(segment['sensor_id']),
+                'segment_slot_index': int(segment['slot_index']),
+                'segment_source_key': str(segment['source_key']),
+            }).fetchone()
+            if row is None:
+                continue
+            normalized = normalize_jarabes_rows([_mapping(row)])
+            if normalized:
+                return normalized[-1]
+    return None
+
+
 def get_jarabes_period_items(
     start_local: datetime,
     end_local: datetime,
@@ -216,6 +262,7 @@ def get_jarabes_period_items(
     window_end: datetime | None = None,
 ) -> list[dict[str, Any]]:
     rows = query_jarabes_rows(start_local, end_local, session=session)
+    previous = query_jarabes_previous_reading(window_start or start_local, session=session)
     return [
         build_lavadora_period_item(
             CONTRACT,
@@ -223,6 +270,7 @@ def get_jarabes_period_items(
             end_day,
             window_start=window_start or start_local,
             window_end=window_end or end_local,
+            previous_reading=previous,
         )
     ]
 
