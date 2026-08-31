@@ -9057,3 +9057,76 @@ th { color: #c1d0e8; font-weight: 700; position: sticky; top: 0; background: #0f
 .pozos-shell.theme-light .operational-period-summary {
   background: #ffffff !important;
 }
+
+/* Homologacion Durango 11G: correcciones finas del detalle individual en modo claro.
+   Ajustes solicitados por el usuario:
+   - oscurecer subtitulo y navegacion entre elementos;
+   - eliminar capsulas grises poco legibles del rango;
+   - aclarar el estado vacio del historico;
+   - selector de turnos totalmente azul, sin recorte blanco y con texto blanco. */
+.pozos-shell.theme-light .well-detail-main-head p {
+  color: #234a70 !important;
+}
+
+.pozos-shell.theme-light .operational-sibling-navigation button,
+.pozos-shell.theme-light .operational-sibling-navigation strong {
+  color: #163a5f !important;
+}
+
+.pozos-shell.theme-light .operational-sibling-navigation button:hover,
+.pozos-shell.theme-light .operational-sibling-navigation button:focus-visible {
+  color: #0b1f3a !important;
+}
+
+.pozos-shell.theme-light .date-range-meta span {
+  color: #163a5f !important;
+  background: #eaf6fd !important;
+  border-color: #9fc5da !important;
+}
+
+.pozos-shell.theme-light .chart-empty-state {
+  color: #234a70 !important;
+  background: #f4fbff !important;
+  border-color: rgba(15, 82, 117, .20) !important;
+}
+
+.pozos-shell.theme-light .shift-selector-field select {
+  color: #ffffff !important;
+  background-color: #0b4f7a !important;
+  background-image:
+    linear-gradient(45deg, transparent 50%, #ffffff 50%),
+    linear-gradient(135deg, #ffffff 50%, transparent 50%),
+    linear-gradient(135deg, #0b4f7a, #0d6a9f) !important;
+  background-position:
+    calc(100% - 18px) 18px,
+    calc(100% - 12px) 18px,
+    0 0 !important;
+  background-size: 6px 6px, 6px 6px, 100% 100% !important;
+  background-repeat: no-repeat !important;
+  border-color: #0b4f7a !important;
+  box-shadow: 0 8px 18px rgba(11, 79, 122, .16) !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+}
+
+.pozos-shell.theme-light .shift-selector-field select:hover {
+  color: #ffffff !important;
+  background-color: #083f65 !important;
+  background-image:
+    linear-gradient(45deg, transparent 50%, #ffffff 50%),
+    linear-gradient(135deg, #ffffff 50%, transparent 50%),
+    linear-gradient(135deg, #083f65, #0b5d8d) !important;
+  border-color: #083f65 !important;
+}
+
+.pozos-shell.theme-light .shift-selector-field select:focus-visible {
+  color: #ffffff !important;
+  border-color: #0b4f7a !important;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, .14), 0 10px 20px rgba(11, 79, 122, .18) !important;
+}
+
+.pozos-shell.theme-light .shift-selector-field select option {
+  color: #0b1f3a !important;
+  background: #ffffff !important;
+}
