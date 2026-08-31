@@ -132,6 +132,7 @@ export default function OperationalDetailSection({ module, sensorId, backPath, s
     ? reconciledReliable
     : Boolean(item?.quality_volume_reliable ?? item?.volume_reliable);
   const qualityLabel = String(item?.quality_label || item?.validation || item?.coverage_status || activity);
+  const qualityReason = String(item?.quality_reason || '').trim();
   const labels = sectionConfig?.labels;
   const navigationLabel = labels?.navigationLabel || (module === 'well' ? 'pozos' : module === 'line' ? 'líneas' : 'flujos');
   const historyItems = useMemo(() => [{
@@ -209,7 +210,7 @@ export default function OperationalDetailSection({ module, sensorId, backPath, s
         <div className="well-detail-hero-metrics">
           <article><span>Flujo actual</span><strong>{fmt(item?.current_flow ?? item?.flow_lps)} <small>{flowUnit}</small></strong></article>
           <article><span>Totalizador actual</span><strong>{fmt(item?.current_totalizer_m3 ?? item?.totalizador_m3)} <small>m³</small></strong></article>
-          <article><span>Volumen del periodo</span><strong>{detailVolumeReliable && num(detailVolume) !== null ? fmt(detailVolume) : qualityLabel} <small>{detailVolumeReliable && num(detailVolume) !== null ? 'm³' : ''}</small></strong></article>
+          <article><span>Volumen del periodo</span><strong>{detailVolumeReliable && num(detailVolume) !== null ? fmt(detailVolume) : qualityLabel} <small>{detailVolumeReliable && num(detailVolume) !== null ? 'm³' : ''}</small></strong>{!detailVolumeReliable && qualityReason ? <small className="quality-reason-inline">{qualityReason}</small> : null}</article>
           <article><span>Actividad del periodo</span><strong>{activity}</strong></article>
           <article><span>Tiempo activo</span><strong>{fmt(item?.active_minutes)} <small>{num(item?.active_minutes) === null ? '' : 'min'}</small></strong></article>
           <article><span>Cobertura</span><strong>{fmt(item?.coverage_percent)} <small>{num(item?.coverage_percent) === null ? '' : '%'}</small></strong></article>

@@ -7321,3 +7321,6 @@ th { color: #c1d0e8; font-weight: 700; position: sticky; top: 0; background: #0f
     max-width: none;
   }
 }
+
+/* Homologacion Durango 08A: motivo explicito de calidad sin alterar la validacion. */
+.quality-diagnostic-cell{display:grid;gap:6px;align-items:start}.quality-diagnostic-cell .status-badge{justify-self:start}.quality-diagnostic-cell small,.quality-reason-inline{display:block;max-width:320px;color:#9fc3d2;font-size:11px;line-height:1.35;font-weight:600;text-transform:none;letter-spacing:0}.quality-reason-inline{margin-top:5px}.quality-diagnostic-cell small{white-space:normal}

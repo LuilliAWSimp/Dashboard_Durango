@@ -28,7 +28,7 @@ from app.services.operation_semantics import expected_minute_samples, interval_o
 from app.services.plant_time import effective_local_end, local_now_naive, local_to_source_naive, source_to_local_naive
 from app.services.totalizer_quality import TotalizerAnalysis, analyze_totalizer_series
 from app.services.water_interval_reconciliation import reconcile_interval
-from app.services.water_quality import classify_water_quality
+from app.services.water_quality import build_quality_diagnostic, classify_water_quality
 
 logger = logging.getLogger(__name__)
 LOCAL_ZONE = ZoneInfo(LOCAL_TIMEZONE)
@@ -311,6 +311,16 @@ def build_period_item(
         boundary_complete=bool(reconciliation and reconciliation.boundary_complete),
         has_discontinuities=reconciled_analysis.has_discontinuities,
     )
+    quality_diagnostic = build_quality_diagnostic(
+        quality_status=quality.quality_status,
+        coverage_percent=quality.coverage_percent,
+        boundary_complete=bool(reconciliation and reconciliation.boundary_complete),
+        missing_previous_reading=bool(reconciliation is None or reconciliation.missing_previous_reading),
+        closing_m3=reconciliation.closing_m3 if reconciliation else None,
+        volume_m3=reconciled_volume,
+        volume_reliable=reconciled_reliable,
+        discarded_events=list(reconciled_analysis.discarded_events),
+    )
     activity = period_activity_label(
         samples_received=operation['samples_received'],
         active_samples=operation['active_samples'],
@@ -407,6 +417,7 @@ def build_period_item(
         'reconciled_volume_reliable': reconciled_reliable,
         'reconciled_discarded_volume_m3': reconciled_analysis.discarded_volume_m3,
         'reconciled_discarded_totalizer_events': reconciled_analysis.discarded_totalizer_events,
+        'reconciled_discarded_totalizer_event_details': list(reconciled_analysis.discarded_events),
         'reconciled_has_discontinuities': reconciled_analysis.has_discontinuities,
         'opening_source': reconciliation.opening_source if reconciliation else 'no_data',
         'missing_previous_reading': reconciliation.missing_previous_reading if reconciliation else True,
@@ -425,6 +436,7 @@ def build_period_item(
         'quality_status': quality.quality_status,
         'quality_label': quality.quality_label,
         'quality_volume_reliable': quality.volume_reliable,
+        **quality_diagnostic,
     }
 
 

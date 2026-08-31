@@ -75,6 +75,14 @@ function validationLabel(item: any): string {
   return 'Sin volumen validado';
 }
 
+function qualityReason(item: any): string {
+  const reason = String(item?.quality_reason || '').trim();
+  if (!reason) return '';
+  const details = item?.quality_details && typeof item.quality_details === 'object' ? item.quality_details : {};
+  const stamp = details.timestamp ? ` · ${fmtLocalDate(details.timestamp)}` : '';
+  return `${reason}${stamp}`;
+}
+
 function ReportSkeleton() {
   return (
     <div className="report-preview-skeleton" aria-label="Cargando vista previa del reporte">
@@ -124,7 +132,7 @@ function ReportPreviewTable({ rows, sectionKey }: { rows: any[]; sectionKey: Rep
               <td>{item.closing_m3 == null ? 'No disponible' : `${fmt(item.closing_m3)} m³`}</td>
               <td>{item.validated_volume_m3 == null ? 'Sin volumen validado' : `${fmt(item.validated_volume_m3)} m³`}</td>
               <td><StatusBadge type={statusType(item.activity)}>{item.activity}</StatusBadge></td>
-              <td><StatusBadge type={validationStatusType(item)}>{validationLabel(item)}</StatusBadge></td>
+              <td><div className="quality-diagnostic-cell"><StatusBadge type={validationStatusType(item)}>{validationLabel(item)}</StatusBadge>{qualityReason(item) ? <small>{qualityReason(item)}</small> : null}</div></td>
               <td>{item.communication}</td>
               <td>{fmtLocalDate(item.last_update)}</td>
             </tr>
