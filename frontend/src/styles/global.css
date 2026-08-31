@@ -8377,3 +8377,127 @@ th { color: #c1d0e8; font-weight: 700; position: sticky; top: 0; background: #0f
 .pozos-shell.theme-light .kpi-card .kpi-trend {
   /* Los colores especificos de estas superficies oscuras se mantienen en el contrato 11. */
 }
+
+/* Homologacion Durango 11B: KPIs y cards en modo claro con referencia visual Zapopan.
+   - Todos los KPI cards deben leerse como tarjetas de alto contraste: fondo azul oscuro + texto blanco.
+   - Las tarjetas operativas conservan fondo claro pero toman una jerarquia mas cercana a Zapopan:
+     borde azul suave, encabezado oscuro, estatus tipo pastilla azul, bloques metricos azul-gris y footer claro. */
+.pozos-shell.theme-light .kpi-card {
+  color: #ffffff !important;
+  background: linear-gradient(145deg, #0a4f7e 0%, #083c63 55%, #072f4e 100%) !important;
+  border-color: rgba(14, 165, 233, .34) !important;
+  box-shadow: 0 14px 30px rgba(8, 67, 103, .18) !important;
+}
+
+.pozos-shell.theme-light .kpi-card::before {
+  background: linear-gradient(90deg, rgba(255,255,255,.55), rgba(255,255,255,0));
+}
+
+.pozos-shell.theme-light .kpi-card::after {
+  background: radial-gradient(circle at 78% 78%, rgba(191, 219, 254, .18), transparent 46%);
+  opacity: .36;
+}
+
+.pozos-shell.theme-light .kpi-card .kpi-label {
+  color: #d9efff !important;
+}
+
+.pozos-shell.theme-light .kpi-card .kpi-value,
+.pozos-shell.theme-light .kpi-card .kpi-unit {
+  color: #ffffff !important;
+}
+
+.pozos-shell.theme-light .kpi-card .kpi-trend {
+  color: #d8e9f8 !important;
+}
+
+.pozos-shell.theme-light .kpi-card .kpi-glow {
+  background: radial-gradient(circle, rgba(125, 211, 252, .18), transparent 72%) !important;
+  opacity: .42 !important;
+}
+
+.pozos-shell.theme-light .operational-element-card {
+  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+  border: 1px solid #b8d8ea;
+  box-shadow: 0 10px 24px rgba(26, 71, 102, .10);
+}
+
+.pozos-shell.theme-light .operational-element-card:hover,
+.pozos-shell.theme-light .operational-element-card.selected {
+  border-color: #7ab8d6;
+  box-shadow: 0 16px 30px rgba(26, 71, 102, .14);
+}
+
+.pozos-shell.theme-light .operational-card-head span,
+.pozos-shell.theme-light .operational-metric-grid span {
+  color: #7690a6;
+}
+
+.pozos-shell.theme-light .operational-card-head strong,
+.pozos-shell.theme-light .operational-metric-grid strong {
+  color: #17324a;
+}
+
+.pozos-shell.theme-light .operational-card-head .status-pill.normal,
+.pozos-shell.theme-light .operational-card-head .status-pill.communication,
+.pozos-shell.theme-light .operational-card-head .status-pill.success {
+  background: linear-gradient(90deg, #0b4f7a, #0d5f93);
+  color: #ffffff;
+  border-color: #0b4f7a;
+}
+
+.pozos-shell.theme-light .operational-card-head .status-pill.warning,
+.pozos-shell.theme-light .operational-card-head .status-pill.alert {
+  color: #8a5800;
+  background: #fff4cf;
+  border-color: rgba(217,119,6,.32);
+}
+
+.pozos-shell.theme-light .operational-card-head .status-pill.idle,
+.pozos-shell.theme-light .operational-card-head .status-pill.nodata,
+.pozos-shell.theme-light .operational-card-head .status-pill.critical,
+.pozos-shell.theme-light .operational-card-head .status-chip.neutral {
+  color: #4b5563;
+  background: #eef3f7;
+  border-color: #cbd5df;
+}
+
+.pozos-shell.theme-light .metric-pair {
+  background: linear-gradient(180deg, #eef4f7 0%, #e5edf2 100%);
+  border-color: #d3dce3;
+}
+
+.pozos-shell.theme-light .metric-pair.emphasis {
+  background: linear-gradient(180deg, #e7f1f6 0%, #ddeaf1 100%);
+  border-color: #bfd4e0;
+}
+
+.pozos-shell.theme-light .metric-pair span {
+  color: #7a8fa2;
+}
+
+.pozos-shell.theme-light .metric-pair strong {
+  color: #16324b;
+}
+
+.pozos-shell.theme-light .metric-pair small {
+  color: #6f879b;
+}
+
+.pozos-shell.theme-light .operational-card-footer {
+  color: #5f7488;
+  background: #f7fbfd;
+  border-top-color: #d8e7ef;
+}
+
+.pozos-shell.theme-light .operational-card-footer strong {
+  color: #4e6478;
+}
+
+.pozos-shell.theme-light .operational-card-footer > span.online {
+  color: #607487;
+}
+
+.pozos-shell.theme-light .open-detail-link {
+  color: #0b5f8f;
+}
