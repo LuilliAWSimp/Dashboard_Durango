@@ -9144,3 +9144,75 @@ th { color: #c1d0e8; font-weight: 700; position: sticky; top: 0; background: #0f
   color: #0b1f3a !important;
   background: #ffffff !important;
 }
+
+/* Homologacion Durango 11J: codigo visual unico para exportaciones.
+   Excel = verde. PDF = rojo vino sobrio, distinto a alarmas/criticos. */
+.pozos-shell .export-excel-button,
+.pozos-shell .module-history-excel-button,
+.pozos-shell .five-minute-excel-button,
+.pozos-shell .historical-excel-button,
+.pozos-shell .header-export-excel {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #16853f, #126b34) !important;
+  border-color: #2ea85a !important;
+  box-shadow: 0 8px 18px rgba(18, 107, 52, .18) !important;
+}
+
+.pozos-shell .export-excel-button:hover:not(:disabled),
+.pozos-shell .module-history-excel-button:hover:not(:disabled),
+.pozos-shell .five-minute-excel-button:hover:not(:disabled),
+.pozos-shell .historical-excel-button:hover:not(:disabled),
+.pozos-shell .header-export-excel:hover:not(:disabled),
+.pozos-shell .export-excel-button:focus-visible,
+.pozos-shell .module-history-excel-button:focus-visible,
+.pozos-shell .five-minute-excel-button:focus-visible,
+.pozos-shell .historical-excel-button:focus-visible,
+.pozos-shell .header-export-excel:focus-visible {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #126b34, #0f582b) !important;
+  border-color: #43ba69 !important;
+}
+
+.pozos-shell .export-pdf-button,
+.pozos-shell .module-history-pdf-button,
+.pozos-shell .historical-pdf-button,
+.pozos-shell .header-export-pdf {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #8b4a54, #6f3b44) !important;
+  border-color: #ad727a !important;
+  box-shadow: 0 8px 18px rgba(111, 59, 68, .16) !important;
+}
+
+.pozos-shell .export-pdf-button:hover:not(:disabled),
+.pozos-shell .module-history-pdf-button:hover:not(:disabled),
+.pozos-shell .historical-pdf-button:hover:not(:disabled),
+.pozos-shell .header-export-pdf:hover:not(:disabled),
+.pozos-shell .export-pdf-button:focus-visible,
+.pozos-shell .module-history-pdf-button:focus-visible,
+.pozos-shell .historical-pdf-button:focus-visible,
+.pozos-shell .header-export-pdf:focus-visible {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #78414a, #60343c) !important;
+  border-color: #bd858c !important;
+}
+
+/* En modo claro se mantiene exactamente el mismo codigo visual para que el formato
+   se reconozca por color independientemente del tema. */
+.pozos-shell.theme-light .export-excel-button,
+.pozos-shell.theme-light .module-history-excel-button,
+.pozos-shell.theme-light .five-minute-excel-button,
+.pozos-shell.theme-light .historical-excel-button,
+.pozos-shell.theme-light .header-export-excel {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #16853f, #126b34) !important;
+  border-color: #2ea85a !important;
+}
+
+.pozos-shell.theme-light .export-pdf-button,
+.pozos-shell.theme-light .module-history-pdf-button,
+.pozos-shell.theme-light .historical-pdf-button,
+.pozos-shell.theme-light .header-export-pdf {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #8b4a54, #6f3b44) !important;
+  border-color: #ad727a !important;
+}

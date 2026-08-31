@@ -360,8 +360,8 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
             <div className="report-actions-block">
               <span className="report-field-label">Acciones</span>
               <div className="report-actions" aria-label="Acciones del reporte">
-                <button type="button" className="report-action-button primary-action" disabled={isBusy} onClick={() => void runExport('pdf')}><FileDown size={17} /> {exportAction === 'pdf' ? 'Generando PDF...' : 'Generar PDF'}</button>
-                <button type="button" className="report-action-button" disabled={isBusy} onClick={() => void runExport('xlsx')}><FileSpreadsheet size={17} /> {exportAction === 'xlsx' ? 'Generando Excel...' : 'Exportar Excel'}</button>
+                <button type="button" className="report-action-button export-pdf-button" disabled={isBusy} onClick={() => void runExport('pdf')}><FileDown size={17} /> {exportAction === 'pdf' ? 'Generando PDF...' : 'Generar PDF'}</button>
+                <button type="button" className="report-action-button export-excel-button" disabled={isBusy} onClick={() => void runExport('xlsx')}><FileSpreadsheet size={17} /> {exportAction === 'xlsx' ? 'Generando Excel...' : 'Exportar Excel'}</button>
                 <button type="button" className="report-action-button" disabled={isBusy} onClick={() => void runExport('html')}><Eye size={17} /> {exportAction === 'html' ? 'Generando vista...' : 'Vista HTML'}</button>
                 {canEmail ? <button type="button" className="report-action-button" disabled={sending} onClick={() => setEmailOpen(true)}><Mail size={17} /> Enviar por correo</button> : null}
               </div>
@@ -387,7 +387,7 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
         <div className="historical-export-actions">
           <button
             type="button"
-            className="report-action-button historical-excel-button"
+            className="report-action-button historical-excel-button export-excel-button"
             disabled={isBusy}
             onClick={() => void runHistoricalExport('excel')}
           >
@@ -395,7 +395,7 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
           </button>
           <button
             type="button"
-            className="report-action-button"
+            className="report-action-button historical-pdf-button export-pdf-button"
             disabled={isBusy}
             onClick={() => void runHistoricalExport('pdf')}
           >
