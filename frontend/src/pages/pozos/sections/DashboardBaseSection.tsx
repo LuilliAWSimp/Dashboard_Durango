@@ -7,7 +7,6 @@ import { JARABES_SECTION_CONFIG, LAVADORAS_SECTION_CONFIG } from '../operational
 import ChartEmptyState from '../components/ChartEmptyState';
 import ModuleHistoryPanel from '../components/ModuleHistoryPanel';
 import PanelHeader from '../components/PanelHeader';
-import SqlChartDateControls from '../components/SqlChartDateControls';
 import StatusBadge from '../components/StatusBadge';
 import OperationalAlertsPanel from '../components/OperationalAlertsPanel';
 import WellsMinuteFlowPanel from '../components/WellsMinuteFlowPanel';
@@ -224,12 +223,7 @@ export default function DashboardBaseSection() {
   return (
     <>
       <section className="panel fade-up compact-hero">
-        <PanelHeader title="Resumen hídrico de Durango" subtitle="Snapshot actual + volumen conciliado del día; histórico y alertas conservan el rango seleccionado" />
-        <SqlChartDateControls
-          controller={controller}
-          title="Periodo del resumen"
-          subtitle="Con un solo día, los KPIs y comparativos usan Revisión diaria. En rangos mayores se conserva el subtotal validado del periodo."
-        />
+        <PanelHeader title="Resumen hídrico de Durango" subtitle="Snapshot actual + volumen conciliado del día; histórico, comparativos y alertas usan el día operativo actual." />
         {dailyLoading ? <div className="status-pill auto-refresh-status">Actualizando conciliación y comparativos diarios…</div> : null}
         {dailyError ? <div className="status-pill alert">{dailyError}</div> : null}
       </section>
@@ -248,22 +242,25 @@ export default function DashboardBaseSection() {
         <KpiCard label="Última actualización" value={latest ? formatSqlDate(latest) : 'Sin lectura'} unit="" trend={controller.refreshing ? 'Actualizando información…' : 'Snapshot automático cada 60 s'} accent="teal" />
       </section>
 
+      <ModuleHistoryPanel range={controller.range} />
+      <WellsMinuteFlowPanel />
+
       <section className="panel fade-up">
         <PanelHeader
           title="Comparativo diario por módulo"
           subtitle={singleReviewDate
-            ? `Día seleccionado ${dateLabel(singleReviewDate)} contra día anterior y misma fecha de la semana anterior.`
-            : 'Selecciona un solo día para habilitar comparativos diarios conciliados.'}
+            ? `Día actual ${dateLabel(singleReviewDate)} contra día anterior y misma fecha de la semana anterior.`
+            : 'Comparativo diario no disponible.'}
         />
         {!singleReviewDate ? (
-          <ChartEmptyState message="Los comparativos diarios requieren que la fecha inicial y final sean el mismo día." />
+          <ChartEmptyState message="El comparativo diario utiliza automáticamente el día operativo actual." />
         ) : dailyReview ? (
           <div className="pozos-table-scroll">
             <table className="pozos-operacion-table">
               <thead>
                 <tr>
                   <th>Módulo</th>
-                  <th>Seleccionado</th>
+                  <th>Día actual</th>
                   <th>Día anterior</th>
                   <th>Variación</th>
                   <th>Semana anterior</th>
@@ -293,12 +290,9 @@ export default function DashboardBaseSection() {
         ) : dailyLoading ? (
           <div className="status-pill">Calculando comparativos diarios…</div>
         ) : (
-          <ChartEmptyState message="No fue posible obtener el comparativo diario para la fecha seleccionada." />
+          <ChartEmptyState message="No fue posible obtener el comparativo diario del día actual." />
         )}
       </section>
-
-      <ModuleHistoryPanel range={controller.range} />
-      <WellsMinuteFlowPanel />
 
       <OperationalAlertsPanel alerts={alerts} range={controller.range} aggregation={alertAggregation} />
 

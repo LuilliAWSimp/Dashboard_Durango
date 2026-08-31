@@ -8501,3 +8501,55 @@ th { color: #c1d0e8; font-weight: 700; position: sticky; top: 0; background: #0f
 .pozos-shell.theme-light .open-detail-link {
   color: #0b5f8f;
 }
+
+/* Homologacion Durango 11C: jerarquia del Resumen y Accesos operativos en modo claro. */
+.pozos-shell.theme-light .water-type-card {
+  color: #17324a;
+  background: linear-gradient(180deg, #ffffff 0%, #f7fbfe 100%);
+  border-color: #b9d7e7;
+  box-shadow: 0 10px 24px rgba(26, 71, 102, .09);
+}
+
+.pozos-shell.theme-light .water-type-card:hover {
+  border-color: #79b6d4;
+  box-shadow: 0 15px 30px rgba(26, 71, 102, .13);
+  transform: translateY(-2px);
+}
+
+.pozos-shell.theme-light .water-type-head span {
+  color: #6d879b;
+}
+
+.pozos-shell.theme-light .water-type-head strong {
+  color: #17324a;
+}
+
+.pozos-shell.theme-light .water-type-foot {
+  border-top-color: #d6e6ee;
+}
+
+.pozos-shell.theme-light .water-type-foot p,
+.pozos-shell.theme-light .water-type-foot span {
+  color: #5c7184;
+}
+
+.pozos-shell.theme-light .water-type-card .status-pill.normal,
+.pozos-shell.theme-light .water-type-card .status-pill.communication,
+.pozos-shell.theme-light .water-type-card .status-pill.success {
+  color: #ffffff;
+  background: linear-gradient(90deg, #0b4f7a, #0d679d);
+  border-color: #0b4f7a;
+}
+
+.pozos-shell.theme-light .water-type-card .status-pill.warning,
+.pozos-shell.theme-light .water-type-card .status-pill.alert {
+  color: #765b00;
+  background: #fff3cd;
+  border-color: #e1bf54;
+}
+
+.pozos-shell.theme-light .water-type-card .status-pill.critical {
+  color: #a61b1b;
+  background: #fde7e7;
+  border-color: #eab1b1;
+}
