@@ -12,6 +12,11 @@ const LEGACY_TOKEN_KEY = 'siem_demo_token';
 const LEGACY_USER_KEY = 'siem_demo_user';
 const AUTH_CHANNEL = 'arca-dgo-auth';
 const USER_ACTIVITY_WINDOW_MS = 30_000;
+const ACTIVE_TABS_STORAGE_KEY = 'arca_dgo_active_tabs';
+const TAB_ID_SESSION_STORAGE_KEY = 'arca_dgo_active_tab_id';
+const TAB_RELOAD_MARKER_SESSION_STORAGE_KEY = 'arca_dgo_tab_reloading';
+const ACTIVE_TAB_TTL_MS = 20_000;
+const ACTIVE_TAB_HEARTBEAT_MS = 5_000;
 const BOS_LOCAL_HTTP_HOSTS = new Set(['localhost', '127.0.0.1', '100.102.159.109']);
 
 function safeStorage(kind) {
@@ -51,6 +56,113 @@ function removeSharedValue(key) {
   memoryStorage.delete(key);
   try { sharedStorage?.removeItem(key); } catch { /* sin acción */ }
   try { tabStorage?.removeItem(key); } catch { /* sin acción */ }
+}
+
+function readActiveTabs() {
+  if (!sharedStorage) return {};
+  try {
+    const raw = sharedStorage.getItem(ACTIVE_TABS_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    const result = {};
+    for (const [tabId, value] of Object.entries(parsed)) {
+      const timestamp = Number(value);
+      if (tabId && Number.isFinite(timestamp)) result[tabId] = timestamp;
+    }
+    return result;
+  } catch {
+    return {};
+  }
+}
+
+function writeActiveTabs(tabs) {
+  if (!sharedStorage) return;
+  try {
+    const entries = Object.entries(tabs);
+    if (entries.length) sharedStorage.setItem(ACTIVE_TABS_STORAGE_KEY, JSON.stringify(tabs));
+    else sharedStorage.removeItem(ACTIVE_TABS_STORAGE_KEY);
+  } catch { /* sin acción: WebBrowser legacy conserva el comportamiento previo */ }
+}
+
+function pruneActiveTabs(tabs, now = Date.now()) {
+  const result = {};
+  for (const [tabId, timestamp] of Object.entries(tabs)) {
+    if ((now - Number(timestamp)) <= ACTIVE_TAB_TTL_MS) result[tabId] = Number(timestamp);
+  }
+  return result;
+}
+
+function createTabId() {
+  try {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  } catch { /* fallback */ }
+  return `dgo-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+}
+
+function currentNavigationType() {
+  try {
+    const entries = window.performance?.getEntriesByType?.('navigation') || [];
+    return String(entries[0]?.type || '');
+  } catch {
+    return '';
+  }
+}
+
+let currentActiveTabId = '';
+let activeTabHeartbeatTimer = 0;
+
+function registerCurrentTab() {
+  if (!currentActiveTabId || !sharedStorage) return;
+  const now = Date.now();
+  const tabs = pruneActiveTabs(readActiveTabs(), now);
+  tabs[currentActiveTabId] = now;
+  writeActiveTabs(tabs);
+}
+
+function unregisterCurrentTab({ markReloadCandidate = true } = {}) {
+  if (!currentActiveTabId || !sharedStorage) return;
+  if (markReloadCandidate) {
+    try { tabStorage?.setItem(TAB_RELOAD_MARKER_SESSION_STORAGE_KEY, '1'); } catch { /* sin acción */ }
+  }
+  const tabs = readActiveTabs();
+  delete tabs[currentActiveTabId];
+  writeActiveTabs(pruneActiveTabs(tabs));
+}
+
+function initializeActiveTabTracking() {
+  // BOS/WebBrowser local conserva su modo de compatibilidad: el control de
+  // pestañas aplica al navegador web normal donde localStorage/sessionStorage
+  // son confiables y el backend exige X-ARCA-Browser-Session.
+  if (!sharedStorage || !tabStorage || isBosLocalHttpPage()) return;
+
+  const now = Date.now();
+  let tabs = pruneActiveTabs(readActiveTabs(), now);
+  const storedTabId = tabStorage.getItem(TAB_ID_SESSION_STORAGE_KEY) || '';
+  const reloadMarker = tabStorage.getItem(TAB_RELOAD_MARKER_SESSION_STORAGE_KEY) === '1';
+  tabStorage.removeItem(TAB_RELOAD_MARKER_SESSION_STORAGE_KEY);
+  const sameTabReload = Boolean(storedTabId && reloadMarker && currentNavigationType() === 'reload');
+
+  // Si esta vista no es una recarga de la misma pestaña y no existe ninguna
+  // pestaña viva, una browser_session persistida pertenece a una sesión de
+  // navegación anterior. Se elimina antes de que App intente /auth/me.
+  if (!sameTabReload && Object.keys(tabs).length === 0 && readSharedValue(BROWSER_SESSION_STORAGE_KEY)) {
+    clearAuthSession({ broadcast: false, notify: false });
+  }
+
+  currentActiveTabId = sameTabReload ? storedTabId : createTabId();
+  tabStorage.setItem(TAB_ID_SESSION_STORAGE_KEY, currentActiveTabId);
+  tabs[currentActiveTabId] = now;
+  writeActiveTabs(tabs);
+
+  activeTabHeartbeatTimer = window.setInterval(registerCurrentTab, ACTIVE_TAB_HEARTBEAT_MS);
+  window.addEventListener('pagehide', () => unregisterCurrentTab({ markReloadCandidate: true }));
+  window.addEventListener('pageshow', (event) => {
+    if (event.persisted) {
+      try { tabStorage.removeItem(TAB_RELOAD_MARKER_SESSION_STORAGE_KEY); } catch { /* sin acción */ }
+      registerCurrentTab();
+    }
+  });
 }
 
 function isBosLocalHttpPage() {
@@ -144,6 +256,7 @@ function hasRecentHumanActivity() {
 }
 
 if (typeof window !== 'undefined') {
+  initializeActiveTabTracking();
   clearLegacyAuthStorage();
   ['pointerdown', 'keydown', 'touchstart'].forEach((eventName) => {
     window.addEventListener(eventName, markHumanActivity, { capture: true, passive: true });

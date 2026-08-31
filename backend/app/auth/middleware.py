@@ -91,17 +91,31 @@ class LocalAuthMiddleware(BaseHTTPMiddleware):
         if session_token and '~' in session_token:
             session_token, embedded_browser_session = session_token.split('~', 1)
 
-        # La cookie HttpOnly auxiliar permite que Blue Open Studio funcione aun
-        # cuando su WebBrowser no soporte storage/BroadcastChannel de forma fiable.
-        browser_session = (
-            request.cookies.get(self.browser_cookie_name)
-            or request.headers.get(BROWSER_SESSION_HEADER)
-            or embedded_browser_session
-        )
+        browser_session_header = request.headers.get(BROWSER_SESSION_HEADER)
+        browser_session_cookie = request.cookies.get(self.browser_cookie_name)
+
+        # En navegador web normal, AUTH_REQUIRE_BROWSER_SESSION=true significa
+        # que el binding debe venir del estado activo del frontend por header.
+        # La cookie auxiliar por sí sola no basta: de otro modo una cookie que
+        # quedó viva permitiría restaurar sesión después de cerrar todas las
+        # pestañas, anulando el registro arca_dgo_active_tabs.
+        #
+        # BOS/WebBrowser local conserva su compatibilidad especial y puede usar
+        # cookie/header/valor embebido, además de relajar el binding adicional.
+        if bos_local_compat:
+            browser_session = browser_session_header or browser_session_cookie or embedded_browser_session
+            require_browser_session = False
+        elif settings.auth_require_browser_session:
+            browser_session = browser_session_header
+            require_browser_session = True
+        else:
+            browser_session = browser_session_header or browser_session_cookie or embedded_browser_session
+            require_browser_session = False
+
         session = service.get_session(
             session_token,
             browser_session,
-            require_browser_session=False if bos_local_compat else None,
+            require_browser_session=require_browser_session,
         )
         if not session:
             logger.warning(

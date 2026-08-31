@@ -74,6 +74,30 @@ class FrontendAuthContractTests(unittest.TestCase):
         self.assertIn("tabStorage?.setItem", source)
         self.assertIn('createAuthChannel', source)
 
+    def test_registro_de_pestanas_activas_y_heartbeat(self):
+        source = self.read('frontend/src/services/api.js')
+        self.assertIn("arca_dgo_active_tabs", source)
+        self.assertIn('ACTIVE_TAB_TTL_MS = 20_000', source)
+        self.assertIn('ACTIVE_TAB_HEARTBEAT_MS = 5_000', source)
+        self.assertIn('initializeActiveTabTracking', source)
+        self.assertIn("window.addEventListener('pagehide'", source)
+        self.assertIn("window.addEventListener('pageshow'", source)
+        self.assertIn('sameTabReload', source)
+        self.assertIn('clearAuthSession({ broadcast: false, notify: false })', source)
+
+    def test_api_js_ts_conservan_mismo_contrato_de_pestanas(self):
+        js = self.read('frontend/src/services/api.js')
+        ts = self.read('frontend/src/services/api.ts')
+        for token in (
+            "arca_dgo_active_tabs",
+            'ACTIVE_TAB_TTL_MS = 20_000',
+            'ACTIVE_TAB_HEARTBEAT_MS = 5_000',
+            'initializeActiveTabTracking',
+            'TAB_RELOAD_MARKER_SESSION_STORAGE_KEY',
+        ):
+            self.assertIn(token, js)
+            self.assertIn(token, ts)
+
 
 if __name__ == '__main__':
     unittest.main()

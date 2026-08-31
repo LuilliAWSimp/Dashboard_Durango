@@ -276,6 +276,24 @@ class LocalAuthTests(unittest.TestCase):
         self.assertEqual(client.get('/api/v1/dashboard', headers={'Origin': ORIGIN}).status_code, 401)
         self.assertEqual(client.get('/api/v1/dashboard', headers={'Origin': ORIGIN, BROWSER_SESSION_HEADER: 'incorrecto'}).status_code, 401)
 
+    def test_cookie_auxiliar_sola_no_restaura_sesion_https(self):
+        result = self.service.authenticate(username='adminlocal', password=ADMIN_PASSWORD)
+        client = TestClient(self.build_app())
+        client.cookies.set(COOKIE_NAME, result.token)
+        client.cookies.set(BROWSER_COOKIE_NAME, result.browser_session)
+
+        # En web normal la cookie auxiliar no sustituye al estado vivo del
+        # frontend. Sin X-ARCA-Browser-Session debe volver a login.
+        response = client.get('/api/v1/dashboard', headers={'Origin': ORIGIN})
+        self.assertEqual(response.status_code, 401)
+
+        # Una pestaña activa sí envía el binding compartido por header.
+        response = client.get(
+            '/api/v1/dashboard',
+            headers={'Origin': ORIGIN, BROWSER_SESSION_HEADER: result.browser_session},
+        )
+        self.assertEqual(response.status_code, 200)
+
     def test_multiples_pestanas_comparten_sesion_y_csrf_estable(self):
         first, result = self.session_client()
         second = TestClient(self.build_app())
