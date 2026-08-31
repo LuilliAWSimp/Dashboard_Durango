@@ -28,8 +28,9 @@ function volumeDisplay(row) {
   return "Sin volumen validado";
 }
 function validationLabel(row) {
-  if (row?.validated_volume_m3 !== null && row?.validated_volume_m3 !== void 0) return "Validado";
+  if (row?.quality_label) return String(row.quality_label);
   if (row?.validation && String(row.validation) !== "Validaci\xF3n parcial") return String(row.validation);
+  if (row?.validated_volume_m3 !== null && row?.validated_volume_m3 !== void 0) return "Validado";
   return "Sin volumen validado";
 }
 const CHART_COLORS = ["#1597d4", "#7047eb", "#f59e0b", "#10b981", "#e84a5f"];
@@ -148,13 +149,15 @@ function buildDailyWaterReportHtml(report) {
       <div><span>Volumen validado de l\xEDneas</span><strong>${fmtVolume(summary.line_validated_volume_m3 ?? summary.line_volume_m3)}</strong></div>
       <div><span>Volumen validado de lavadoras</span><strong>${fmtVolume(summary.washer_validated_volume_m3)}</strong></div>
       <div><span>Volumen validado de Jarabes</span><strong>${fmtVolume(summary.jarabes_validated_volume_m3)}</strong></div>
-      <div><span>Total validado operativo</span><strong>${fmtVolume(summary.total_validated_operational_m3 ?? summary.total_operational_m3)}</strong></div>
+      <div><span>${escapeHtml(summary.volume_basis_label || "Total validado")} operativo</span><strong>${fmtVolume(summary.total_validated_operational_m3 ?? summary.total_operational_m3)}</strong></div>
+      <div><span>Cobertura del reporte</span><strong>${escapeHtml(summary.coverage_label || "Sin dato")}</strong></div>
+      <div><span>Elementos validados</span><strong>${Number(summary.validated_items_count || 0)}/${Number(summary.monitored_items_count || 0)}</strong></div>
       <div><span>Pozos con actividad</span><strong>${Number(summary.wells_active || 0)}/${report.wells?.rows?.length || 0}</strong></div>
       <div><span>L\xEDneas con actividad</span><strong>${Number(summary.lines_active || 0)}/${report.production_lines?.rows?.length || 0}</strong></div>
       <div><span>Lavadoras con actividad</span><strong>${Number(summary.washers_active || 0)}/${report.washers?.rows?.length || 0}</strong></div>
       <div><span>Jarabes con actividad</span><strong>${Number(summary.jarabes_active || 0)}/${report.jarabes?.rows?.length || 0}</strong></div>
     </div>
-    <p class="note">${escapeHtml(summary.note || "Los vol\xFAmenes mostrados consideran \xFAnicamente incrementos validados. Los eventos descartados no se incluyen en los totales.")}<br><strong>Cero:</strong> lectura v\xE1lida sin flujo. <strong>Hueco:</strong> intervalo sin registros suficientes. Los gr\xE1ficos no generan intervalos futuros.</p>
+    <p class="note">${escapeHtml(summary.note || "Los vol\xFAmenes mostrados consideran \xFAnicamente incrementos validados. Los eventos descartados no se incluyen en los totales.")}<br><strong>Fuente:</strong> ${report.report_source === "daily_review" ? "Revisi\xF3n diaria conciliada" : "Periodo conciliado"}. <strong>En revisi\xF3n:</strong> ${Number(summary.review_count || 0)}. <strong>Sin datos:</strong> ${Number(summary.no_data_count || 0)}.<br><strong>Cero:</strong> lectura v\xE1lida sin flujo. <strong>Hueco:</strong> intervalo sin registros suficientes. Los gr\xE1ficos no generan intervalos futuros.</p>
     ${section("Pozos", report.wells?.rows || [], report.history?.wells)}
     ${section("L\xEDneas", report.production_lines?.rows || [], report.history?.lines)}
     ${section("Lavadoras", report.washers?.rows || [], report.history?.washers)}

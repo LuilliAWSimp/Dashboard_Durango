@@ -70,10 +70,22 @@ class DurangoReportValidatedSummaryTests(unittest.TestCase):
             'source_status': 'readings_minute',
         }
 
+    def review_payload(self, *, shifts: list | None = None) -> dict:
+        return {
+            'source_status': self.period.get('source_status'),
+            'validated_segment_start': '2026-08-04T18:16:00',
+            'crosses_scada_cutover': False,
+            'legacy_notice': None,
+            'modules': {
+                'wells': {'items': self.period['wells'], 'summary': self.period['summary']['wells']},
+                'lines': {'items': self.period['lines'], 'summary': self.period['summary']['lines']},
+                'flows': {'items': self.period['flows'], 'summary': self.period['summary']['flows']},
+            },
+            'shifts': {'shifts': shifts or []},
+        }
+
     def build_report(self) -> dict:
-        with patch('app.services.water_daily_report_service.get_period_data', return_value=self.period), patch(
-            'app.services.water_daily_report_service.get_shift_consumption_data', return_value={'shifts': []}
-        ), patch(
+        with patch('app.services.water_daily_report_service.get_daily_water_review', return_value=self.review_payload()), patch(
             'app.services.water_daily_report_service.get_water_history_module',
             side_effect=lambda module, start_date, end_date, aggregation: {
                 'module': module,
@@ -117,7 +129,7 @@ class DurangoReportValidatedSummaryTests(unittest.TestCase):
         self.assertAlmostEqual(summary_values['Volumen validado de líneas (m³)'], 24.21, places=6)
         self.assertEqual(summary_values['Volumen validado de lavadoras (m³)'], 0)
         self.assertAlmostEqual(summary_values['Volumen validado de Jarabes (m³)'], 11.43, places=6)
-        self.assertAlmostEqual(summary_values['Total validado operativo (m³)'], 211.29, places=6)
+        self.assertAlmostEqual(summary_values['Subtotal validado operativo (m³)'], 211.29, places=6)
         wells_sheet = workbook['Pozos']
         self.assertIsInstance(wells_sheet['E2'].value, (int, float))
         self.assertAlmostEqual(wells_sheet['E2'].value, 0.67, places=6)
@@ -132,29 +144,30 @@ class DurangoReportValidatedSummaryTests(unittest.TestCase):
         self.assertEqual(filename, 'reporte-diario-control-hidrico-durango-2026-08-04.pdf')
 
     def test_preview_skips_histories_and_shifts(self) -> None:
-        with patch('app.services.water_daily_report_service.get_period_data', return_value=self.period), patch(
-            'app.services.water_daily_report_service.get_shift_consumption_data'
-        ) as shifts, patch('app.services.water_daily_report_service.get_water_history_module') as history:
+        with patch('app.services.water_daily_report_service.get_daily_water_review', return_value=self.review_payload()) as review, patch(
+            'app.services.water_daily_report_service.get_water_history_module'
+        ) as history:
             report = get_daily_water_report('2026-08-04', include_history=False, include_shifts=False)
-        shifts.assert_not_called()
         history.assert_not_called()
+        self.assertFalse(review.call_args.kwargs['include_shifts'])
         self.assertFalse(report['includes_history'])
         self.assertFalse(report['includes_shifts'])
+        self.assertEqual(report['report_source'], 'daily_review')
         self.assertEqual(report['shifts'], [])
         self.assertEqual(report['history']['wells'], {})
 
-    def test_full_report_obtains_all_histories_and_shifts(self) -> None:
-        with patch('app.services.water_daily_report_service.get_period_data', return_value=self.period), patch(
-            'app.services.water_daily_report_service.get_shift_consumption_data', return_value={'shifts': []}
-        ) as shifts, patch(
+    def test_full_report_obtains_all_histories_and_reuses_daily_review_shifts(self) -> None:
+        shift = {'id': 'shift_1', 'name': 'T1', 'schedule': '00:00-07:00'}
+        with patch('app.services.water_daily_report_service.get_daily_water_review', return_value=self.review_payload(shifts=[shift])) as review, patch(
             'app.services.water_daily_report_service.get_water_history_module',
             return_value={'series': [], 'aggregation': 'quarter_hour'},
         ) as history:
             report = get_daily_water_report('2026-08-04')
-        shifts.assert_called_once()
+        self.assertTrue(review.call_args.kwargs['include_shifts'])
         self.assertEqual(history.call_count, 3)
         self.assertTrue(report['includes_history'])
         self.assertTrue(report['includes_shifts'])
+        self.assertEqual(report['shifts'], [shift])
 
     def test_pdf_flow_axis_unit_is_vertical_and_separated_from_ticks(self) -> None:
         drawing = _flow_history_drawing(

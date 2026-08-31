@@ -19,9 +19,9 @@ from reportlab.lib.units import mm
 from reportlab.platypus import HRFlowable, Image, KeepTogether, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from app.services.durango_capabilities import FLOWS, JARABES, LOCAL_TIMEZONE
+from app.services.water_daily_review_service import DailyReviewError, get_daily_water_review
 from app.services.water_history_service import WaterHistoryError, get_water_history_module
 from app.services.water_period_service import WaterPeriodError, get_period_data
-from app.services.water_shift_service import get_shift_consumption_data
 
 LOCAL_ZONE = ZoneInfo(LOCAL_TIMEZONE)
 SUMMARY_NOTE = (
@@ -111,7 +111,7 @@ def _as_float(value: Any) -> float | None:
 
 
 def _validated_volume(item: dict[str, Any]) -> float | None:
-    """Return only volume accepted by the physical totalizer analyzer."""
+    """Return the already-validated volume supplied by the common data contract."""
     validated = _as_float(item.get('validated_volume_m3'))
     if validated is not None:
         return max(validated, 0.0)
@@ -123,6 +123,10 @@ def _validated_volume(item: dict[str, Any]) -> float | None:
 
 
 def _volume_validation(item: dict[str, Any], validated: float | None = None) -> tuple[str, str]:
+    quality_label = str(item.get('quality_label') or item.get('validation') or '').strip()
+    quality_status = str(item.get('quality_status') or item.get('validation_status') or '').strip()
+    if quality_label and quality_status:
+        return quality_label, quality_status
     value = _validated_volume(item) if validated is None else validated
     if value is None:
         return 'Sin volumen validado', 'unavailable'
@@ -148,6 +152,7 @@ def _report_row(item: dict[str, Any]) -> dict[str, Any]:
     validated = _validated_volume(item)
     discarded = _as_float(item.get('discarded_volume_m3')) or 0.0
     validation, validation_status = _volume_validation(item, validated)
+    reliable = bool(item.get('volume_reliable')) if 'volume_reliable' in item else bool(item.get('period_m3_reliable'))
     return {
         'operational_key': item.get('operational_key'),
         'sensor_id': item.get('sensor_id'),
@@ -158,19 +163,25 @@ def _report_row(item: dict[str, Any]) -> dict[str, Any]:
         'opening_m3': item.get('period_open_m3'),
         'closing_m3': closing_m3,
         'volume_m3': item.get('period_m3'),
-        'volume_reliable': bool(item.get('period_m3_reliable')),
+        'volume_reliable': reliable,
         'validated_volume_m3': validated,
         'discarded_volume_m3': discarded,
         'discarded_totalizer_events': item.get('discarded_totalizer_events') or 0,
         'has_discontinuities': bool(item.get('has_discontinuities')),
         'volume_display_label': item.get('volume_display_label') or 'Volumen del periodo',
-        'activity': _period_activity(item, validated),
+        'activity': item.get('activity') or _period_activity(item, validated),
         'validation': validation,
         'validation_status': validation_status,
+        'quality_label': item.get('quality_label') or validation,
+        'quality_status': item.get('quality_status') or validation_status,
         'communication': item.get('communication') or 'Sin lectura',
         'last_update': item.get('last_update'),
-        'data_status': item.get('data_status') or 'no_data',
-        'samples': item.get('samples') or 0,
+        'data_status': item.get('quality_data_status') or item.get('data_status') or 'no_data',
+        'samples': item.get('samples_received') or item.get('samples') or 0,
+        'samples_expected': item.get('samples_expected'),
+        'coverage_percent': item.get('coverage_percent') or item.get('coverage_pct'),
+        'opening_source': item.get('opening_source'),
+        'boundary_complete': item.get('boundary_complete'),
     }
 
 
@@ -184,16 +195,31 @@ def _report_volume_display(item: dict[str, Any]) -> str:
 def _module_validated_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
     values = [value for row in rows if (value := _validated_volume(row)) is not None]
     discarded = sum((_as_float(row.get('discarded_volume_m3')) or 0.0) for row in rows)
-    partial_validation_count = sum(1 for row in rows if _volume_validation(row)[1] == 'partial')
-    without_validated_volume_count = sum(1 for row in rows if _volume_validation(row)[1] == 'unavailable')
+    statuses = [str(row.get('quality_status') or row.get('validation_status') or '') for row in rows]
+    has_quality_contract = any(status in {'validated', 'valid_zero', 'partial_coverage', 'review', 'no_data'} for status in statuses)
+    if has_quality_contract:
+        partial_validation_count = sum(1 for status in statuses if status in {'partial_coverage', 'review'})
+        without_validated_volume_count = sum(1 for status in statuses if status == 'no_data')
+        coverage_complete = bool(rows) and all(status in {'validated', 'valid_zero'} for status in statuses)
+    else:
+        partial_validation_count = sum(1 for row in rows if _volume_validation(row)[1] == 'partial')
+        without_validated_volume_count = sum(1 for row in rows if _volume_validation(row)[1] == 'unavailable')
+        coverage_complete = bool(rows) and len(values) == len(rows)
+    quality_counts: dict[str, int] = {}
+    for status in statuses:
+        key = status or 'unavailable'
+        quality_counts[key] = quality_counts.get(key, 0) + 1
     return {
         'validated_volume_m3': round(sum(values), 6) if values else None,
         'discarded_volume_m3': round(discarded, 6),
         'calculable_count': len(values),
+        'monitored_count': len(rows),
+        'coverage_complete': coverage_complete,
         'active_count': sum(1 for row in rows if str(row.get('activity') or '').lower().startswith('con actividad')),
         'inactive_count': sum(1 for row in rows if str(row.get('activity') or '').lower().startswith('sin actividad')),
         'partial_validation_count': partial_validation_count,
         'without_validated_volume_count': without_validated_volume_count,
+        'quality_counts': quality_counts,
         # Compatibility alias for clients from the previous report release.
         'review_count': partial_validation_count,
     }
@@ -228,6 +254,43 @@ def _report_history(module: str, start_day: date, end_day: date, aggregation: st
         }
 
 
+def _daily_review_as_period(day: date, *, include_shifts: bool) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Adapt the canonical daily-review payload to the report service without recalculating volumes."""
+    try:
+        review = get_daily_water_review(
+            day.isoformat(),
+            include_shifts=include_shifts,
+            include_comparatives=False,
+            force_refresh=False,
+        )
+    except DailyReviewError as exc:
+        raise ReportDataUnavailableError(str(exc)) from exc
+
+    modules = review.get('modules') or {}
+    wells_module = modules.get('wells') or {}
+    lines_module = modules.get('lines') or {}
+    flows_module = modules.get('flows') or {}
+    shifts_payload = review.get('shifts') or {}
+    shifts = list(shifts_payload.get('shifts') or []) if isinstance(shifts_payload, dict) else []
+    period = {
+        'wells': list(wells_module.get('items') or review.get('wells') or []),
+        'lines': list(lines_module.get('items') or review.get('production_lines') or []),
+        'flows': list(flows_module.get('items') or review.get('flows') or []),
+        'summary': {
+            'wells': dict(wells_module.get('summary') or (review.get('operational_summary') or {}).get('wells') or {}),
+            'lines': dict(lines_module.get('summary') or (review.get('operational_summary') or {}).get('lines') or {}),
+            'flows': dict(flows_module.get('summary') or (review.get('operational_summary') or {}).get('flows') or {}),
+        },
+        'source_status': review.get('source_status'),
+        'validated_segment_start': review.get('validated_segment_start'),
+        'crosses_scada_cutover': bool(review.get('crosses_scada_cutover')),
+        'legacy_notice': review.get('legacy_notice'),
+        'has_future_intervals': bool(review.get('has_future_intervals')),
+        'report_source': 'daily_review',
+    }
+    return period, shifts
+
+
 def get_daily_water_report(
     report_date: Any = None,
     start_date: Any = None,
@@ -240,20 +303,23 @@ def get_daily_water_report(
     end_day = _parse_date(end_date or report_date or start_day)
     if start_day > end_day:
         start_day, end_day = end_day, start_day
-    try:
-        period = get_period_data(start_day.isoformat(), end_day.isoformat())
-    except WaterPeriodError as exc:
-        raise ReportDataUnavailableError(str(exc)) from exc
+    if start_day == end_day:
+        period, shifts = _daily_review_as_period(start_day, include_shifts=include_shifts)
+    else:
+        # Multi-day reports keep the existing reconciled period service. The canonical
+        # daily-review contract is the source of truth for one-day reports.
+        try:
+            period = get_period_data(start_day.isoformat(), end_day.isoformat())
+        except WaterPeriodError as exc:
+            raise ReportDataUnavailableError(str(exc)) from exc
+        period = dict(period)
+        period['report_source'] = 'period_service'
+        shifts = []
 
     wells = [_report_row(item) for item in period['wells']]
     lines = [_report_row(item) for item in period['lines']]
     flows = [_report_row(item) for item in period['flows']]
     summaries = period['summary']
-    shifts = (
-        get_shift_consumption_data(start_day.isoformat()).get('shifts', [])
-        if include_shifts and start_day == end_day
-        else []
-    )
 
     well_summary = _module_validated_summary(wells)
     line_summary = _module_validated_summary(lines)
@@ -271,6 +337,9 @@ def get_daily_water_report(
     total_validated = round(sum(calculable_values), 6) if calculable_values else None
     partial_validation_count = sum(item['partial_validation_count'] for item in (well_summary, line_summary, lavadora_summary, jarabes_summary))
     without_validated_volume_count = sum(item['without_validated_volume_count'] for item in (well_summary, line_summary, lavadora_summary, jarabes_summary))
+    monitored_items_count = sum(item['monitored_count'] for item in (well_summary, line_summary, lavadora_summary, jarabes_summary))
+    coverage_complete = bool(monitored_items_count) and all(item['coverage_complete'] for item in (well_summary, line_summary, lavadora_summary, jarabes_summary))
+    volume_basis_label = 'Total validado' if coverage_complete else 'Subtotal validado'
     latest = max((str(item.get('last_update') or '') for item in [*wells, *lines, *flows]), default='')
     period_label = start_day.strftime('%d/%m/%Y') if start_day == end_day else f'{start_day:%d/%m/%Y} al {end_day:%d/%m/%Y}'
     aggregation = _history_aggregation(start_day, end_day)
@@ -294,6 +363,7 @@ def get_daily_water_report(
         'period_label': period_label,
         'generated_at': datetime.now(LOCAL_ZONE).isoformat(timespec='seconds'),
         'source_status': period.get('source_status'),
+        'report_source': period.get('report_source') or 'period_service',
         'summary': {
             # Backward-compatible fields consumed by the current dashboard.
             'well_volume_m3': well_summary['validated_volume_m3'],
@@ -324,10 +394,19 @@ def get_daily_water_report(
             'partial_validation_count': partial_validation_count,
             'without_validated_volume_count': without_validated_volume_count,
             'validated_items_count': sum(1 for item in [*wells, *lines, *lavadoras, *jarabes] if item.get('validated_volume_m3') is not None),
+            'monitored_items_count': monitored_items_count,
+            'coverage_complete': coverage_complete,
+            'coverage_label': 'Cobertura completa' if coverage_complete else 'Cobertura parcial',
+            'volume_basis_label': volume_basis_label,
             'review_count': partial_validation_count,
+            'no_data_count': without_validated_volume_count,
             'communication': 'Revisar comunicación' if any(item['communication'] != 'Actualizado' for item in [*wells, *lines, *flows]) else 'Actualizado',
             'last_update': latest or None,
-            'note': SUMMARY_NOTE,
+            'note': (
+                SUMMARY_NOTE
+                if coverage_complete
+                else SUMMARY_NOTE + ' El periodo contiene elementos con cobertura incompleta; el total se presenta como subtotal validado.'
+            ),
         },
         'wells': {'rows': wells, **summaries['wells']},
         'production_lines': {'rows': lines, **summaries['lines']},
@@ -557,7 +636,7 @@ def build_daily_water_report_pdf(report: dict[str, Any]) -> tuple[bytes, str]:
         ('Volumen validado de líneas', _fmt_volume(summary.get('line_validated_volume_m3'))),
         ('Volumen validado de lavadoras', _fmt_volume(summary.get('washer_validated_volume_m3'))),
         ('Volumen validado de Jarabes', _fmt_volume(summary.get('jarabes_validated_volume_m3'))),
-        ('Total validado operativo', _fmt_volume(summary.get('total_validated_operational_m3'))),
+        (f"{summary.get('volume_basis_label') or 'Total validado'} operativo", _fmt_volume(summary.get('total_validated_operational_m3'))),
         ('Pozos con actividad', f"{int(summary.get('wells_active') or 0)}/{len(report.get('wells', {}).get('rows', []))}"),
         ('Líneas con actividad', f"{int(summary.get('lines_active') or 0)}/{len(report.get('production_lines', {}).get('rows', []))}"),
         ('Lavadoras/Jarabes con actividad', f"{int(summary.get('washers_active') or 0) + int(summary.get('jarabes_active') or 0)}/{len(report.get('washers', {}).get('rows', [])) + len(report.get('jarabes', {}).get('rows', []))}"),
@@ -582,8 +661,13 @@ def build_daily_water_report_pdf(report: dict[str, Any]) -> tuple[bytes, str]:
     card_grid.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'MIDDLE'), ('LEFTPADDING', (0, 0), (-1, -1), 1.5), ('RIGHTPADDING', (0, 0), (-1, -1), 1.5), ('TOPPADDING', (0, 0), (-1, -1), 1.5), ('BOTTOMPADDING', (0, 0), (-1, -1), 1.5)]))
     story.append(card_grid)
     story.append(Spacer(1, 3 * mm))
+    quality_line = (
+        f"<b>Calidad:</b> {escape(str(summary.get('coverage_label') or 'Sin dato'))}. "
+        f"Elementos validados: {int(summary.get('validated_items_count') or 0)}/{int(summary.get('monitored_items_count') or 0)}. "
+        f"En revisión: {int(summary.get('review_count') or 0)}. Sin datos: {int(summary.get('no_data_count') or 0)}."
+    )
     note = Table([[Paragraph(
-        escape(str(summary.get('note') or SUMMARY_NOTE)) + '<br/><b>Cero</b>: lectura válida sin flujo. <b>Hueco</b>: intervalo sin registros suficientes. Los gráficos no generan intervalos futuros.',
+        escape(str(summary.get('note') or SUMMARY_NOTE)) + '<br/>' + quality_line + '<br/><b>Cero</b>: lectura válida sin flujo. <b>Hueco</b>: intervalo sin registros suficientes. Los gráficos no generan intervalos futuros.',
         note_style,
     )]], colWidths=[186 * mm])
     note.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#F1F6FA')), ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#C7D8E4')), ('LEFTPADDING', (0, 0), (-1, -1), 8), ('RIGHTPADDING', (0, 0), (-1, -1), 8), ('TOPPADDING', (0, 0), (-1, -1), 7), ('BOTTOMPADDING', (0, 0), (-1, -1), 7)]))
@@ -702,8 +786,13 @@ def build_daily_water_report_excel(report: dict[str, Any]) -> tuple[bytes, str]:
         ('Volumen validado de líneas (m³)', summary['line_validated_volume_m3']),
         ('Volumen validado de lavadoras (m³)', summary['washer_validated_volume_m3']),
         ('Volumen validado de Jarabes (m³)', summary['jarabes_validated_volume_m3']),
-        ('Total validado operativo (m³)', summary['total_validated_operational_m3']),
+        (f"{summary.get('volume_basis_label') or 'Total validado'} operativo (m³)", summary['total_validated_operational_m3']),
         ('Elementos validados', summary.get('validated_items_count', 0)),
+        ('Elementos monitoreados', summary.get('monitored_items_count', 0)),
+        ('Cobertura del reporte', summary.get('coverage_label')),
+        ('Elementos en revisión', summary.get('review_count', 0)),
+        ('Elementos sin datos', summary.get('no_data_count', 0)),
+        ('Fuente de datos del reporte', 'Revisión diaria conciliada' if report.get('report_source') == 'daily_review' else 'Periodo conciliado'),
         ('Estado de comunicación', summary['communication']),
         ('Criterio de cálculo', summary.get('note') or SUMMARY_NOTE),
     ]:
@@ -715,7 +804,7 @@ def build_daily_water_report_excel(report: dict[str, Any]) -> tuple[bytes, str]:
     _style_sheet(ws)
     ws.column_dimensions['A'].width = 42
     ws.column_dimensions['B'].width = 72
-    ws.row_dimensions[11].height = 48
+    ws.row_dimensions[17].height = 48
 
     def add_items_sheet(name: str, rows: list[dict[str, Any]]) -> None:
         sheet = wb.create_sheet(name)

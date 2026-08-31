@@ -58,9 +58,9 @@ function statusType(value: unknown): string {
 }
 
 function validationStatusType(item: any): string {
-  const status = String(item?.validation_status || '').toLowerCase();
-  if (status === 'partial') return 'warning';
-  if (status === 'unavailable') return 'idle';
+  const status = String(item?.quality_status || item?.validation_status || '').toLowerCase();
+  if (status === 'partial' || status === 'partial_coverage' || status === 'review') return 'warning';
+  if (status === 'unavailable' || status === 'no_data') return 'idle';
   return statusType(validationLabel(item));
 }
 
@@ -69,8 +69,9 @@ function reportRows(report: any, key: ReportSectionKey): any[] {
 }
 
 function validationLabel(item: any): string {
-  if (item?.validated_volume_m3 !== null && item?.validated_volume_m3 !== undefined) return 'Validado';
+  if (item?.quality_label) return String(item.quality_label);
   if (item?.validation && String(item.validation) !== 'Validación parcial') return String(item.validation);
+  if (item?.validated_volume_m3 !== null && item?.validated_volume_m3 !== undefined) return 'Validado';
   return 'Sin volumen validado';
 }
 
@@ -345,13 +346,14 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
       {report ? <>
         <section className="report-summary-grid fade-up" aria-label="Resumen ejecutivo del reporte">
           {summaryCards.map((card) => <article className="report-summary-card" key={card.label}><span>{card.label}</span><strong>{fmtVolume(card.value)}</strong></article>)}
-          <article className="report-summary-card review"><span>Volúmenes validados</span><strong>{Number(summary.validated_items_count ?? 0).toLocaleString('es-MX')} <small>elementos</small></strong><small>Datos aceptados para operación.</small></article>
+          <article className="report-summary-card review"><span>Volúmenes validados</span><strong>{Number(summary.validated_items_count ?? 0).toLocaleString('es-MX')} <small>de {Number(summary.monitored_items_count ?? 0).toLocaleString('es-MX')}</small></strong><small>Datos aceptados para operación.</small></article>
+          <article className={`report-summary-card ${summary.coverage_complete ? '' : 'review'}`}><span>Cobertura del reporte</span><strong>{summary.coverage_label || 'Sin dato'}</strong><small>{summary.coverage_complete ? 'Todos los elementos tienen volumen confiable.' : `${Number(summary.review_count ?? 0)} en revisión · ${Number(summary.no_data_count ?? 0)} sin datos.`}</small></article>
         </section>
         <p className="report-summary-note">{summary.note}</p>
         {report.legacy_notice ? <div className="status-pill alert">{report.legacy_notice}</div> : null}
 
         <section className="panel fade-up report-data-panel report-preview-panel">
-          <div className="report-preview-heading"><div><span>Vista previa ligera</span><h3>Vista previa del reporte</h3><p>Pozos, Líneas, Lavadoras y Jarabes · Periodo {report.period_label}</p></div></div>
+          <div className="report-preview-heading"><div><span>Vista previa ligera</span><h3>Vista previa del reporte</h3><p>Pozos, Líneas, Lavadoras y Jarabes · Periodo {report.period_label}</p><small>{report.report_source === 'daily_review' ? 'Fuente: Revisión diaria conciliada' : 'Fuente: periodo conciliado'}</small></div></div>
           <div className="report-preview-sections">
             {REPORT_SECTIONS.map((section) => <ReportPreviewSection key={section.key} report={report} section={section} />)}
           </div>
