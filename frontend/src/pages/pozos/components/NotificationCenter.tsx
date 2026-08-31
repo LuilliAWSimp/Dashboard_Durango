@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { AlertTriangle, CheckCircle2, Info, RadioTower, X } from 'lucide-react';
+import { AlertTriangle, Bell, CheckCircle2, Info, Maximize2, Minus, RadioTower, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { fetchWaterDashboard } from '../../../services/waterService';
 import useAutoRefresh from '../../../hooks/useAutoRefresh';
@@ -21,6 +21,7 @@ export interface NotificationInput {
   actionLabel?: string;
   durationMs?: number;
   ariaLive?: 'polite' | 'assertive';
+  dedupeKey?: string;
 }
 
 interface NotificationItem extends NotificationInput {
@@ -31,11 +32,13 @@ interface NotificationItem extends NotificationInput {
 interface NotificationContextValue {
   notify: (input: NotificationInput) => void;
   notifyOperationalAlerts: (alerts: WaterOperationalAlert[]) => void;
+  dismissAll: () => void;
 }
 
 const NotificationContext = createContext<NotificationContextValue | null>(null);
 const DEFAULT_TOAST_DURATION_MS = 10_000;
-const MAX_VISIBLE_TOASTS = 3;
+const MAX_VISIBLE_TOASTS = 1;
+const MAX_QUEUED_TOASTS = 8;
 
 function notificationId(prefix = 'toast') {
   return `${prefix}:${Date.now()}:${Math.random().toString(36).slice(2)}`;
@@ -89,6 +92,10 @@ export function NotificationProvider({ children, enableWaterAlerts = false }: { 
     setItems((current) => current.filter((item) => item.id !== id));
   }, []);
 
+  const dismissAll = useCallback(() => {
+    setItems([]);
+  }, []);
+
   const notify = useCallback((input: NotificationInput) => {
     const item: NotificationItem = {
       ...input,
@@ -96,7 +103,13 @@ export function NotificationProvider({ children, enableWaterAlerts = false }: { 
       createdAt: Date.now(),
       durationMs: input.durationMs ?? DEFAULT_TOAST_DURATION_MS,
     };
-    setItems((current) => [item, ...current].slice(0, 8));
+
+    setItems((current) => {
+      const withoutDuplicate = input.dedupeKey
+        ? current.filter((existing) => existing.dedupeKey !== input.dedupeKey)
+        : current;
+      return [item, ...withoutDuplicate].slice(0, MAX_QUEUED_TOASTS);
+    });
   }, []);
 
   const notifyOperationalAlerts = useCallback((alerts: WaterOperationalAlert[]) => {
@@ -108,16 +121,20 @@ export function NotificationProvider({ children, enableWaterAlerts = false }: { 
       route: buildWaterAlertRoute(alert),
       actionLabel: 'Ver detalle',
       ariaLive: alert.severity === 'critical' ? 'assertive' : 'polite',
+      dedupeKey: `water-alert:${alert.id}`,
     }));
   }, [notify]);
 
-  const value = useMemo(() => ({ notify, notifyOperationalAlerts }), [notify, notifyOperationalAlerts]);
+  const value = useMemo(
+    () => ({ notify, notifyOperationalAlerts, dismissAll }),
+    [notify, notifyOperationalAlerts, dismissAll],
+  );
 
   return (
     <NotificationContext.Provider value={value}>
       {children}
       {enableWaterAlerts ? <WaterAlertsCoordinator /> : null}
-      <ToastViewport items={items} onDismiss={dismiss} />
+      <ToastViewport items={items} onDismiss={dismiss} onDismissAll={dismissAll} />
     </NotificationContext.Provider>
   );
 }
@@ -128,22 +145,85 @@ export function useNotifications(): NotificationContextValue {
   return value;
 }
 
-function ToastViewport({ items, onDismiss }: { items: NotificationItem[]; onDismiss: (id: string) => void }) {
+function ToastViewport({
+  items,
+  onDismiss,
+  onDismissAll,
+}: {
+  items: NotificationItem[];
+  onDismiss: (id: string) => void;
+  onDismissAll: () => void;
+}) {
   const navigate = useNavigate();
+  const [minimized, setMinimized] = useState(false);
   const visible = items.slice(0, MAX_VISIBLE_TOASTS);
   const hiddenCount = Math.max(0, items.length - visible.length);
 
   useEffect(() => {
+    if (!items.length) setMinimized(false);
+  }, [items.length]);
+
+  useEffect(() => {
+    if (minimized) return undefined;
     const timers = visible
       .filter((item) => Number(item.durationMs || 0) > 0)
       .map((item) => window.setTimeout(() => onDismiss(item.id), item.durationMs));
     return () => timers.forEach((timer) => window.clearTimeout(timer));
-  }, [visible, onDismiss]);
+  }, [visible, minimized, onDismiss]);
 
   if (!items.length) return null;
 
+  if (minimized) {
+    return (
+      <div className="toast-viewport toast-viewport-minimized" aria-label="Notificaciones minimizadas">
+        <div className="toast-minimized-pill" role="status">
+          <button
+            type="button"
+            className="toast-minimized-open"
+            onClick={() => setMinimized(false)}
+            aria-label={`Expandir ${items.length} ${items.length === 1 ? 'notificación' : 'notificaciones'}`}
+          >
+            <Bell size={17} aria-hidden="true" />
+            <span>{items.length === 1 ? '1 notificación' : `${items.length} notificaciones`}</span>
+            <Maximize2 size={15} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className="toast-minimized-close"
+            onClick={onDismissAll}
+            aria-label="Cerrar todas las notificaciones"
+            title="Cerrar todas"
+          >
+            <X size={15} />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="toast-viewport" aria-live={visible.some((item) => item.ariaLive === 'assertive') ? 'assertive' : 'polite'} aria-label="Notificaciones">
+    <div
+      className="toast-viewport"
+      aria-live={visible.some((item) => item.ariaLive === 'assertive') ? 'assertive' : 'polite'}
+      aria-label="Notificaciones"
+    >
+      <div className="toast-toolbar">
+        <div className="toast-toolbar-copy">
+          <Bell size={15} aria-hidden="true" />
+          <span>{items.length === 1 ? '1 notificación' : `${items.length} notificaciones`}</span>
+          {hiddenCount ? <small>{hiddenCount} en cola</small> : null}
+        </div>
+        <div className="toast-toolbar-actions">
+          <button type="button" onClick={() => setMinimized(true)} aria-label="Minimizar notificaciones" title="Minimizar">
+            <Minus size={15} />
+          </button>
+          <button type="button" onClick={onDismissAll} aria-label="Cerrar todas las notificaciones" title="Cerrar todas">
+            <X size={15} />
+            <span>Cerrar todas</span>
+          </button>
+        </div>
+      </div>
+
       {visible.map((item) => {
         const clickable = Boolean(item.route);
         const open = () => {
@@ -184,7 +264,8 @@ function ToastViewport({ items, onDismiss }: { items: NotificationItem[]; onDism
           </article>
         );
       })}
-      {hiddenCount ? <div className="toast-more">+{hiddenCount} alertas adicionales</div> : null}
+
+      {hiddenCount ? <div className="toast-more">+{hiddenCount} en cola</div> : null}
     </div>
   );
 }

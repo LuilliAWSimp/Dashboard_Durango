@@ -6777,8 +6777,115 @@ th { color: #c1d0e8; font-weight: 700; position: sticky; top: 0; background: #0f
   z-index: 1200;
   display: grid;
   gap: 10px;
-  width: min(390px, calc(100vw - 32px));
+  width: min(410px, calc(100vw - 32px));
   pointer-events: none;
+}
+
+.toast-viewport-minimized {
+  width: auto;
+  max-width: calc(100vw - 32px);
+}
+
+.toast-toolbar,
+.toast-minimized-pill {
+  pointer-events: auto;
+  border: 1px solid rgba(125, 211, 252, .2);
+  background: linear-gradient(145deg, rgba(3, 19, 31, .98), rgba(4, 13, 27, .98));
+  box-shadow: 0 16px 34px rgba(0, 0, 0, .28);
+}
+
+.toast-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 40px;
+  padding: 6px 7px 6px 11px;
+  border-radius: 14px;
+}
+
+.toast-toolbar-copy,
+.toast-toolbar-actions,
+.toast-minimized-open {
+  display: inline-flex;
+  align-items: center;
+}
+
+.toast-toolbar-copy {
+  min-width: 0;
+  gap: 7px;
+  color: #dff6ff;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.toast-toolbar-copy small {
+  color: #7dd3fc;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.toast-toolbar-actions {
+  flex: 0 0 auto;
+  gap: 5px;
+}
+
+.toast-toolbar-actions button,
+.toast-minimized-open,
+.toast-minimized-close {
+  appearance: none;
+  border: 1px solid rgba(125, 211, 252, .14);
+  background: rgba(1, 12, 24, .48);
+  color: #dff6ff;
+  cursor: pointer;
+}
+
+.toast-toolbar-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 28px;
+  padding: 5px 8px;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.toast-toolbar-actions button:hover,
+.toast-toolbar-actions button:focus-visible,
+.toast-minimized-open:hover,
+.toast-minimized-open:focus-visible,
+.toast-minimized-close:hover,
+.toast-minimized-close:focus-visible {
+  outline: none;
+  border-color: rgba(125, 211, 252, .48);
+  background: rgba(8, 47, 73, .58);
+}
+
+.toast-minimized-pill {
+  display: inline-flex;
+  align-items: stretch;
+  justify-self: end;
+  overflow: hidden;
+  border-radius: 999px;
+}
+
+.toast-minimized-open {
+  gap: 8px;
+  padding: 9px 12px;
+  border: 0;
+  border-right: 1px solid rgba(125, 211, 252, .14);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.toast-minimized-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  border: 0;
 }
 
 .toast-card {
