@@ -96,3 +96,20 @@ test('las secciones nuevas pasan configuración al componente operativo reutiliz
   assert.match(historyPanel, /seriesMatchesAllowed/);
   assert.match(shiftPanel, /matchesAllowedItem/);
 });
+
+test('la comparativa calcula variacion de totalizador sin alterar el valor absoluto', () => {
+  const response = {
+    module: 'well', start_date: '2026-08-12', end_date: '2026-08-12', aggregation: 'minute', source_status: 'operational',
+    series: [{
+      sensor_id: 1001, operational_key: 'pozo_1', name: 'Pozo 1', source_status: 'readings_minute', has_data: true,
+      points: [
+        { sensor_id: 1001, bucket_start: '2026-08-12T08:00:00', bucket_end: '2026-08-12T08:01:00', aggregation: 'minute', samples: 1, flow_avg_lps: 10, flow_min_lps: 10, flow_max_lps: 10, totalizer_open_m3: 500, totalizer_close_m3: 500, volume_m3: null, volume_reliable: false, data_status: 'operational' },
+        { sensor_id: 1001, bucket_start: '2026-08-12T08:01:00', bucket_end: '2026-08-12T08:02:00', aggregation: 'minute', samples: 1, flow_avg_lps: 11, flow_min_lps: 11, flow_max_lps: 11, totalizer_open_m3: 500.3, totalizer_close_m3: 500.3, volume_m3: null, volume_reliable: false, data_status: 'operational' },
+      ],
+    }],
+  } as WaterModuleHistoryResponse;
+  const rows = buildComparisonRows(response, Date.parse('2026-08-12T09:00:00'));
+  assert.equal(rows[0]?.totalizer_1001, 500);
+  assert.equal(rows[0]?.totalizer_delta_1001, 0);
+  assert.ok(Math.abs(Number(rows[1]?.totalizer_delta_1001) - 0.3) < 1e-9);
+});

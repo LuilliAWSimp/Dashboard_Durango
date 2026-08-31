@@ -1,5 +1,5 @@
 export type Period = 'quarter_hour' | 'hourly' | 'daily' | 'monthly';
-export type HistoryAggregation = 'quarter_hour' | 'hourly' | 'daily';
+export type HistoryAggregation = 'minute' | 'quarter_hour' | 'hourly' | 'daily';
 export type FlexibleRecord = Record<string, unknown>;
 
 export interface StatusFromFlowResult {

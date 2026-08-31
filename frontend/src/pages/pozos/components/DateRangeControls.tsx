@@ -27,6 +27,7 @@ export interface DateRangeControlsProps {
 }
 
 const AGGREGATION_OPTIONS: Array<{ value: HistoryAggregation; label: string }> = [
+  { value: 'minute', label: '1 minuto' },
   { value: 'quarter_hour', label: '15 minutos' },
   { value: 'hourly', label: 'Por hora' },
   { value: 'daily', label: 'Por día' },

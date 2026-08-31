@@ -23,6 +23,8 @@ interface ComparisonPoint {
   coverage_percent?: number;
   coverage_status?: string;
   interval_state?: string;
+  validation?: string;
+  validation_status?: string;
   discarded_totalizer_events?: number;
   discarded_volume_m3?: number;
   has_discontinuities?: boolean;
@@ -62,6 +64,8 @@ export function buildComparisonRows(data: ComparisonResponse | null, now = Date.
       coveragePercent: point.coverage_percent,
       coverageStatus: point.coverage_status,
       intervalState: point.interval_state,
+      validation: point.validation,
+      validationStatus: point.validation_status,
       status: point.data_status,
       discardedEvents: point.discarded_totalizer_events || 0,
       discardedVolume: point.discarded_volume_m3 || 0,
@@ -69,7 +73,20 @@ export function buildComparisonRows(data: ComparisonResponse | null, now = Date.
     };
     byTime.set(key, row);
   }));
-  return [...byTime.values()].sort((left, right) => left.timestamp - right.timestamp);
+  const rows = [...byTime.values()].sort((left, right) => left.timestamp - right.timestamp);
+  data.series.forEach((series) => {
+    const identity = seriesIdentity(series);
+    let baseline: number | null = null;
+    rows.forEach((row) => {
+      const absolute = row[`totalizer_${identity}`];
+      const numeric = absolute === null || absolute === undefined || absolute === '' ? null : Number(absolute);
+      if (numeric !== null && Number.isFinite(numeric) && baseline === null) baseline = numeric;
+      row[`totalizer_delta_${identity}`] = numeric !== null && Number.isFinite(numeric) && baseline !== null
+        ? numeric - baseline
+        : null;
+    });
+  });
+  return rows;
 }
 
 export function comparisonAxis(metric: ComparisonMetric) {
