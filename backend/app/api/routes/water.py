@@ -13,6 +13,7 @@ from app.services.water_daily_report_service import ReportDataUnavailableError, 
 from app.services.water_daily_review_service import DailyReviewError, get_daily_water_review
 from app.services.water_five_minute_export_service import FiveMinuteExportError, build_five_minute_excel, get_five_minute_export_data
 from app.services.water_history_service import WaterHistoryError, get_water_history, get_water_history_module, get_wells_minute_flow
+from app.services.water_historical_export_service import HistoricalExportError, build_full_historical_excel, build_full_historical_pdf
 from app.services.water_module_history_pdf_service import build_module_history_pdf
 from app.services.water_service import WATER_SECTION_META, get_water_dashboard_payload, get_water_report_catalog
 from app.services.water_shift_service import get_shift_consumption_data
@@ -185,6 +186,49 @@ def _report_or_error(
     except Exception as exc:
         logger.exception('No fue posible generar el reporte diario: %s', exc)
         raise HTTPException(status_code=500, detail='No fue posible generar el reporte diario.') from exc
+
+
+
+@router.get('/reports/historical/excel')
+def download_full_historical_excel(
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
+):
+    try:
+        content, filename = build_full_historical_excel(start_date=start_date, end_date=end_date)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except HistoricalExportError as exc:
+        raise HTTPException(status_code=504 if exc.status == 'timeout' else 503, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception('No fue posible generar el histórico completo Excel de Durango: %s', exc)
+        raise HTTPException(status_code=500, detail='No fue posible generar el histórico completo de planta.') from exc
+    return Response(
+        content=content,
+        media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get('/reports/historical/pdf')
+def download_full_historical_pdf(
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
+):
+    try:
+        content, filename = build_full_historical_pdf(start_date=start_date, end_date=end_date)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except HistoricalExportError as exc:
+        raise HTTPException(status_code=504 if exc.status == 'timeout' else 503, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception('No fue posible generar el histórico completo PDF de Durango: %s', exc)
+        raise HTTPException(status_code=500, detail='No fue posible generar el resumen histórico de planta.') from exc
+    return Response(
+        content=content,
+        media_type='application/pdf',
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get('/reports/daily')

@@ -7632,3 +7632,70 @@ th { color: #c1d0e8; font-weight: 700; position: sticky; top: 0; background: #0f
   }
 }
 
+
+/* Durango homologación 10: histórico completo de planta */
+.historical-export-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  padding: 18px 20px;
+  border-color: rgba(56, 189, 248, .2);
+  background:
+    linear-gradient(135deg, rgba(4, 20, 35, .92), rgba(7, 27, 45, .78)),
+    radial-gradient(circle at 100% 0%, rgba(14, 165, 233, .11), transparent 36%);
+}
+
+.historical-export-copy {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.historical-export-copy h3 {
+  margin: 0;
+  color: #f4fbff;
+  font-size: 18px;
+}
+
+.historical-export-copy p,
+.historical-export-copy small {
+  margin: 0;
+  color: #a9d5e8;
+  line-height: 1.5;
+}
+
+.historical-export-copy p { font-size: 12px; }
+.historical-export-copy small { font-size: 11px; }
+
+.historical-export-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.durango-report-page .historical-excel-button {
+  border-color: rgba(34, 197, 94, .52);
+  background: rgba(22, 101, 52, .92);
+  color: #f0fdf4;
+}
+
+.durango-report-page .historical-excel-button:hover:not(:disabled),
+.durango-report-page .historical-excel-button:focus-visible:not(:disabled) {
+  border-color: rgba(134, 239, 172, .84);
+  background: rgba(21, 128, 61, .98);
+}
+
+@media (max-width: 900px) {
+  .historical-export-panel {
+    grid-template-columns: 1fr;
+  }
+  .historical-export-actions {
+    justify-content: stretch;
+  }
+  .historical-export-actions .report-action-button {
+    flex: 1 1 220px;
+  }
+}

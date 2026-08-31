@@ -15,11 +15,12 @@ import PanelHeader from '../components/PanelHeader';
 import StatusBadge from '../components/StatusBadge';
 import { useNotifications } from '../components/NotificationCenter';
 import ScheduledReportEmailPanel from '../components/ScheduledReportEmailPanel';
+import { downloadFullHistoricalExcel, downloadFullHistoricalPdf } from '../../../services/waterHistoricalExportService';
 
 type ReportMode = 'day' | 'range';
 type ReportSectionKey = 'wells' | 'production_lines' | 'washers' | 'jarabes';
 type ReportFilters = { date?: string; startDate?: string; endDate?: string };
-type ExportAction = 'pdf' | 'xlsx' | 'html' | null;
+type ExportAction = 'pdf' | 'xlsx' | 'html' | 'historical-excel' | 'historical-pdf' | null;
 
 const REPORT_SECTIONS: Array<{ key: ReportSectionKey; label: string }> = [
   { key: 'wells', label: 'Pozos' },
@@ -248,6 +249,27 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
     }
   };
 
+  const runHistoricalExport = async (format: 'excel' | 'pdf') => {
+    if (exportAction) return;
+    const action: ExportAction = format === 'excel' ? 'historical-excel' : 'historical-pdf';
+    setExportAction(action);
+    setError('');
+    try {
+      if (format === 'excel') await downloadFullHistoricalExcel();
+      else await downloadFullHistoricalPdf();
+    } catch (caught) {
+      const candidate = caught as { response?: { data?: { detail?: string } }; message?: string };
+      setError(candidate.response?.data?.detail || candidate.message || 'No fue posible generar el histórico completo de planta.');
+      notify({
+        tone: 'error',
+        title: 'No se pudo generar el histórico completo',
+        message: candidate.response?.data?.detail || candidate.message || 'Revisa la conexión con SQL Server e intenta nuevamente.',
+      });
+    } finally {
+      setExportAction(null);
+    }
+  };
+
   const send = async () => {
     if (!canEmail) {
       notify({ tone: 'error', title: 'Acción no permitida', message: 'Su rol no permite enviar reportes por correo.' });
@@ -351,6 +373,36 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
       </section>
 
       <ScheduledReportEmailPanel currentUser={currentUser} />
+
+      <section className="panel historical-export-panel fade-up" aria-label="Histórico completo de planta">
+        <div className="historical-export-copy">
+          <span className="report-field-label">Histórico completo de planta</span>
+          <h3>Crudo + conciliado + cobertura</h3>
+          <p>
+            Excel conserva el detalle por minuto y separa datos crudos de datos conciliados. PDF resume cobertura, huecos y criterios de calidad.
+            Pozos/Líneas tienen registro físico confirmado desde 03/06/2026 15:35; el segmento hidráulico validado inicia 04/08/2026 18:16.
+          </p>
+          <small>Pozo 1 conserva su cambio de unidad del 11/08 y Jarabes mantiene el corte 3010 → 3004 sin mezclar identidades.</small>
+        </div>
+        <div className="historical-export-actions">
+          <button
+            type="button"
+            className="report-action-button historical-excel-button"
+            disabled={isBusy}
+            onClick={() => void runHistoricalExport('excel')}
+          >
+            <FileSpreadsheet size={17} /> {exportAction === 'historical-excel' ? 'Generando histórico...' : 'Excel histórico completo'}
+          </button>
+          <button
+            type="button"
+            className="report-action-button"
+            disabled={isBusy}
+            onClick={() => void runHistoricalExport('pdf')}
+          >
+            <FileDown size={17} /> {exportAction === 'historical-pdf' ? 'Generando resumen...' : 'PDF histórico'}
+          </button>
+        </div>
+      </section>
 
       {loading && !report ? <ReportSkeleton /> : null}
 
