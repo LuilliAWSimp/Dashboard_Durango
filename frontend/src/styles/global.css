@@ -8553,3 +8553,200 @@ th { color: #c1d0e8; font-weight: 700; position: sticky; top: 0; background: #0f
   background: #fde7e7;
   border-color: #eab1b1;
 }
+
+/* Homologacion Durango 11D: Reportes + Revision diaria + Turnos en modo claro.
+   Regla: KPI/report cards de alto contraste, sin superficies grises; estados de turno vivos. */
+.pozos-shell.theme-light .report-summary-card,
+.pozos-shell.theme-light .report-summary-card.review {
+  color: #ffffff;
+  background: linear-gradient(145deg, #0a4f7e 0%, #083c63 58%, #072f4e 100%);
+  border: 1px solid rgba(14, 165, 233, .36);
+  box-shadow: 0 12px 28px rgba(8, 67, 103, .16);
+}
+
+.pozos-shell.theme-light .report-summary-card.review {
+  border-top: 4px solid #f59e0b;
+}
+
+.pozos-shell.theme-light .report-summary-card::after {
+  background: radial-gradient(circle, rgba(125, 211, 252, .18), transparent 68%);
+}
+
+.pozos-shell.theme-light .report-summary-card span {
+  color: #d9efff;
+}
+
+.pozos-shell.theme-light .report-summary-card strong,
+.pozos-shell.theme-light .report-summary-card strong small {
+  color: #ffffff;
+}
+
+.pozos-shell.theme-light .report-summary-card small {
+  color: #d8e9f8;
+}
+
+.pozos-shell.theme-light .report-summary-note {
+  color: #ffffff;
+  background: linear-gradient(90deg, #0b4f7a 0%, #0d679d 100%);
+  border-color: #0b4f7a;
+  border-left-color: #38bdf8;
+  box-shadow: 0 8px 20px rgba(8, 67, 103, .12);
+}
+
+/* Revision diaria: jerarquia y contraste mas marcados. */
+.pozos-shell.theme-light .daily-review-header-panel,
+.pozos-shell.theme-light .daily-review-detail-panel,
+.pozos-shell.theme-light .shift-consumption-panel {
+  background: #ffffff;
+  border-color: #b7d7e8;
+}
+
+.pozos-shell.theme-light .daily-review-header-panel .panel-title,
+.pozos-shell.theme-light .daily-review-detail-panel .panel-title,
+.pozos-shell.theme-light .shift-consumption-panel .panel-title {
+  color: #0b1f3a;
+}
+
+.pozos-shell.theme-light .daily-review-header-panel .panel-subtitle,
+.pozos-shell.theme-light .daily-review-detail-panel .panel-subtitle,
+.pozos-shell.theme-light .shift-consumption-panel .panel-subtitle {
+  color: #4d6a80;
+}
+
+.pozos-shell.theme-light .daily-review-detail-panel .pozos-table-scroll,
+.pozos-shell.theme-light .shift-overview-table-wrap,
+.pozos-shell.theme-light .shift-detail-table-wrap {
+  border: 1px solid #b8d8e8;
+  background: #ffffff;
+}
+
+.pozos-shell.theme-light .daily-review-detail-panel .pozos-operacion-table th,
+.pozos-shell.theme-light .shift-overview-table th,
+.pozos-shell.theme-light .shift-detail-table th {
+  color: #173f5f;
+  background: #dff2fb;
+  border-bottom-color: #a9ccdf;
+}
+
+.pozos-shell.theme-light .daily-review-detail-panel .pozos-operacion-table td,
+.pozos-shell.theme-light .shift-overview-table td,
+.pozos-shell.theme-light .shift-detail-table td {
+  color: #23445d;
+  background: #ffffff;
+  border-bottom-color: #d7e7ef;
+}
+
+.pozos-shell.theme-light .daily-review-detail-panel .pozos-operacion-table tbody tr:nth-child(even) td,
+.pozos-shell.theme-light .shift-overview-table tbody tr:nth-child(even) td,
+.pozos-shell.theme-light .shift-detail-table tbody tr:nth-child(even) td {
+  background: #f1f9fd;
+}
+
+.pozos-shell.theme-light .daily-review-detail-panel .pozos-operacion-table tbody tr:hover td,
+.pozos-shell.theme-light .shift-overview-table tbody tr:hover td,
+.pozos-shell.theme-light .shift-detail-table tbody tr:hover td {
+  background: #e4f4fb;
+}
+
+/* Cards de turno: el estado se reconoce por toda la tarjeta, no solo por el badge. */
+.pozos-shell.theme-light .shift-summary-card {
+  position: relative;
+  color: #17324a;
+  background: #ffffff;
+  border: 2px solid #5ca6cd;
+  box-shadow: inset 0 5px 0 #0b6fa4, 0 10px 24px rgba(26, 92, 128, .12);
+  opacity: 1;
+}
+
+.pozos-shell.theme-light .shift-summary-card.completed {
+  background: linear-gradient(180deg, #ffffff 0%, #eaf6fd 100%);
+  border-color: #4c9bc4;
+  box-shadow: inset 0 5px 0 #0b5f8f, 0 10px 24px rgba(26, 92, 128, .12);
+}
+
+.pozos-shell.theme-light .shift-summary-card.partial {
+  color: #3f3100;
+  background: linear-gradient(180deg, #ffe977 0%, #ffd84d 100%);
+  border-color: #e5a700;
+  box-shadow: inset 0 5px 0 #f59e0b, 0 10px 24px rgba(194, 130, 0, .18);
+}
+
+.pozos-shell.theme-light .shift-summary-card.pending {
+  color: #083b5a;
+  background: linear-gradient(180deg, #b9efff 0%, #72d8f5 100%);
+  border: 2px solid #0ea5e9;
+  box-shadow: inset 0 5px 0 #0284c7, 0 10px 24px rgba(2, 132, 199, .16);
+  opacity: 1;
+}
+
+.pozos-shell.theme-light .shift-summary-card > span {
+  color: #184d6d;
+}
+
+.pozos-shell.theme-light .shift-summary-card > small,
+.pozos-shell.theme-light .shift-summary-card > p,
+.pozos-shell.theme-light .shift-summary-card > em {
+  color: #486a80;
+}
+
+.pozos-shell.theme-light .shift-summary-card > strong {
+  color: #0b2d47;
+}
+
+.pozos-shell.theme-light .shift-summary-card.partial > span,
+.pozos-shell.theme-light .shift-summary-card.partial > small,
+.pozos-shell.theme-light .shift-summary-card.partial > p,
+.pozos-shell.theme-light .shift-summary-card.partial > em,
+.pozos-shell.theme-light .shift-summary-card.partial > strong {
+  color: #3f3100;
+}
+
+.pozos-shell.theme-light .shift-summary-card.pending > span,
+.pozos-shell.theme-light .shift-summary-card.pending > small,
+.pozos-shell.theme-light .shift-summary-card.pending > p,
+.pozos-shell.theme-light .shift-summary-card.pending > em,
+.pozos-shell.theme-light .shift-summary-card.pending > strong {
+  color: #083b5a;
+}
+
+/* Desplegables de turno: misma semantica visual viva. */
+.pozos-shell.theme-light .shift-detail-disclosure {
+  color: #17324a;
+  background: #ffffff;
+  border: 2px solid #6eafd0;
+  box-shadow: inset 4px 0 0 #0b5f8f;
+}
+
+.pozos-shell.theme-light .shift-detail-disclosure.completed {
+  background: #f8fcff;
+  border-color: #6eafd0;
+  box-shadow: inset 5px 0 0 #0b5f8f;
+}
+
+.pozos-shell.theme-light .shift-detail-disclosure.partial {
+  background: #fff3a6;
+  border-color: #e5a700;
+  box-shadow: inset 5px 0 0 #f59e0b;
+}
+
+.pozos-shell.theme-light .shift-detail-disclosure.pending {
+  background: #c8f2ff;
+  border-color: #0ea5e9;
+  box-shadow: inset 5px 0 0 #0284c7;
+}
+
+.pozos-shell.theme-light .shift-detail-disclosure > summary strong {
+  color: #123b57;
+}
+
+.pozos-shell.theme-light .shift-detail-disclosure > summary small {
+  color: #55778d;
+}
+
+.pozos-shell.theme-light .shift-detail-disclosure[open] > summary {
+  border-bottom-color: #b9d9e8;
+}
+
+.pozos-shell.theme-light .shift-detail-groups h4 {
+  color: #153f5d;
+}
