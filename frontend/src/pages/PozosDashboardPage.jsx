@@ -73,6 +73,13 @@ export default function PozosDashboardPage({ section = 'dashboard', itemId, setH
   const current = sectionMap[section] || sectionMap.dashboard;
 
   useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [section, itemId]);
+
+  useEffect(() => {
     setHeaderMeta({
       title: current.title,
       subtitle: '',
