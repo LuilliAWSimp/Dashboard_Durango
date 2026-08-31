@@ -12,6 +12,7 @@ import {
 import type { OperationalIdentity, OperationalModule } from '../operationalNavigation';
 import type { DashboardData, DateRange, FlexibleRecord, HistoryAggregation } from '../types';
 import type { OperationalSectionConfig, OperationalSectionItem } from '../operationalSectionConfig';
+import { displayOperationalState, isNormalCommunication } from '../operationalDisplay';
 import DateRangeControls from './DateRangeControls';
 import FiveMinuteExcelExportButton from './FiveMinuteExcelExportButton';
 import MetricPair from './MetricPair';
@@ -57,7 +58,7 @@ function statusType(item?: FlexibleRecord): string {
   const currentState = String(item?.current_state || '').toLowerCase();
   if (currentState.includes('revisión') || currentState.includes('atrasada') || currentState.includes('comunicación') || currentState.includes('comunicacion')) return 'warning';
   if (currentState.includes('sin registro') || currentState.includes('sin lectura') || currentState.includes('sin datos')) return 'communication';
-  if (currentState.includes('apagado') || currentState.includes('sin flujo')) return 'idle';
+  if (currentState.includes('apagado') || currentState.includes('sin flujo') || currentState.includes('detenido')) return 'idle';
   if (currentState.includes('activo') || currentState.includes('operando')) return 'normal';
   const status = String(item?.period_data_status || item?.data_status || '').toLowerCase();
   const activity = String(item?.period_activity || item?.activity || '').toLowerCase();
@@ -122,8 +123,10 @@ export default function OperationalDetailSection({ module, sensorId, backPath, s
   const name = String(item?.name || item?.nombre || configuredName || `Elemento ${sensorId}`);
   const flowUnit = String(item?.flow_unit || configuredHistoryItem?.flowUnit || 'L/s');
   const activity = String(item?.period_activity || item?.activity || 'Sin registros');
-  const currentState = String(item?.current_state || (num(item?.current_flow ?? item?.flow_lps) === null ? 'Sin registros' : Number(item?.current_flow ?? item?.flow_lps) > 0 ? 'Activo' : 'Sin flujo'));
+  const rawCurrentState = String(item?.current_state || (num(item?.current_flow ?? item?.flow_lps) === null ? 'Sin registros' : Number(item?.current_flow ?? item?.flow_lps) > 0 ? 'Activo' : 'Sin flujo'));
+  const currentState = displayOperationalState(rawCurrentState);
   const communication = String(item?.communication || item?.estado_comunicacion || 'Sin lectura');
+  const communicationNeedsAttention = !isNormalCommunication(communication);
   const detailOpen = item?.reconciled_open_m3 ?? item?.period_open_m3;
   const detailClose = item?.reconciled_close_m3 ?? item?.period_close_m3;
   const detailVolume = item?.reconciled_validated_volume_m3 ?? item?.validated_volume_m3 ?? item?.period_m3;
@@ -203,7 +206,7 @@ export default function OperationalDetailSection({ module, sensorId, backPath, s
           <div className="eyebrow">Detalle operativo</div>
           <div className="well-detail-title-row">
             <h2>{name}</h2>
-            <StatusBadge type={statusType({ ...item, current_state: currentState })}>{currentState}</StatusBadge>
+            <StatusBadge type={statusType({ ...item, current_state: rawCurrentState })}>{currentState}</StatusBadge>
           </div>
           <p>{labels?.detailSubtitle || 'Análisis individual del elemento para el periodo seleccionado.'}</p>
         </div>
@@ -211,11 +214,9 @@ export default function OperationalDetailSection({ module, sensorId, backPath, s
           <article><span>Flujo actual</span><strong>{fmt(item?.current_flow ?? item?.flow_lps)} <small>{flowUnit}</small></strong></article>
           <article><span>Totalizador actual</span><strong>{fmt(item?.current_totalizer_m3 ?? item?.totalizador_m3)} <small>m³</small></strong></article>
           <article><span>Volumen del periodo</span><strong>{detailVolumeReliable && num(detailVolume) !== null ? fmt(detailVolume) : qualityLabel} <small>{detailVolumeReliable && num(detailVolume) !== null ? 'm³' : ''}</small></strong>{!detailVolumeReliable && qualityReason ? <small className="quality-reason-inline">{qualityReason}</small> : null}</article>
-          <article><span>Actividad del periodo</span><strong>{activity}</strong></article>
-          <article><span>Tiempo activo</span><strong>{fmt(item?.active_minutes)} <small>{num(item?.active_minutes) === null ? '' : 'min'}</small></strong></article>
-          <article><span>Cobertura</span><strong>{fmt(item?.coverage_percent)} <small>{num(item?.coverage_percent) === null ? '' : '%'}</small></strong></article>
-          <article><span>Comunicación</span><strong>{communication}</strong></article>
+          <article><span>Estado actual</span><strong>{currentState}</strong></article>
           <article><span>Última lectura</span><strong>{formatSqlDate(item?.last_update || item?.ultima_lectura)}</strong></article>
+          {communicationNeedsAttention ? <article className="attention"><span>Comunicación</span><strong>{communication}</strong></article> : null}
         </div>
       </section>
 
@@ -248,18 +249,14 @@ export default function OperationalDetailSection({ module, sensorId, backPath, s
         panelSubtitle="Flujo y totalizador usan la misma fuente histórica común del módulo; los huecos permanecen como ausencia de registro."
       />
 
-      <section className="panel fade-up">
-        <PanelHeader title="Estado del periodo" subtitle="Comunicación y actividad se evalúan de forma independiente" />
+      <section className="panel fade-up operational-period-summary">
+        <PanelHeader title="Resumen del periodo" subtitle="Lecturas principales del elemento en el rango seleccionado" />
         <div className="metric-pairs-grid">
-          <MetricPair label="Apertura conciliada" value={fmt(detailOpen)} unit={num(detailOpen) === null ? '' : 'm³'} />
-          <MetricPair label="Cierre conciliado" value={fmt(detailClose)} unit={num(detailClose) === null ? '' : 'm³'} />
-          <MetricPair label="Actividad" value={activity} />
-          <MetricPair label="Estado actual" value={currentState} />
-          <MetricPair label="Promedio durante actividad" value={fmt(item?.flow_active_avg)} unit={num(item?.flow_active_avg) === null ? '' : flowUnit} />
-          <MetricPair label="Muestras" value={`${Number(item?.samples_received || item?.samples || 0).toLocaleString('es-MX')}/${Number(item?.samples_expected || 0).toLocaleString('es-MX')}`} />
-          <MetricPair label="Cobertura" value={num(item?.coverage_percent) === null ? '—' : `${fmt(item?.coverage_percent)}% · ${String(item?.coverage_status || '')}`} />
-          <MetricPair label="Calidad" value={qualityLabel} />
-          <MetricPair label="Comunicación" value={communication} />
+          <MetricPair label="Totalizador inicial" value={fmt(detailOpen)} unit={num(detailOpen) === null ? '' : 'm³'} />
+          <MetricPair label="Totalizador final" value={fmt(detailClose)} unit={num(detailClose) === null ? '' : 'm³'} />
+          <MetricPair label="Flujo promedio" value={fmt(item?.flow_active_avg)} unit={num(item?.flow_active_avg) === null ? '' : flowUnit} />
+          <MetricPair label="Actividad del periodo" value={activity} />
+          {communicationNeedsAttention ? <MetricPair label="Comunicación" value={communication} /> : null}
         </div>
       </section>
 
