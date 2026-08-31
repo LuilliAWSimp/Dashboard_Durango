@@ -627,7 +627,8 @@ def build_daily_water_report_pdf(report: dict[str, Any]) -> tuple[bytes, str]:
         story.append(logo_image)
         story.append(Spacer(1, 1.5 * mm))
     story.append(Paragraph('DASHBOARD ARCA · PLANTA DURANGO', eyebrow))
-    story.append(Paragraph('Reporte Diario de Control Hídrico', title_style))
+    report_title = 'Reporte de Control Hídrico · Bloque 12 h' if report.get('period_mode') == 'fixed_12h_blocks' else 'Reporte Diario de Control Hídrico'
+    story.append(Paragraph(report_title, title_style))
     story.append(Paragraph(f"Periodo: {escape(str(report.get('period_label') or ''))} &nbsp;&nbsp;·&nbsp;&nbsp; Generado: {escape(_fmt_date(report.get('generated_at')))}", center))
     story.append(Spacer(1, 2.5 * mm))
     story.append(HRFlowable(width='100%', thickness=1.5, color=colors.HexColor('#C8102E'), spaceAfter=4 * mm))
@@ -679,7 +680,8 @@ def build_daily_water_report_pdf(report: dict[str, Any]) -> tuple[bytes, str]:
     aggregation_label = {'quarter_hour': '15 minutos', 'hourly': '1 hora', 'daily': '1 día'}.get(str(report.get('history', {}).get('aggregation')), 'periodo')
 
     def section_block(title: str, section: dict[str, Any], history: dict[str, Any], first_name: str) -> list[Any]:
-        data: list[list[Any]] = [[first_name, 'Flujo actual', 'Apertura', 'Cierre', 'Volumen validado', 'Actividad', 'Validación', 'Comunicación', 'Última actualización']]
+        flow_heading = 'Flujo promedio' if report.get('period_mode') == 'fixed_12h_blocks' else 'Flujo actual'
+        data: list[list[Any]] = [[first_name, flow_heading, 'Apertura', 'Cierre', 'Volumen validado', 'Actividad', 'Validación', 'Comunicación', 'Última actualización']]
         for item in section.get('rows', []):
             data.append([
                 Paragraph(escape(str(item['name'])), left),
@@ -739,7 +741,12 @@ def build_daily_water_report_pdf(report: dict[str, Any]) -> tuple[bytes, str]:
         story.append(_pdf_table(shift_rows, [20 * mm, 24 * mm, 23 * mm, 23 * mm, 25 * mm, 23 * mm, 29 * mm, 19 * mm]))
 
     doc.build(story, onFirstPage=_report_footer, onLaterPages=_report_footer)
-    filename = f"reporte-diario-control-hidrico-durango-{report.get('start_date')}.pdf"
+    if report.get('period_mode') == 'fixed_12h_blocks':
+        start_at = str(report.get('period_start_at') or '')
+        block = '00-12' if 'T00:00' in start_at else '12-24'
+        filename = f"reporte-control-hidrico-durango-12h-{report.get('start_date')}-{block}.pdf"
+    else:
+        filename = f"reporte-diario-control-hidrico-durango-{report.get('start_date')}.pdf"
     return buffer.getvalue(), filename
 
 
@@ -795,7 +802,7 @@ def build_daily_water_report_excel(report: dict[str, Any]) -> tuple[bytes, str]:
         ('Cobertura del reporte', summary.get('coverage_label')),
         ('Elementos en revisión', summary.get('review_count', 0)),
         ('Elementos sin datos', summary.get('no_data_count', 0)),
-        ('Fuente de datos del reporte', 'Revisión diaria conciliada' if report.get('report_source') == 'daily_review' else 'Periodo conciliado'),
+        ('Fuente de datos del reporte', 'Revisión diaria conciliada' if report.get('report_source') == 'daily_review' else ('Histórico modular conciliado · bloque 12 h' if report.get('report_source') == 'scheduled_fixed_12h' else 'Periodo conciliado')),
         ('Estado de comunicación', summary['communication']),
         ('Criterio de cálculo', summary.get('note') or SUMMARY_NOTE),
     ]:
@@ -811,9 +818,10 @@ def build_daily_water_report_excel(report: dict[str, Any]) -> tuple[bytes, str]:
 
     def add_items_sheet(name: str, rows: list[dict[str, Any]]) -> None:
         sheet = wb.create_sheet(name)
+        flow_heading = 'Flujo promedio (L/s)' if report.get('period_mode') == 'fixed_12h_blocks' else 'Flujo actual (L/s)'
         sheet.append([
             'Elemento',
-            'Flujo actual (L/s)',
+            flow_heading,
             'Apertura (m³)',
             'Cierre (m³)',
             'Volumen validado (m³)',
@@ -975,5 +983,10 @@ def build_daily_water_report_excel(report: dict[str, Any]) -> tuple[bytes, str]:
 
     output = BytesIO()
     wb.save(output)
-    filename = f"reporte-diario-control-hidrico-durango-{report.get('start_date')}.xlsx"
+    if report.get('period_mode') == 'fixed_12h_blocks':
+        start_at = str(report.get('period_start_at') or '')
+        block = '00-12' if 'T00:00' in start_at else '12-24'
+        filename = f"reporte-control-hidrico-durango-12h-{report.get('start_date')}-{block}.xlsx"
+    else:
+        filename = f"reporte-diario-control-hidrico-durango-{report.get('start_date')}.xlsx"
     return output.getvalue(), filename

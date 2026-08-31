@@ -71,6 +71,9 @@ class LocalAuthMiddleware(BaseHTTPMiddleware):
             f"{self.api_prefix}/water/reports/daily/email",
             f"{self.api_prefix}/email/report",
         }
+        self.operator_mutation_prefixes = (
+            f"{self.api_prefix}/report-email-schedules",
+        )
 
     async def dispatch(self, request, call_next):
         path = request.url.path
@@ -129,7 +132,11 @@ class LocalAuthMiddleware(BaseHTTPMiddleware):
             role = str(user.get("role") or "")
             if role == "viewer" and path != f"{self.api_prefix}/auth/logout":
                 return JSONResponse(status_code=403, content={"detail": "No cuenta con permisos para esta operación."})
-            if role == "operator" and path not in self.operator_mutation_paths:
+            operator_allowed = (
+                path in self.operator_mutation_paths
+                or any(path == prefix or path.startswith(prefix + "/") for prefix in self.operator_mutation_prefixes)
+            )
+            if role == "operator" and not operator_allowed:
                 return JSONResponse(status_code=403, content={"detail": "No cuenta con permisos para esta operación."})
 
         return await call_next(request)

@@ -7324,3 +7324,311 @@ th { color: #c1d0e8; font-weight: 700; position: sticky; top: 0; background: #0f
 
 /* Homologacion Durango 08A: motivo explicito de calidad sin alterar la validacion. */
 .quality-diagnostic-cell{display:grid;gap:6px;align-items:start}.quality-diagnostic-cell .status-badge{justify-self:start}.quality-diagnostic-cell small,.quality-reason-inline{display:block;max-width:320px;color:#9fc3d2;font-size:11px;line-height:1.35;font-weight:600;text-transform:none;letter-spacing:0}.quality-reason-inline{margin-top:5px}.quality-diagnostic-cell small{white-space:normal}
+
+
+/* Homologacion Durango 09: correo programado */
+.scheduled-email-panel {
+  padding: 22px;
+  display: grid;
+  gap: 18px;
+}
+
+.scheduled-email-heading {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.scheduled-email-heading h3 {
+  margin: 2px 0 5px;
+  font-size: 1.08rem;
+}
+
+.scheduled-email-heading p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.scheduled-email-form-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.9fr) minmax(220px, 0.75fr) minmax(320px, 1.35fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.scheduled-email-field,
+.scheduled-email-formats {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.scheduled-email-field > span,
+.scheduled-email-formats legend {
+  color: var(--muted-2);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.scheduled-email-field input,
+.scheduled-email-field select,
+.scheduled-email-field textarea {
+  width: 100%;
+  border: 1px solid rgba(75, 201, 255, 0.2);
+  background: rgba(4, 13, 28, 0.78);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 10px 12px;
+  outline: none;
+}
+
+.scheduled-email-field textarea {
+  resize: vertical;
+  min-height: 44px;
+}
+
+.scheduled-email-field input:focus,
+.scheduled-email-field select:focus,
+.scheduled-email-field textarea:focus {
+  border-color: rgba(56, 189, 248, 0.72);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.1);
+}
+
+.scheduled-email-formats {
+  border: 1px solid rgba(75, 201, 255, 0.16);
+  border-radius: 12px;
+  padding: 8px 11px 10px;
+  min-width: 190px;
+  grid-template-columns: 1fr 1fr;
+}
+
+.scheduled-email-formats legend {
+  padding: 0 5px;
+}
+
+.scheduled-email-formats label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.scheduled-email-helper {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border: 1px solid rgba(56, 189, 248, 0.14);
+  border-radius: 12px;
+  background: rgba(14, 165, 233, 0.06);
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.scheduled-email-helper svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: #38bdf8;
+}
+
+.scheduled-email-save-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.scheduled-email-save-row small {
+  color: var(--muted-2);
+}
+
+.scheduled-email-list-head {
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+  padding-top: 15px;
+}
+
+.scheduled-email-list-head > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.scheduled-email-list-head span {
+  color: var(--muted-2);
+  font-size: 0.78rem;
+}
+
+.scheduled-email-list {
+  display: grid;
+  gap: 10px;
+}
+
+.scheduled-email-empty {
+  padding: 16px;
+  border: 1px dashed rgba(148, 163, 184, 0.22);
+  border-radius: 14px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.scheduled-email-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 14px 15px;
+  border: 1px solid rgba(56, 189, 248, 0.14);
+  border-radius: 15px;
+  background: rgba(3, 12, 27, 0.48);
+}
+
+.scheduled-email-item.is-disabled {
+  opacity: 0.64;
+}
+
+.scheduled-email-item-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.scheduled-email-item-title {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.scheduled-email-item-title strong {
+  font-size: 0.94rem;
+}
+
+.scheduled-email-item p {
+  margin: 5px 0 8px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.scheduled-email-item-meta {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  color: var(--muted-2);
+  font-size: 0.75rem;
+}
+
+.scheduled-email-item-meta strong {
+  color: var(--text);
+}
+
+.scheduled-email-last-error {
+  color: #fca5a5;
+  width: 100%;
+}
+
+.scheduled-email-item-actions {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.scheduled-email-item-actions .ghost-action {
+  min-height: 36px;
+  padding: 7px 10px;
+  font-size: 0.78rem;
+}
+
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  font-size: 0.66rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.status-chip.success {
+  color: #86efac;
+  background: rgba(34, 197, 94, 0.1);
+  border-color: rgba(34, 197, 94, 0.24);
+}
+
+.status-chip.neutral {
+  color: var(--muted);
+  background: rgba(148, 163, 184, 0.08);
+}
+
+.danger-action {
+  color: #fca5a5 !important;
+}
+
+.scheduled-email-locked {
+  opacity: 0.9;
+}
+
+.pozos-shell.theme-light .scheduled-email-field input,
+.pozos-shell.theme-light .scheduled-email-field select,
+.pozos-shell.theme-light .scheduled-email-field textarea,
+.pozos-shell.theme-light .scheduled-email-item {
+  background: #ffffff;
+  color: #0f2747;
+  border-color: rgba(15, 74, 116, 0.17);
+}
+
+.pozos-shell.theme-light .scheduled-email-helper {
+  background: #eef8ff;
+  border-color: rgba(14, 116, 178, 0.17);
+}
+
+.pozos-shell.theme-light .scheduled-email-item-meta strong,
+.pozos-shell.theme-light .scheduled-email-formats label {
+  color: #0f2747;
+}
+
+@media (max-width: 1180px) {
+  .scheduled-email-form-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .scheduled-email-recipients {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 720px) {
+  .scheduled-email-panel {
+    padding: 16px;
+  }
+  .scheduled-email-form-grid {
+    grid-template-columns: 1fr;
+  }
+  .scheduled-email-recipients {
+    grid-column: auto;
+  }
+  .scheduled-email-save-row,
+  .scheduled-email-item {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .scheduled-email-save-row .report-action-button,
+  .scheduled-email-item-actions .ghost-action {
+    width: 100%;
+    justify-content: center;
+  }
+  .scheduled-email-item-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+}
+

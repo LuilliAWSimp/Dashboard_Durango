@@ -14,6 +14,7 @@ import ChartEmptyState from '../components/ChartEmptyState';
 import PanelHeader from '../components/PanelHeader';
 import StatusBadge from '../components/StatusBadge';
 import { useNotifications } from '../components/NotificationCenter';
+import ScheduledReportEmailPanel from '../components/ScheduledReportEmailPanel';
 
 type ReportMode = 'day' | 'range';
 type ReportSectionKey = 'wells' | 'production_lines' | 'washers' | 'jarabes';
@@ -348,6 +349,8 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
         {refreshing ? <div className="status-pill auto-refresh-status">Actualizando datos de la vista previa…</div> : null}
         {error ? <div className="status-pill alert">{error}</div> : null}
       </section>
+
+      <ScheduledReportEmailPanel currentUser={currentUser} />
 
       {loading && !report ? <ReportSkeleton /> : null}
 

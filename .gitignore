@@ -25,3 +25,7 @@ backend/data/auth.sqlite3
 backend/data/auth.sqlite3-shm
 backend/data/auth.sqlite3-wal
 backend/data/*.bak
+
+backend/data/report_email_schedules.sqlite3
+backend/data/report_email_schedules.sqlite3-shm
+backend/data/report_email_schedules.sqlite3-wal

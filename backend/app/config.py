@@ -68,6 +68,15 @@ class Settings(BaseSettings):
     smtp_use_ssl: bool = Field(default=False, alias="SMTP_USE_SSL")
     smtp_use_starttls: bool = Field(default=True, alias="SMTP_USE_STARTTLS")
 
+    # Programacion persistente de reportes por correo.
+    report_schedule_database_path: str = Field(default="data/report_email_schedules.sqlite3", alias="REPORT_SCHEDULE_DATABASE_PATH")
+    report_email_scheduler_enabled: bool = Field(default=True, alias="REPORT_EMAIL_SCHEDULER_ENABLED")
+    report_email_scheduler_poll_seconds: int = Field(default=30, alias="REPORT_EMAIL_SCHEDULER_POLL_SECONDS")
+    report_email_send_delay_minutes: int = Field(default=10, alias="REPORT_EMAIL_SEND_DELAY_MINUTES")
+    report_email_catchup_hours: int = Field(default=36, alias="REPORT_EMAIL_CATCHUP_HOURS")
+    report_email_max_attempts: int = Field(default=3, alias="REPORT_EMAIL_MAX_ATTEMPTS")
+    report_email_retry_minutes: int = Field(default=10, alias="REPORT_EMAIL_RETRY_MINUTES")
+
     # SQL Server settings
     sqlserver_host: str = Field(default=r"SERVER-SCADA\SQLSCADA", validation_alias=AliasChoices("SQLSERVER_HOST", "DB_SERVER"))
     sqlserver_port: int = Field(default=1433, alias="SQLSERVER_PORT")
