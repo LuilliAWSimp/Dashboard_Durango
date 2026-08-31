@@ -7146,3 +7146,71 @@ th { color: #c1d0e8; font-weight: 700; position: sticky; top: 0; background: #0f
 .module-history-totalizer-control{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:2px 0 12px;padding:10px 12px;border:1px solid rgba(125,211,252,.16);border-radius:14px;background:rgba(3,21,34,.5)}
 .module-history-totalizer-control>span{color:#9ddcf2;font-size:12px;font-weight:800;letter-spacing:.04em}
 @media(max-width:720px){.module-history-export-actions{width:100%}.module-history-export-actions .report-action-button{flex:1}.module-history-totalizer-control{align-items:stretch}.module-history-totalizer-control .module-metric-selector{width:100%}}
+
+/* Homologacion Durango 05: exportacion conciliada cada 5 minutos */
+.five-minute-export-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.five-minute-excel-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid rgba(34, 197, 94, .45);
+  border-radius: 10px;
+  background: rgba(22, 163, 74, .16);
+  color: #bbf7d0;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.five-minute-excel-button:hover:not(:disabled) {
+  background: rgba(22, 163, 74, .24);
+  border-color: rgba(74, 222, 128, .72);
+}
+
+.five-minute-excel-button:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+.five-minute-export-message {
+  max-width: 260px;
+  color: #86efac;
+  font-size: .76rem;
+  line-height: 1.25;
+}
+
+.five-minute-export-message.is-error {
+  color: #fda4af;
+}
+
+.five-minute-excel-button .spin {
+  animation: five-minute-export-spin .8s linear infinite;
+}
+
+@keyframes five-minute-export-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 760px) {
+  .five-minute-export-action,
+  .five-minute-excel-button {
+    width: 100%;
+  }
+  .five-minute-export-action {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .five-minute-export-message {
+    max-width: none;
+  }
+}

@@ -10,17 +10,16 @@ import {
   resolveOperationalIdentity,
 } from '../operationalNavigation';
 import type { OperationalIdentity, OperationalModule } from '../operationalNavigation';
-import type { DashboardData, DateRange, FlexibleRecord } from '../types';
+import type { DashboardData, DateRange, FlexibleRecord, HistoryAggregation } from '../types';
 import type { OperationalSectionConfig, OperationalSectionItem } from '../operationalSectionConfig';
-import ChartEmptyState from './ChartEmptyState';
 import DateRangeControls from './DateRangeControls';
+import FiveMinuteExcelExportButton from './FiveMinuteExcelExportButton';
 import MetricPair from './MetricPair';
 import PanelHeader from './PanelHeader';
+import ModuleHistoryPanel from './ModuleHistoryPanel';
 import ShiftConsumptionPanel from './ShiftConsumptionPanel';
 import StatusBadge from './StatusBadge';
-import WaterHistoryChart from './WaterHistoryChart';
 import useSqlChartDashboard from '../hooks/useSqlChartDashboard';
-import useWaterHistory from '../hooks/useWaterHistory';
 
 interface Props {
   module: OperationalModule;
@@ -96,12 +95,7 @@ export default function OperationalDetailSection({ module, sensorId, backPath, s
     includeEnergyWater: false,
     autoRefresh: true,
   });
-  const history = useWaterHistory({
-    module,
-    sensorId,
-    initialRangeFactory,
-    initialAggregation: initialContext.aggregation,
-  });
+  const [historyAggregation, setHistoryAggregation] = useState<HistoryAggregation>(initialContext.aggregation);
   const dashboard = current.dashboard as DashboardData | null;
   const allowedItems = sectionConfig?.items;
   const rows = moduleRows(dashboard, module).filter((row, index) => rowMatchesItems(row, index, module, allowedItems));
@@ -115,6 +109,10 @@ export default function OperationalDetailSection({ module, sensorId, backPath, s
     })),
     [allowedItems, module],
   );
+  const configuredItems = allowedItems?.length ? allowedItems : configuredOperationalItems(module);
+  const configuredHistoryItem = configuredItems.find((configured) => (
+    String(allowedItems?.length ? itemIdentity(configured as ConfiguredItem) : configuredOperationalIdentity(configured as ReturnType<typeof configuredOperationalItems>[number])) === String(sensorId)
+  ));
   const currentIndex = navigationItems.findIndex((configured) => String(configured.identity) === String(sensorId));
   const previous = currentIndex > 0 ? navigationItems[currentIndex - 1] : null;
   const next = currentIndex >= 0 && currentIndex < navigationItems.length - 1
@@ -122,45 +120,55 @@ export default function OperationalDetailSection({ module, sensorId, backPath, s
     : null;
   const configuredName = currentIndex >= 0 ? navigationItems[currentIndex]?.name : null;
   const name = String(item?.name || item?.nombre || configuredName || `Elemento ${sensorId}`);
-  const flowUnit = String(item?.flow_unit || history.data?.flow_unit || 'L/s');
+  const flowUnit = String(item?.flow_unit || configuredHistoryItem?.flowUnit || 'L/s');
   const activity = String(item?.period_activity || item?.activity || 'Sin registros');
   const currentState = String(item?.current_state || (num(item?.current_flow ?? item?.flow_lps) === null ? 'Sin registros' : Number(item?.current_flow ?? item?.flow_lps) > 0 ? 'Activo' : 'Sin flujo'));
   const communication = String(item?.communication || item?.estado_comunicacion || 'Sin lectura');
+  const detailOpen = item?.reconciled_open_m3 ?? item?.period_open_m3;
+  const detailClose = item?.reconciled_close_m3 ?? item?.period_close_m3;
+  const detailVolume = item?.reconciled_validated_volume_m3 ?? item?.validated_volume_m3 ?? item?.period_m3;
+  const reconciledReliable = item?.reconciled_volume_reliable;
+  const detailVolumeReliable = typeof reconciledReliable === 'boolean'
+    ? reconciledReliable
+    : Boolean(item?.quality_volume_reliable ?? item?.volume_reliable);
+  const qualityLabel = String(item?.quality_label || item?.validation || item?.coverage_status || activity);
   const labels = sectionConfig?.labels;
   const navigationLabel = labels?.navigationLabel || (module === 'well' ? 'pozos' : module === 'line' ? 'líneas' : 'flujos');
+  const historyItems = useMemo(() => [{
+    sensorId: configuredHistoryItem?.sensorId ?? (typeof sensorId === 'number' ? sensorId : null),
+    operationalKey: String(configuredHistoryItem?.operationalKey || rowOperationalKey(item || {}) || sensorId),
+    name,
+    flowUnit,
+  }], [configuredHistoryItem, flowUnit, item, name, sensorId]);
+  const exportElementId = configuredHistoryItem
+    ? (configuredHistoryItem.sensorId ?? configuredHistoryItem.operationalKey)
+    : sensorId;
 
   useEffect(() => {
-    const search = buildOperationalNavigationSearch(history.range, history.aggregation, module);
+    const search = buildOperationalNavigationSearch(current.range, historyAggregation, module);
     if (location.search === search) return;
     navigate({ pathname: location.pathname, search }, { replace: true, state: location.state });
-  }, [history.aggregation, history.range, location.pathname, location.search, location.state, module, navigate]);
+  }, [current.range, historyAggregation, location.pathname, location.search, location.state, module, navigate]);
 
   const updateDraftRange = (range: DateRange) => {
-    history.setDraftRange(range);
     current.setDraftRange(range);
   };
 
   const applyRange = () => {
-    const nextRange = { ...history.draftRange };
-    history.apply();
-    current.setDraftRange(nextRange);
-    current.setRange((previousRange) => ({
-      ...nextRange,
-      refreshKey: Number(previousRange.refreshKey || 0) + 1,
-    }));
+    current.apply();
   };
 
   const resetRange = () => {
     const nextRange = { ...initialContext.range };
-    history.reset();
     current.setDraftRange(nextRange);
     current.setRange((previousRange) => ({
       ...nextRange,
       refreshKey: Number(previousRange.refreshKey || 0) + 1,
     }));
+    setHistoryAggregation(initialContext.aggregation);
   };
 
-  const activeSearch = buildOperationalNavigationSearch(history.range, history.aggregation, module);
+  const activeSearch = buildOperationalNavigationSearch(current.range, historyAggregation, module);
   const navigateToSibling = (identity: OperationalIdentity) => {
     navigate(`${backPath}/${encodeURIComponent(String(identity))}${activeSearch}`, {
       replace: true,
@@ -201,7 +209,7 @@ export default function OperationalDetailSection({ module, sensorId, backPath, s
         <div className="well-detail-hero-metrics">
           <article><span>Flujo actual</span><strong>{fmt(item?.current_flow ?? item?.flow_lps)} <small>{flowUnit}</small></strong></article>
           <article><span>Totalizador actual</span><strong>{fmt(item?.current_totalizer_m3 ?? item?.totalizador_m3)} <small>m³</small></strong></article>
-          <article><span>Volumen del periodo</span><strong>{num(item?.period_m3) === null ? activity : fmt(item?.period_m3)} <small>{num(item?.period_m3) === null ? '' : 'm³'}</small></strong></article>
+          <article><span>Volumen del periodo</span><strong>{detailVolumeReliable && num(detailVolume) !== null ? fmt(detailVolume) : qualityLabel} <small>{detailVolumeReliable && num(detailVolume) !== null ? 'm³' : ''}</small></strong></article>
           <article><span>Actividad del periodo</span><strong>{activity}</strong></article>
           <article><span>Tiempo activo</span><strong>{fmt(item?.active_minutes)} <small>{num(item?.active_minutes) === null ? '' : 'min'}</small></strong></article>
           <article><span>Cobertura</span><strong>{fmt(item?.coverage_percent)} <small>{num(item?.coverage_percent) === null ? '' : '%'}</small></strong></article>
@@ -210,34 +218,46 @@ export default function OperationalDetailSection({ module, sensorId, backPath, s
         </div>
       </section>
 
-      <section className="panel chart-panel fade-up">
-        <PanelHeader title="Histórico del elemento" subtitle="Flujo promedio como línea y volumen del intervalo como barras" />
-        <DateRangeControls
-          draftRange={history.draftRange}
-          activeRange={history.range}
-          onDraftChange={updateDraftRange}
-          onApply={applyRange}
-          onReset={resetRange}
-          status={history.loading ? 'Cargando histórico...' : undefined}
-          aggregation={history.aggregation}
-          onAggregationChange={history.setAggregation}
-        />
-        {history.error ? <div className="status-pill alert">{history.error}</div> : null}
-        {history.data?.points?.length
-          ? <WaterHistoryChart points={history.data.points} aggregation={history.aggregation} flowUnit={flowUnit} />
-          : !history.loading ? <ChartEmptyState message="Sin registros guardados para el periodo seleccionado." /> : null}
-      </section>
+      <DateRangeControls
+        draftRange={current.draftRange}
+        activeRange={current.range}
+        onDraftChange={updateDraftRange}
+        onApply={applyRange}
+        onReset={resetRange}
+        status={current.loading ? 'Actualizando periodo...' : undefined}
+        title="Rango del detalle"
+        subtitle="El rango actualiza indicadores, histórico y exportación conciliada de 5 minutos."
+        extraAction={(
+          <FiveMinuteExcelExportButton
+            module={module}
+            elementId={exportElementId}
+            range={current.range}
+          />
+        )}
+      />
+      {current.error ? <div className="status-pill alert">{current.error}</div> : null}
+
+      <ModuleHistoryPanel
+        range={current.range}
+        fixedModule={module}
+        aggregation={historyAggregation}
+        onAggregationChange={setHistoryAggregation}
+        items={historyItems}
+        panelTitle={`Histórico operativo · ${name}`}
+        panelSubtitle="Flujo y totalizador usan la misma fuente histórica común del módulo; los huecos permanecen como ausencia de registro."
+      />
 
       <section className="panel fade-up">
         <PanelHeader title="Estado del periodo" subtitle="Comunicación y actividad se evalúan de forma independiente" />
         <div className="metric-pairs-grid">
-          <MetricPair label="Apertura" value={fmt(item?.period_open_m3)} unit={num(item?.period_open_m3) === null ? '' : 'm³'} />
-          <MetricPair label="Cierre" value={fmt(item?.period_close_m3)} unit={num(item?.period_close_m3) === null ? '' : 'm³'} />
+          <MetricPair label="Apertura conciliada" value={fmt(detailOpen)} unit={num(detailOpen) === null ? '' : 'm³'} />
+          <MetricPair label="Cierre conciliado" value={fmt(detailClose)} unit={num(detailClose) === null ? '' : 'm³'} />
           <MetricPair label="Actividad" value={activity} />
           <MetricPair label="Estado actual" value={currentState} />
           <MetricPair label="Promedio durante actividad" value={fmt(item?.flow_active_avg)} unit={num(item?.flow_active_avg) === null ? '' : flowUnit} />
           <MetricPair label="Muestras" value={`${Number(item?.samples_received || item?.samples || 0).toLocaleString('es-MX')}/${Number(item?.samples_expected || 0).toLocaleString('es-MX')}`} />
           <MetricPair label="Cobertura" value={num(item?.coverage_percent) === null ? '—' : `${fmt(item?.coverage_percent)}% · ${String(item?.coverage_status || '')}`} />
+          <MetricPair label="Calidad" value={qualityLabel} />
           <MetricPair label="Comunicación" value={communication} />
         </div>
       </section>
@@ -245,7 +265,7 @@ export default function OperationalDetailSection({ module, sensorId, backPath, s
       <ShiftConsumptionPanel
         group={module}
         itemIdentity={sensorId}
-        date={String(history.range.endDate || history.range.startDate || '')}
+        date={String(current.range.endDate || current.range.startDate || '')}
         title={`Cortes por turno · ${name}`}
         items={allowedItems}
         emptyMessage={labels?.emptyState}

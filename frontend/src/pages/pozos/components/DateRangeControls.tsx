@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import type { KeyboardEvent } from 'react';
+import type { KeyboardEvent, ReactNode } from 'react';
 import { CalendarDays, ChevronDown } from 'lucide-react';
 import type { DateRange, HistoryAggregation, Period } from '../types';
 import { dateRangePeriod, formatDateRangeStatus, periodLabel, periodTitle } from '../dateUtils';
@@ -24,6 +24,7 @@ export interface DateRangeControlsProps {
   showDateIcons?: boolean;
   aggregation?: HistoryAggregation;
   onAggregationChange?: (value: HistoryAggregation) => void;
+  extraAction?: ReactNode;
 }
 
 const AGGREGATION_OPTIONS: Array<{ value: HistoryAggregation; label: string }> = [
@@ -195,6 +196,7 @@ function DateRangeControls({
   showDateIcons = true,
   aggregation,
   onAggregationChange,
+  extraAction,
 }: DateRangeControlsProps) {
   const meta = rangeMeta(activeRange || draftRange, aggregation);
   const renderDateInput = (field: 'startDate' | 'endDate') => {
@@ -240,6 +242,7 @@ function DateRangeControls({
         ) : null}
         <button type="button" className="date-range-apply" onClick={onApply}>Actualizar</button>
         {onReset ? <button type="button" className="date-range-reset" onClick={onReset}>Restablecer</button> : null}
+        {extraAction}
         <div className="date-range-status">{status || `${meta.periodTitle} · ${meta.rangeLabel}`}</div>
       </div>
     </section>
