@@ -104,6 +104,36 @@ def _module_summary(items: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _flow_subgroups(flows: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    lavadoras: list[dict[str, Any]] = []
+    jarabes: list[dict[str, Any]] = []
+    other: list[dict[str, Any]] = []
+    for item in flows:
+        key = str(item.get('operational_key') or '').strip().lower()
+        if key == 'jarabes':
+            jarabes.append(item)
+        elif key.startswith('lavadora_'):
+            lavadoras.append(item)
+        else:
+            other.append(item)
+    return lavadoras, jarabes, other
+
+
+def _operational_group_summaries(
+    wells: list[dict[str, Any]],
+    lines: list[dict[str, Any]],
+    flows: list[dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    lavadoras, jarabes, other_flows = _flow_subgroups(flows)
+    return {
+        'wells': _module_summary(wells),
+        'lines': _module_summary(lines),
+        'lavadoras': _module_summary(lavadoras),
+        'jarabes': _module_summary(jarabes),
+        'other_flows': _module_summary(other_flows),
+    }
+
+
 def _period_payload(day: date, *, force_refresh: bool = False) -> dict[str, Any]:
     try:
         return get_period_data(day.isoformat(), day.isoformat(), force_refresh=force_refresh)
@@ -119,11 +149,13 @@ def _comparison(day: date, *, force_refresh: bool = False) -> dict[str, Any]:
         'flows': [_canonical_item(item) for item in period.get('flows') or []],
     }
     module_summaries = {key: _module_summary(items) for key, items in modules.items()}
+    operational_groups = _operational_group_summaries(modules['wells'], modules['lines'], modules['flows'])
     values = [summary.get('subtotal_validated_m3') for summary in module_summaries.values()]
     valid_values = [float(value) for value in values if value is not None]
     return {
         'date': day.isoformat(),
         'modules': module_summaries,
+        'operational_groups': operational_groups,
         'subtotal_validated_m3': round(sum(valid_values), 6) if valid_values else None,
         'coverage_complete': bool(module_summaries) and all(bool(summary.get('coverage_complete')) for summary in module_summaries.values()),
         'source_status': period.get('source_status'),
@@ -148,6 +180,7 @@ def get_daily_water_review(
         'lines': _module_summary(lines),
         'flows': _module_summary(flows),
     }
+    operational_groups = _operational_group_summaries(wells, lines, flows)
     all_items = [*wells, *lines, *flows]
     total_values = [summary.get('subtotal_validated_m3') for summary in summaries.values()]
     available_totals = [float(value) for value in total_values if value is not None]
@@ -167,6 +200,7 @@ def get_daily_water_review(
             'lines': {'label': 'Líneas', 'items': lines, 'summary': summaries['lines']},
             'flows': {'label': 'Flujos', 'items': flows, 'summary': summaries['flows']},
         },
+        'operational_groups': operational_groups,
         'summary': {
             'subtotal_validated_m3': round(sum(available_totals), 6) if available_totals else None,
             'coverage_complete': all(bool(summary.get('coverage_complete')) for summary in summaries.values()),
