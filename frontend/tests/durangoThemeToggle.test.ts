@@ -39,3 +39,21 @@ test('modo claro adapta controles, tablas y graficas', () => {
   assert.match(css, /\.pozos-shell\.theme-light \.recharts-cartesian-axis-tick-value[\s\S]*?fill:\s*#405e75 !important;/);
   assert.match(css, /\.pozos-shell\.theme-light \.chart-tooltip,[\s\S]*?background:\s*rgba\(255,255,255,.98\)/);
 });
+
+test('modo claro aplica contrato global de contraste para texto funcional', () => {
+  assert.match(css, /--light-title:\s*#0B1F3A/);
+  assert.match(css, /--light-body:\s*#334E68/);
+  assert.match(css, /--light-muted:\s*#5C7184/);
+  assert.match(css, /--light-label:\s*#234A70/);
+  assert.match(css, /\.pozos-shell\.theme-light \.report-center-heading \.panel-title,[\s\S]*?color:\s*var\(--light-title\)/);
+  assert.match(css, /\.pozos-shell\.theme-light \.report-center-heading > span,[\s\S]*?color:\s*var\(--light-label\)/);
+  assert.match(css, /\.pozos-shell\.theme-light \.report-field-label,[\s\S]*?color:\s*var\(--light-label\)/);
+  assert.match(css, /\.pozos-shell\.theme-light input::placeholder,[\s\S]*?color:\s*#71869A/);
+});
+
+test('modo claro conserva contraste semantico y acciones destructivas visibles', () => {
+  assert.match(css, /\.pozos-shell\.theme-light \.danger-action,[\s\S]*?color:\s*#B42318/);
+  assert.match(css, /\.pozos-shell\.theme-light \.status-pill\.warning,[\s\S]*?color:\s*#765B00/);
+  assert.match(css, /\.pozos-shell\.theme-light \.status-pill\.critical[\s\S]*?color:\s*#A61B1B/);
+  assert.match(css, /\.pozos-shell\.theme-light th,[\s\S]*?color:\s*var\(--light-label\)/);
+});

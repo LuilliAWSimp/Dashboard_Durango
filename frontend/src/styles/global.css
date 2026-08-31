@@ -8090,3 +8090,290 @@ th { color: #c1d0e8; font-weight: 700; position: sticky; top: 0; background: #0f
 @media (max-width: 760px) {
   .pozos-shell .theme-toggle-button { min-height: 46px; }
 }
+
+/* Homologacion Durango 11A: contrato global de contraste para modo claro.
+   Regla: los cianes claros quedan como acento/decoracion; nunca como texto funcional sobre blanco. */
+.pozos-shell.theme-light {
+  --light-page-bg: #F3F8FC;
+  --light-surface: #FFFFFF;
+  --light-title: #0B1F3A;
+  --light-heading: #163A5F;
+  --light-body: #334E68;
+  --light-muted: #5C7184;
+  --light-label: #234A70;
+  --light-accent: #0369A1;
+  --light-border: #C7DCEB;
+  --light-soft: #E8F3FA;
+  --light-hover: #F0F7FB;
+  --bg: var(--light-page-bg);
+  --text: var(--light-body);
+  --muted: var(--light-muted);
+  --muted-2: #687F92;
+  background: var(--light-page-bg);
+  color: var(--light-body);
+}
+
+/* Jerarquia tipografica: titulos oscuros y legibles en todas las superficies claras. */
+.pozos-shell.theme-light .panel-title,
+.pozos-shell.theme-light .hero-title,
+.pozos-shell.theme-light .compact-hero h1,
+.pozos-shell.theme-light .compact-hero h2,
+.pozos-shell.theme-light .compact-hero h3,
+.pozos-shell.theme-light .hero-panel h1,
+.pozos-shell.theme-light .hero-panel h2,
+.pozos-shell.theme-light .hero-panel h3,
+.pozos-shell.theme-light .well-detail-title-row h2,
+.pozos-shell.theme-light .report-center-heading .panel-title,
+.pozos-shell.theme-light .report-preview-heading h3,
+.pozos-shell.theme-light .report-preview-section-heading h4,
+.pozos-shell.theme-light .scheduled-email-heading h3,
+.pozos-shell.theme-light .operational-alerts-heading h3,
+.pozos-shell.theme-light .users-admin-header h1,
+.pozos-shell.theme-light .users-admin-header h2,
+.pozos-shell.theme-light .users-create-panel h2,
+.pozos-shell.theme-light .users-list-panel h2 {
+  color: var(--light-title);
+}
+
+.pozos-shell.theme-light .panel h1,
+.pozos-shell.theme-light .panel h2,
+.pozos-shell.theme-light .panel h3,
+.pozos-shell.theme-light .panel h4 {
+  color: var(--light-heading);
+}
+
+/* Los titulos de mayor jerarquia conservan el azul marino mas oscuro. */
+.pozos-shell.theme-light .report-center-heading .panel-title,
+.pozos-shell.theme-light .report-preview-heading h3,
+.pozos-shell.theme-light .well-detail-title-row h2,
+.pozos-shell.theme-light .compact-hero h2 {
+  color: var(--light-title);
+}
+
+/* Texto normal y secundario. */
+.pozos-shell.theme-light .panel-subtitle,
+.pozos-shell.theme-light .hero-subtitle,
+.pozos-shell.theme-light .compact-hero p,
+.pozos-shell.theme-light .hero-panel p,
+.pozos-shell.theme-light .report-center-heading .panel-subtitle,
+.pozos-shell.theme-light .report-center-heading > p,
+.pozos-shell.theme-light .report-preview-heading p,
+.pozos-shell.theme-light .report-preview-section-heading p,
+.pozos-shell.theme-light .scheduled-email-heading p,
+.pozos-shell.theme-light .operational-alerts-heading p,
+.pozos-shell.theme-light .users-admin-header p,
+.pozos-shell.theme-light .users-create-panel p,
+.pozos-shell.theme-light .users-list-panel p {
+  color: var(--light-muted);
+}
+
+/* Eyebrows, labels y metadatos usan azul medio: visibles, pero por debajo del titulo. */
+.pozos-shell.theme-light .eyebrow,
+.pozos-shell.theme-light .section-eyebrow,
+.pozos-shell.theme-light .report-center-heading > span,
+.pozos-shell.theme-light .report-preview-heading > div > span,
+.pozos-shell.theme-light .operational-alerts-heading span:first-child,
+.pozos-shell.theme-light .report-field-label,
+.pozos-shell.theme-light .date-range-fields label,
+.pozos-shell.theme-light .date-range-fields label > span,
+.pozos-shell.theme-light .scheduled-email-field > span,
+.pozos-shell.theme-light .scheduled-email-formats legend,
+.pozos-shell.theme-light .users-create-form label > span,
+.pozos-shell.theme-light .module-history-aggregation,
+.pozos-shell.theme-light .minute-flow-controls label {
+  color: var(--light-label);
+}
+
+.pozos-shell.theme-light .report-workflow-intro strong,
+.pozos-shell.theme-light .scheduled-email-list-head strong,
+.pozos-shell.theme-light .users-list-heading strong {
+  color: var(--light-heading);
+}
+
+.pozos-shell.theme-light .report-workflow-intro span,
+.pozos-shell.theme-light .scheduled-email-save-row small,
+.pozos-shell.theme-light .scheduled-email-list-head span,
+.pozos-shell.theme-light .scheduled-email-item p,
+.pozos-shell.theme-light .scheduled-email-item-meta,
+.pozos-shell.theme-light .report-summary-note,
+.pozos-shell.theme-light .quality-diagnostic-cell small,
+.pozos-shell.theme-light .quality-reason-inline {
+  color: var(--light-muted);
+}
+
+/* Superficies y bordes: blanco real sobre fondo azul-gris claro. */
+.pozos-shell.theme-light .main-shell {
+  background:
+    radial-gradient(circle at 82% 4%, rgba(14,165,233,.055), transparent 24%),
+    linear-gradient(180deg, #F8FCFF 0%, var(--light-page-bg) 100%);
+}
+.pozos-shell.theme-light .panel,
+.pozos-shell.theme-light .chart-panel,
+.pozos-shell.theme-light .module-history-panel,
+.pozos-shell.theme-light .report-workflow-panel,
+.pozos-shell.theme-light .report-preview-panel,
+.pozos-shell.theme-light .report-data-panel,
+.pozos-shell.theme-light .scheduled-email-panel,
+.pozos-shell.theme-light .operational-alerts-panel {
+  background: var(--light-surface);
+  border-color: var(--light-border);
+}
+
+/* Formularios: texto y placeholders no pueden desaparecer. */
+.pozos-shell.theme-light input,
+.pozos-shell.theme-light select,
+.pozos-shell.theme-light textarea {
+  color: var(--light-title);
+  background: #FFFFFF;
+  border-color: #A9C8DB;
+}
+.pozos-shell.theme-light input::placeholder,
+.pozos-shell.theme-light textarea::placeholder {
+  color: #71869A;
+  opacity: 1;
+}
+.pozos-shell.theme-light input:disabled,
+.pozos-shell.theme-light select:disabled,
+.pozos-shell.theme-light textarea:disabled {
+  color: #667C8F;
+  background: #F3F7FA;
+  opacity: 1;
+}
+
+/* Controles secundarios claros: contraste sin competir con la accion primaria. */
+.pozos-shell.theme-light .ghost-action,
+.pozos-shell.theme-light .date-range-reset,
+.pozos-shell.theme-light .module-history-tab,
+.pozos-shell.theme-light .sensor-chip,
+.pozos-shell.theme-light .report-mode-toggle button:not(.active) {
+  color: var(--light-heading);
+  background: var(--light-soft);
+  border-color: #9FC5DA;
+}
+.pozos-shell.theme-light .ghost-action:hover:not(:disabled),
+.pozos-shell.theme-light .date-range-reset:hover:not(:disabled),
+.pozos-shell.theme-light .module-history-tab:hover:not(:disabled),
+.pozos-shell.theme-light .sensor-chip:hover:not(:disabled),
+.pozos-shell.theme-light .report-mode-toggle button:not(.active):hover {
+  color: var(--light-title);
+  background: #DCECF6;
+  border-color: #6FAAC9;
+}
+.pozos-shell.theme-light .report-mode-toggle {
+  background: #F1F7FB;
+  border-color: #A9C8DB;
+}
+.pozos-shell.theme-light .report-mode-toggle button.active,
+.pozos-shell.theme-light .date-range-apply,
+.pozos-shell.theme-light .primary-action {
+  color: #FFFFFF;
+}
+
+/* Acciones de Reportes: primarias azules, secundarias oscuras y siempre legibles. */
+.pozos-shell.theme-light .durango-report-page .report-action-button {
+  color: #FFFFFF;
+  background: #123B5A;
+  border-color: #245A7D;
+}
+.pozos-shell.theme-light .durango-report-page .report-action-button:hover:not(:disabled) {
+  color: #FFFFFF;
+  background: #0B2F49;
+  border-color: #0B6D9D;
+}
+.pozos-shell.theme-light .durango-report-page .report-action-button.primary-action {
+  color: #FFFFFF;
+  background: linear-gradient(135deg, #0797D5, #057FB5);
+  border-color: #0797D5;
+}
+
+/* Destructivos visibles sin depender de rosa palido. */
+.pozos-shell.theme-light .danger-action,
+.pozos-shell.theme-light .scheduled-email-item-actions .danger-action {
+  color: #B42318;
+  background: #FFF1F0;
+  border-color: #E8A7A2;
+}
+.pozos-shell.theme-light .danger-action:hover:not(:disabled),
+.pozos-shell.theme-light .scheduled-email-item-actions .danger-action:hover:not(:disabled) {
+  color: #8F1811;
+  background: #FFE4E1;
+  border-color: #D87E76;
+}
+
+/* Tablas: cabecera claramente separada y texto funcional oscuro. */
+.pozos-shell.theme-light th,
+.pozos-shell.theme-light .pozos-operacion-table th,
+.pozos-shell.theme-light .shift-detail-table th,
+.pozos-shell.theme-light .shift-overview-table th,
+.pozos-shell.theme-light .daily-report-table th,
+.pozos-shell.theme-light .users-table th {
+  color: var(--light-label);
+  background: var(--light-soft);
+  border-bottom-color: var(--light-border);
+}
+.pozos-shell.theme-light td,
+.pozos-shell.theme-light .pozos-operacion-table td,
+.pozos-shell.theme-light .shift-detail-table td,
+.pozos-shell.theme-light .shift-overview-table td,
+.pozos-shell.theme-light .daily-report-table td,
+.pozos-shell.theme-light .users-table td {
+  color: var(--light-body);
+}
+.pozos-shell.theme-light tbody tr:hover td,
+.pozos-shell.theme-light .users-table tbody tr:hover td {
+  background: var(--light-hover);
+}
+
+/* Estados semanticos estables en modo claro. */
+.pozos-shell.theme-light .status-pill.normal,
+.pozos-shell.theme-light .status-pill.communication,
+.pozos-shell.theme-light .status-chip.success {
+  color: #FFFFFF;
+  background: #124C82;
+  border-color: #124C82;
+}
+.pozos-shell.theme-light .status-pill.idle,
+.pozos-shell.theme-light .status-pill.nodata,
+.pozos-shell.theme-light .status-chip.neutral {
+  color: #44576A;
+  background: #E8EDF2;
+  border-color: #C4CFD8;
+}
+.pozos-shell.theme-light .status-pill.warning,
+.pozos-shell.theme-light .status-pill.alert,
+.pozos-shell.theme-light .shift-summary-card.partial {
+  color: #765B00;
+  background: #FFF3CD;
+  border-color: #E1BF54;
+}
+.pozos-shell.theme-light .status-pill.critical {
+  color: #A61B1B;
+  background: #FDE7E7;
+  border-color: #EAB1B1;
+}
+
+/* Contadores y badges sobre fondos claros. */
+.pozos-shell.theme-light .report-preview-section-heading > span {
+  color: #124C82;
+  background: #E7F3FA;
+  border-color: #A8CADC;
+}
+.pozos-shell.theme-light .scheduled-email-item-title strong,
+.pozos-shell.theme-light .scheduled-email-item-meta strong {
+  color: var(--light-title);
+}
+
+/* Excepciones deliberadas: texto blanco donde el fondo sigue siendo azul. */
+.pozos-shell.theme-light .header-bar .header-title,
+.pozos-shell.theme-light .header-bar .header-subtitle,
+.pozos-shell.theme-light .sidebar .brand-title,
+.pozos-shell.theme-light .sidebar .brand-subtitle,
+.pozos-shell.theme-light .sidebar .nav-group-title,
+.pozos-shell.theme-light .sidebar .nav-item,
+.pozos-shell.theme-light .kpi-card,
+.pozos-shell.theme-light .kpi-card .kpi-label,
+.pozos-shell.theme-light .kpi-card .kpi-value,
+.pozos-shell.theme-light .kpi-card .kpi-unit,
+.pozos-shell.theme-light .kpi-card .kpi-trend {
+  /* Los colores especificos de estas superficies oscuras se mantienen en el contrato 11. */
+}
