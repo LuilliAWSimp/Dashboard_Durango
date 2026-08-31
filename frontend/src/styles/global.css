@@ -9068,6 +9068,20 @@ th { color: #c1d0e8; font-weight: 700; position: sticky; top: 0; background: #0f
   color: #234a70 !important;
 }
 
+.pozos-shell.theme-light .back-inline-button {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #6f8ea3, #8fa6b6) !important;
+  border-color: #6f8ea3 !important;
+  box-shadow: 0 10px 20px rgba(111, 142, 163, .22) !important;
+}
+
+.pozos-shell.theme-light .back-inline-button:hover,
+.pozos-shell.theme-light .back-inline-button:focus-visible {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #5f7d92, #8098aa) !important;
+  border-color: #5f7d92 !important;
+}
+
 .pozos-shell.theme-light .operational-sibling-navigation button,
 .pozos-shell.theme-light .operational-sibling-navigation strong {
   color: #163a5f !important;
