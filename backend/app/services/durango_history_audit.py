@@ -220,17 +220,23 @@ def _lavadora_daily_counts(
     # con zoneinfo. El agrupamiento usa el offset del inicio de cada ventana.
     offset_minutes = int((start_local.replace(tzinfo=LOCAL_ZONE).utcoffset() or timedelta()).total_seconds() // 60)
     sql = text(f"""
+        WITH normalized AS (
+            SELECT
+                CAST(DATEADD(minute, :offset_minutes, Time_Stamp) AS date) AS reading_day,
+                CASE
+                    WHEN TRY_CONVERT(float, {instant_column}) IS NOT NULL
+                      OR TRY_CONVERT(float, {total_column}) IS NOT NULL
+                    THEN 1 ELSE 0
+                END AS sample_ok
+            FROM {table}
+            WHERE Time_Stamp >= :start_utc
+              AND Time_Stamp < :end_utc
+        )
         SELECT
-            CAST(DATEADD(minute, :offset_minutes, Time_Stamp) AS date) AS reading_day,
-            SUM(CASE
-                WHEN TRY_CONVERT(float, {instant_column}) IS NOT NULL
-                  OR TRY_CONVERT(float, {total_column}) IS NOT NULL
-                THEN 1 ELSE 0
-            END) AS samples
-        FROM {table}
-        WHERE Time_Stamp >= :start_utc
-          AND Time_Stamp < :end_utc
-        GROUP BY CAST(DATEADD(minute, :offset_minutes, Time_Stamp) AS date)
+            reading_day,
+            SUM(sample_ok) AS samples
+        FROM normalized
+        GROUP BY reading_day
         ORDER BY reading_day
     """)
     result: dict[date, int] = {}
@@ -303,18 +309,24 @@ def _jarabes_daily_counts(
         instant_column = str(segment['instant_column'])
         total_column = str(segment['total_column'])
         sql = text(f"""
+            WITH normalized AS (
+                SELECT
+                    CAST(DATEADD(minute, :offset_minutes, Time_Stamp) AS date) AS reading_day,
+                    CASE
+                        WHEN TRY_CONVERT(float, {instant_column}) IS NOT NULL
+                          OR TRY_CONVERT(float, {total_column}) IS NOT NULL
+                        THEN 1 ELSE 0
+                    END AS sample_ok
+                FROM {table}
+                WHERE Time_Stamp >= :start_utc
+                  AND Time_Stamp < :end_utc
+                  AND (TRY_CONVERT(int, {sensor_column}) = :sensor_id OR TRY_CONVERT(int, {sensor_column}) IS NULL)
+            )
             SELECT
-                CAST(DATEADD(minute, :offset_minutes, Time_Stamp) AS date) AS reading_day,
-                SUM(CASE
-                    WHEN TRY_CONVERT(float, {instant_column}) IS NOT NULL
-                      OR TRY_CONVERT(float, {total_column}) IS NOT NULL
-                    THEN 1 ELSE 0
-                END) AS samples
-            FROM {table}
-            WHERE Time_Stamp >= :start_utc
-              AND Time_Stamp < :end_utc
-              AND (TRY_CONVERT(int, {sensor_column}) = :sensor_id OR TRY_CONVERT(int, {sensor_column}) IS NULL)
-            GROUP BY CAST(DATEADD(minute, :offset_minutes, Time_Stamp) AS date)
+                reading_day,
+                SUM(sample_ok) AS samples
+            FROM normalized
+            GROUP BY reading_day
             ORDER BY reading_day
         """)
         for row in session.execute(
