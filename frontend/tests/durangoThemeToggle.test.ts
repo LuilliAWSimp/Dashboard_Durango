@@ -57,3 +57,12 @@ test('modo claro conserva contraste semantico y acciones destructivas visibles',
   assert.match(css, /\.pozos-shell\.theme-light \.status-pill\.critical[\s\S]*?color:\s*#A61B1B/);
   assert.match(css, /\.pozos-shell\.theme-light th,[\s\S]*?color:\s*var\(--light-label\)/);
 });
+
+test('11E adapta controles y graficas al modo claro sin superficies grises', () => {
+  assert.match(css, /Homologacion Durango 11E/);
+  assert.match(css, /\.pozos-shell\.theme-light \.module-metric-selector[\s\S]*?background:\s*#eaf6fd !important/);
+  assert.match(css, /\.pozos-shell\.theme-light \.module-selection-heading[\s\S]*?color:\s*#234a70 !important/);
+  assert.match(css, /\.pozos-shell\.theme-light \.history-aggregation-menu[\s\S]*?background:\s*#ffffff !important/);
+  assert.match(css, /\.pozos-shell\.theme-light \.date-range-status,[\s\S]*?background:\s*#eaf6fd !important/);
+  assert.match(css, /stroke:\s*rgba\(31, 78, 112, \.28\) !important/);
+});

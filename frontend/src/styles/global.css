@@ -8750,3 +8750,244 @@ th { color: #c1d0e8; font-weight: 700; position: sticky; top: 0; background: #0f
 .pozos-shell.theme-light .shift-detail-groups h4 {
   color: #153f5d;
 }
+
+/* Homologacion Durango 11E: controles, selectores de fecha y graficas en modo claro.
+   Regla visual: las superficies de control usan blanco/azules ARCA; el gris no se usa como fondo funcional. */
+.pozos-shell.theme-light .date-range-panel,
+.pozos-shell.theme-light .chart-date-range-panel,
+.pozos-shell.theme-light .report-date-range-panel,
+.pozos-shell.theme-light .shift-controls-panel {
+  background: #ffffff !important;
+  border-color: #b8d8ea !important;
+  box-shadow: 0 8px 22px rgba(20, 74, 108, .08) !important;
+}
+
+.pozos-shell.theme-light .date-range-panel .panel-title,
+.pozos-shell.theme-light .date-range-panel .panel-subtitle {
+  color: #163a5f;
+}
+
+.pozos-shell.theme-light .date-range-fields label,
+.pozos-shell.theme-light .date-range-fields label > span,
+.pozos-shell.theme-light .module-history-aggregation,
+.pozos-shell.theme-light .module-history-aggregation > span,
+.pozos-shell.theme-light .minute-flow-controls label,
+.pozos-shell.theme-light .shift-selector-field > span,
+.pozos-shell.theme-light .report-field-label {
+  color: #234a70 !important;
+}
+
+.pozos-shell.theme-light .date-range-fields input,
+.pozos-shell.theme-light .date-range-fields select,
+.pozos-shell.theme-light .minute-flow-controls input,
+.pozos-shell.theme-light .module-history-aggregation select,
+.pozos-shell.theme-light .shift-selector-field select,
+.pozos-shell.theme-light .report-date-input input,
+.pozos-shell.theme-light .history-aggregation-trigger {
+  color: #0b1f3a !important;
+  background: #ffffff !important;
+  border-color: #8ebed8 !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.7) !important;
+  color-scheme: light !important;
+}
+
+.pozos-shell.theme-light .date-range-fields input:hover,
+.pozos-shell.theme-light .date-range-fields select:hover,
+.pozos-shell.theme-light .minute-flow-controls input:hover,
+.pozos-shell.theme-light .module-history-aggregation select:hover,
+.pozos-shell.theme-light .shift-selector-field select:hover,
+.pozos-shell.theme-light .report-date-input input:hover,
+.pozos-shell.theme-light .history-aggregation-trigger:hover {
+  border-color: #3f91bc !important;
+  background: #f8fcff !important;
+}
+
+.pozos-shell.theme-light .date-range-fields input:focus,
+.pozos-shell.theme-light .date-range-fields select:focus,
+.pozos-shell.theme-light .minute-flow-controls input:focus,
+.pozos-shell.theme-light .module-history-aggregation select:focus,
+.pozos-shell.theme-light .shift-selector-field select:focus-visible,
+.pozos-shell.theme-light .report-date-input input:focus,
+.pozos-shell.theme-light .history-aggregation-trigger:focus-visible {
+  outline: none !important;
+  border-color: #0284c7 !important;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, .14) !important;
+}
+
+.pozos-shell.theme-light .date-input-with-icon svg {
+  color: #0369a1 !important;
+  filter: none !important;
+}
+
+.pozos-shell.theme-light .date-input-with-icon input {
+  background: #ffffff !important;
+  color: #0b1f3a !important;
+}
+
+.pozos-shell.theme-light .date-range-apply {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #0b4f7a, #0d6a9f) !important;
+  border-color: #0b4f7a !important;
+}
+
+.pozos-shell.theme-light .date-range-apply:hover {
+  background: linear-gradient(135deg, #083f65, #0b5d8d) !important;
+}
+
+.pozos-shell.theme-light .date-range-reset {
+  color: #163a5f !important;
+  background: #e6f4fb !important;
+  border-color: #9fc5da !important;
+}
+
+.pozos-shell.theme-light .date-range-reset:hover {
+  color: #0b1f3a !important;
+  background: #d7edf8 !important;
+  border-color: #6faac9 !important;
+}
+
+.pozos-shell.theme-light .date-range-status,
+.pozos-shell.theme-light .module-metric-note,
+.pozos-shell.theme-light .auto-refresh-status {
+  color: #164e70 !important;
+  background: #eaf6fd !important;
+  border-color: #9fc5da !important;
+}
+
+.pozos-shell.theme-light .history-aggregation-menu {
+  background: #ffffff !important;
+  border-color: #8ebed8 !important;
+  box-shadow: 0 14px 32px rgba(20, 74, 108, .16) !important;
+}
+
+.pozos-shell.theme-light .history-aggregation-option {
+  color: #163a5f !important;
+  background: #ffffff !important;
+}
+
+.pozos-shell.theme-light .history-aggregation-option:hover,
+.pozos-shell.theme-light .history-aggregation-option:focus-visible {
+  color: #0b1f3a !important;
+  background: #eaf6fd !important;
+}
+
+.pozos-shell.theme-light .history-aggregation-option.is-selected,
+.pozos-shell.theme-light .history-aggregation-option[aria-selected='true'] {
+  color: #ffffff !important;
+  background: #0b4f7a !important;
+  box-shadow: inset 3px 0 0 #38bdf8 !important;
+}
+
+.pozos-shell.theme-light .shift-selector-field select {
+  background-color: #ffffff !important;
+  background-image: linear-gradient(45deg, transparent 50%, #0369a1 50%), linear-gradient(135deg, #0369a1 50%, transparent 50%) !important;
+}
+
+.pozos-shell.theme-light .shift-selector-field select option,
+.pozos-shell.theme-light .module-history-aggregation select option,
+.pozos-shell.theme-light .date-range-fields select option,
+.pozos-shell.theme-light .date-range-fields select optgroup {
+  color: #0b1f3a !important;
+  background: #ffffff !important;
+}
+
+/* Selector Flujo / Totalizador / Ambos: claro real, sin heredar la capsula oscura. */
+.pozos-shell.theme-light .module-metric-selector {
+  background: #eaf6fd !important;
+  border-color: #9fc5da !important;
+  box-shadow: none !important;
+}
+
+.pozos-shell.theme-light .module-metric-selector button {
+  color: #163a5f !important;
+  background: transparent !important;
+  border-color: transparent !important;
+}
+
+.pozos-shell.theme-light .module-metric-selector button:hover,
+.pozos-shell.theme-light .module-metric-selector button:focus-visible {
+  color: #0b1f3a !important;
+  background: #d8edf8 !important;
+  border-color: #8ebed8 !important;
+}
+
+.pozos-shell.theme-light .module-metric-selector button.active {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #0b4f7a, #0d6a9f) !important;
+  border-color: #0b4f7a !important;
+  box-shadow: 0 6px 14px rgba(11, 79, 122, .16) !important;
+}
+
+.pozos-shell.theme-light .module-selection-heading {
+  color: #234a70 !important;
+}
+
+.pozos-shell.theme-light .module-selection-heading button {
+  color: #0369a1 !important;
+  background: transparent !important;
+}
+
+.pozos-shell.theme-light .module-selection-heading button:hover,
+.pozos-shell.theme-light .module-selection-heading button:focus-visible {
+  color: #0b4f7a !important;
+  background: #eaf6fd !important;
+  border-color: #8ebed8 !important;
+}
+
+.pozos-shell.theme-light .module-history-tab,
+.pozos-shell.theme-light .sensor-chip,
+.pozos-shell.theme-light .minute-flow-selection .sensor-chip {
+  color: #164e70 !important;
+  background: #ffffff !important;
+  border-color: #9fc5da !important;
+}
+
+.pozos-shell.theme-light .module-history-tab:hover,
+.pozos-shell.theme-light .sensor-chip:hover,
+.pozos-shell.theme-light .minute-flow-selection .sensor-chip:hover {
+  color: #0b1f3a !important;
+  background: #eaf6fd !important;
+  border-color: #6faac9 !important;
+}
+
+.pozos-shell.theme-light .module-history-tab.active,
+.pozos-shell.theme-light .sensor-chip.active,
+.pozos-shell.theme-light .minute-flow-selection .sensor-chip.active {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #0284c7, #0b4f7a) !important;
+  border-color: #0b4f7a !important;
+}
+
+/* Graficas claras: grid, ejes y leyendas con contraste suficiente. */
+.pozos-shell.theme-light .recharts-cartesian-grid line,
+.pozos-shell.theme-light .recharts-cartesian-grid-horizontal line,
+.pozos-shell.theme-light .recharts-cartesian-grid-vertical line {
+  stroke: rgba(31, 78, 112, .28) !important;
+  stroke-width: 1 !important;
+}
+
+.pozos-shell.theme-light .recharts-cartesian-axis-line,
+.pozos-shell.theme-light .recharts-cartesian-axis-tick-line {
+  stroke: #6f8fa6 !important;
+}
+
+.pozos-shell.theme-light .recharts-cartesian-axis-tick-value,
+.pozos-shell.theme-light .recharts-text,
+.pozos-shell.theme-light .recharts-label {
+  fill: #334e68 !important;
+}
+
+.pozos-shell.theme-light .recharts-legend-item-text {
+  color: #234a70 !important;
+  font-weight: 700 !important;
+}
+
+.pozos-shell.theme-light .recharts-reference-line-line,
+.pozos-shell.theme-light .recharts-reference-dot circle {
+  stroke: #52758d !important;
+}
+
+/* Las barras de volumen deben conservarse visibles sobre fondo blanco. */
+.pozos-shell.theme-light .module-history-panel .recharts-bar-rectangle path {
+  opacity: .86;
+}

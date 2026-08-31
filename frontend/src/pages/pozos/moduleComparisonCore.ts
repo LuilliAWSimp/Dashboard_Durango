@@ -53,6 +53,7 @@ export function buildComparisonRows(data: ComparisonResponse | null, now = Date.
     const identity = seriesIdentity(series);
     row[`flow_${identity}`] = point.flow_avg_lps;
     row[`totalizer_${identity}`] = point.totalizer_close_m3;
+    row[`volume_${identity}`] = point.volume_m3;
     row[`meta_${identity}`] = {
       flowActiveAvg: point.flow_active_avg_lps,
       flowMin: point.flow_min_lps,

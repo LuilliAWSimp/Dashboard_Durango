@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { CalendarDays } from 'lucide-react';
 import KpiCard from '../../../components/KpiCard';
 import useAutoRefresh from '../../../hooks/useAutoRefresh';
 import { fetchWaterDailyReview } from '../../../services/waterService';
@@ -117,7 +118,7 @@ export default function RevisionDiariaSection() {
       <PanelHeader title="Revisión diaria" subtitle="Fuente diaria única: cierres conciliados, calidad, actividad y turnos por fecha" />
       <div className="date-range-panel">
         <div className="date-range-fields">
-          <label><span>Fecha de revisión</span><input type="date" value={draftDate} onChange={(event) => setDraftDate(event.target.value)} /></label>
+          <label><span>Fecha de revisión</span><div className="date-input-with-icon"><CalendarDays size={16} aria-hidden="true" /><input type="date" value={draftDate} onChange={(event) => setDraftDate(event.target.value)} /></div></label>
           <button type="button" className="date-range-apply" onClick={() => { if (draftDate === selectedDate) void load(true); else setSelectedDate(draftDate); }}>Actualizar</button>
           <button type="button" className="date-range-reset" onClick={() => { const value = todayInputDate(); setDraftDate(value); setSelectedDate(value); }}>Hoy</button>
         </div>

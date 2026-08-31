@@ -42,8 +42,10 @@ test('la comparativa conserva cero real, null sin registro y totalizador observa
   const rows = buildComparisonRows(response, Date.parse('2026-08-07T09:00:00'));
   assert.equal(rows[0]?.flow_2004, 0);
   assert.equal(rows[0]?.totalizer_2004, 100);
+  assert.equal(rows[0]?.volume_2004, 0);
   assert.equal(rows[1]?.flow_2004, null);
   assert.equal(rows[1]?.totalizer_2004, null);
+  assert.equal(rows[1]?.volume_2004, null);
 });
 
 test('Ambos declara ejes independientes y la selección múltiple no altera otro estado', () => {
@@ -112,4 +114,14 @@ test('la comparativa calcula variacion de totalizador sin alterar el valor absol
   assert.equal(rows[0]?.totalizer_1001, 500);
   assert.equal(rows[0]?.totalizer_delta_1001, 0);
   assert.ok(Math.abs(Number(rows[1]?.totalizer_delta_1001) - 0.3) < 1e-9);
+});
+
+test('modo Ambos diferencia flujo como linea y volumen como barras', () => {
+  const historyPanel = readFileSync(new URL('../src/pages/pozos/components/ModuleHistoryPanel.tsx', import.meta.url), 'utf8');
+  assert.match(historyPanel, /ComposedChart/);
+  assert.match(historyPanel, /<Line key=\{`flow-/);
+  assert.match(historyPanel, /<Bar key=\{`totalizer-bar-/);
+  assert.match(historyPanel, /dataKey=\{`volume_\$\{identity\}`\}/);
+  assert.match(historyPanel, /Volumen del periodo \(m³\)/);
+  assert.match(historyPanel, /TOTALIZER_COLORS/);
 });

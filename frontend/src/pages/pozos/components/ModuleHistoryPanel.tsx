@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FileSpreadsheet, FileText } from 'lucide-react';
-import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Bar, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { DURANGO_CAPABILITIES } from '../../../config/plantCapabilities';
 import useAutoRefresh from '../../../hooks/useAutoRefresh';
 import { downloadWaterModuleHistoryPdf } from '../../../services/waterModuleHistoryExportService';
@@ -23,6 +23,7 @@ import ChartEmptyState from './ChartEmptyState';
 import PanelHeader from './PanelHeader';
 
 const COLORS = ['#FE019A', '#FEE301', '#a78bfa', '#34d399', '#f59e0b', '#fb7185'];
+const TOTALIZER_COLORS = ['#2563eb', '#0ea5e9', '#7c3aed', '#0f766e', '#ea580c', '#be123c'];
 const MODULE_LABELS: Record<ComparisonModule, string> = { well: 'Pozos', line: 'Líneas', flow: 'Flujos' };
 const AGGREGATION_LABELS: Record<HistoryAggregation, string> = {
   minute: '1 min',
@@ -193,7 +194,8 @@ function ModuleTooltip({
           const status = String(meta?.status || 'no_data');
           const absolute = row[`totalizer_${identity}`];
           const delta = row[`totalizer_delta_${identity}`];
-          const totalizerValue = totalizerDisplay === 'delta' ? delta : absolute;
+          const volume = row[`volume_${identity}`];
+          const totalizerValue = metric === 'both' ? volume : totalizerDisplay === 'delta' ? delta : absolute;
           return (
             <div className="module-history-tooltip-group" key={identity}>
               <div className="module-history-tooltip-title">
@@ -203,8 +205,8 @@ function ModuleTooltip({
               <div className="module-history-tooltip-grid">
                 {metric !== 'totalizer' ? <><span>Flujo promedio</span><strong>{row[`flow_${identity}`] == null ? 'Sin datos' : `${formatNumber(row[`flow_${identity}`])} ${item?.flowUnit || 'L/s'}`}</strong></> : null}
                 {metric !== 'flow' ? <>
-                  <span>{totalizerDisplay === 'delta' ? 'Variación del periodo' : 'Totalizador observado'}</span><strong>{totalizerValue == null ? 'Sin datos' : `${formatNumber(totalizerValue)} m³`}</strong>
-                  {totalizerDisplay === 'delta' ? <><span>Totalizador observado</span><strong>{absolute == null ? 'Sin datos' : `${formatNumber(absolute)} m³`}</strong></> : null}
+                  <span>{metric === 'both' ? 'Volumen del intervalo' : totalizerDisplay === 'delta' ? 'Variación del periodo' : 'Totalizador observado'}</span><strong>{totalizerValue == null ? 'Sin datos' : `${formatNumber(totalizerValue)} m³`}</strong>
+                  {metric !== 'both' && totalizerDisplay === 'delta' ? <><span>Totalizador observado</span><strong>{absolute == null ? 'Sin datos' : `${formatNumber(absolute)} m³`}</strong></> : null}
                 </> : null}
                 {status === 'future_interval' ? <><span>Estado</span><strong>Intervalo futuro</strong></> : <>
                   <span>Promedio activo</span><strong>{meta?.flowActiveAvg == null ? 'Sin actividad' : `${formatNumber(meta.flowActiveAvg)} ${item?.flowUnit || 'L/s'}`}</strong>
@@ -305,17 +307,18 @@ export default function ModuleHistoryPanel({ range, fixedModule, aggregation: co
     const sourceSeries = filteredData?.series.find((item) => comparisonSeriesIdentity(item) === identity);
     const item = activeItems[itemIndex];
     const color = palette[Math.max(itemIndex, 0) % palette.length];
+    const totalizerColor = TOTALIZER_COLORS[Math.max(itemIndex, 0) % TOTALIZER_COLORS.length];
     const result: ExportSeries[] = [];
     if (axes.showFlow) result.push({ key: `flow_${identity}`, name: `${sourceSeries?.name || item?.name || identity} · Flujo`, metric: 'flow', unit: item?.flowUnit || 'L/s', color });
     if (axes.showTotalizer) result.push({
-      key: effectiveTotalizerDisplay === 'delta' ? `totalizer_delta_${identity}` : `totalizer_${identity}`,
-      name: `${sourceSeries?.name || item?.name || identity} · ${effectiveTotalizerDisplay === 'delta' ? 'Variación totalizador' : 'Totalizador'}`,
+      key: metric === 'both' ? `volume_${identity}` : effectiveTotalizerDisplay === 'delta' ? `totalizer_delta_${identity}` : `totalizer_${identity}`,
+      name: `${sourceSeries?.name || item?.name || identity} · ${metric === 'both' ? 'Volumen del periodo' : effectiveTotalizerDisplay === 'delta' ? 'Variación totalizador' : 'Totalizador'}`,
       metric: 'totalizer',
       unit: 'm³',
-      color,
+      color: totalizerColor,
     });
     return result;
-  }), [visible, activeItems, filteredData, palette, axes.showFlow, axes.showTotalizer, effectiveTotalizerDisplay]);
+  }), [visible, activeItems, filteredData, palette, axes.showFlow, axes.showTotalizer, effectiveTotalizerDisplay, metric]);
 
   const exportRows = useMemo<FlexibleRecord[]>(() => rows.map((row) => {
     const output: FlexibleRecord = {
@@ -364,7 +367,7 @@ export default function ModuleHistoryPanel({ range, fixedModule, aggregation: co
     }
   };
 
-  const totalizerAxisLabel = effectiveTotalizerDisplay === 'delta' ? 'Variación (m³)' : 'Totalizador (m³)';
+  const totalizerAxisLabel = metric === 'both' ? 'Volumen (m³)' : effectiveTotalizerDisplay === 'delta' ? 'Variación (m³)' : 'Totalizador (m³)';
 
   return (
     <section className="panel chart-panel fade-up module-history-panel operational-module-comparison">
@@ -392,7 +395,7 @@ export default function ModuleHistoryPanel({ range, fixedModule, aggregation: co
         </div>
       </div>
       {metric === 'totalizer' ? <div className="module-history-totalizer-control"><span>Visualización del totalizador</span><div className="module-metric-selector" role="group" aria-label="Visualización del totalizador"><button type="button" className={totalizerDisplay === 'delta' ? 'active' : ''} onClick={() => setTotalizerDisplay('delta')}>Variación del periodo</button><button type="button" className={totalizerDisplay === 'absolute' ? 'active' : ''} onClick={() => setTotalizerDisplay('absolute')}>Valor absoluto</button></div></div> : null}
-      {metric === 'both' ? <div className="status-pill module-metric-note">Flujo usa el eje izquierdo y el totalizador se muestra como variación del periodo en el eje derecho.</div> : null}
+      {metric === 'both' ? <div className="status-pill module-metric-note">Flujo se muestra como línea en el eje izquierdo y el volumen del periodo como barras en el eje derecho.</div> : null}
       {aggregation === 'minute' ? <div className="status-pill module-metric-note">La vista de 1 minuto admite un máximo de un día por consulta.</div> : null}
       <div className="module-selection-heading">
         <span>Elementos visibles</span>
@@ -410,7 +413,7 @@ export default function ModuleHistoryPanel({ range, fixedModule, aggregation: co
       {loading && !data ? <div className="status-pill">Cargando comparativa...</div> : null}
       {rows.length && hasAny && visible.length ? (
         <ResponsiveContainer width="100%" height={410}>
-          <LineChart data={rows} margin={{ top: 16, right: axes.showTotalizer ? 40 : 18, bottom: 18, left: 8 }}>
+          <ComposedChart data={rows} margin={{ top: 16, right: axes.showTotalizer ? 40 : 18, bottom: 18, left: 8 }}>
             <CartesianGrid stroke="rgba(56,189,248,.14)" strokeDasharray="3 3" />
             <XAxis dataKey="timestamp" type="number" scale="time" domain={['dataMin', 'dataMax']} tickFormatter={(value) => tick(Number(value), aggregation)} minTickGap={32} stroke="#b9e7ff" />
             {axes.showFlow ? <YAxis yAxisId="flow" stroke="#7dd3fc" width={62} tickFormatter={(value) => Number(value).toLocaleString('es-MX')} label={{ value: 'L/s', angle: -90, position: 'insideLeft', fill: '#7dd3fc' }} /> : null}
@@ -422,12 +425,14 @@ export default function ModuleHistoryPanel({ range, fixedModule, aggregation: co
               const itemIndex = activeItems.findIndex((item) => configuredComparisonIdentity(item) === identity);
               const series = filteredData?.series.find((item) => comparisonSeriesIdentity(item) === identity);
               const color = palette[Math.max(itemIndex, 0) % palette.length];
+              const totalizerColor = TOTALIZER_COLORS[Math.max(itemIndex, 0) % TOTALIZER_COLORS.length];
               const chartSeries = [];
-              if (axes.showFlow) chartSeries.push(<Line key={`flow-${identity}`} yAxisId="flow" type="linear" dataKey={`flow_${identity}`} name={`${series?.name || identity} · Flujo (L/s)`} stroke={color} strokeWidth={2.4} dot={false} activeDot={{ r: 4 }} connectNulls={false} isAnimationActive={false} />);
-              if (axes.showTotalizer) chartSeries.push(<Line key={`totalizer-${identity}-${effectiveTotalizerDisplay}`} yAxisId="totalizer" type="linear" dataKey={effectiveTotalizerDisplay === 'delta' ? `totalizer_delta_${identity}` : `totalizer_${identity}`} name={`${series?.name || identity} · ${effectiveTotalizerDisplay === 'delta' ? 'Variación totalizador' : 'Totalizador'} (m³)`} stroke={color} strokeWidth={2.1} strokeDasharray="7 4" dot={false} activeDot={{ r: 4 }} connectNulls={false} isAnimationActive={false} />);
+              if (axes.showFlow) chartSeries.push(<Line key={`flow-${identity}`} yAxisId="flow" type="linear" dataKey={`flow_${identity}`} name={`${series?.name || identity} · Flujo (L/s)`} stroke={color} strokeWidth={2.7} dot={false} activeDot={{ r: 4 }} connectNulls={false} isAnimationActive={false} />);
+              if (axes.showTotalizer && metric === 'both') chartSeries.push(<Bar key={`totalizer-bar-${identity}`} yAxisId="totalizer" dataKey={`volume_${identity}`} name={`${series?.name || identity} · Volumen del periodo (m³)`} fill={totalizerColor} fillOpacity={0.72} barSize={16} radius={[4, 4, 0, 0]} isAnimationActive={false} />);
+              if (axes.showTotalizer && metric !== 'both') chartSeries.push(<Line key={`totalizer-${identity}-${effectiveTotalizerDisplay}`} yAxisId="totalizer" type="linear" dataKey={effectiveTotalizerDisplay === 'delta' ? `totalizer_delta_${identity}` : `totalizer_${identity}`} name={`${series?.name || identity} · ${effectiveTotalizerDisplay === 'delta' ? 'Variación totalizador' : 'Totalizador'} (m³)`} stroke={totalizerColor} strokeWidth={2.4} dot={false} activeDot={{ r: 4 }} connectNulls={false} isAnimationActive={false} />);
               return chartSeries;
             })}
-          </LineChart>
+          </ComposedChart>
         </ResponsiveContainer>
       ) : !loading ? <ChartEmptyState message={!selected.length ? 'Selecciona al menos un elemento para comparar.' : hasFuture ? 'El rango incluye intervalos futuros; todavía no existe información operativa para ellos.' : 'Sin registros guardados para el periodo seleccionado.'} /> : null}
     </section>
