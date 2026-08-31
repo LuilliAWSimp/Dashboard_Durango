@@ -48,7 +48,7 @@ def _client_ip(request: Request) -> str | None:
 
 def _request_origin(request: Request) -> str:
     origin = (request.headers.get('origin') or '').strip().rstrip('/')
-    if origin:
+    if origin and origin.lower() != 'null':
         return origin
     referer = (request.headers.get('referer') or '').strip()
     if not referer:
@@ -62,13 +62,38 @@ def _request_origin(request: Request) -> str:
     return f"{parsed.scheme}://{parsed.netloc}".rstrip('/')
 
 
-def _cookie_secure_for_request(request: Request) -> tuple[bool, str]:
-    """Decide Secure sin depender exclusivamente de Origin/Referer.
+def _is_loopback_client(request: Request) -> bool:
+    client_host = request.client.host if request.client else ''
+    try:
+        return bool(client_host and ipaddress.ip_address(client_host).is_loopback)
+    except ValueError:
+        return client_host.lower() in {'localhost', 'testclient'}
 
-    Blue Open Studio puede omitir ambos encabezados. Cuando la peticion llega por
-    el proxy local de Vite desde loopback y no hay senales de Cloudflare/HTTPS,
-    se trata como acceso HTTP local. El dominio publico conserva Secure.
+
+def _bos_local_compat_request(request: Request) -> bool:
+    """Compatibilidad controlada para Blue Open Studio/WebBrowser local.
+
+    Vite proxifica las peticiones locales al backend desde loopback. El dominio
+    HTTPS/Cloudflare conserva el flujo completo con cookie Secure y browser
+    binding; este modo sólo aplica a HTTP local/LAN autorizado.
     """
+    if not settings.auth_bos_local_compat_mode:
+        return False
+    origin = _request_origin(request)
+    if origin and origin not in settings.auth_local_http_origins:
+        return False
+    if origin.lower().startswith('https://'):
+        return False
+    forwarded_proto = (request.headers.get('x-forwarded-proto') or '').split(',')[0].strip().lower()
+    if forwarded_proto == 'https':
+        return False
+    if request.headers.get('cf-connecting-ip') or request.headers.get('cf-ray'):
+        return False
+    return _is_loopback_client(request) and request.url.scheme.lower() == 'http'
+
+
+def _cookie_secure_for_request(request: Request) -> tuple[bool, str]:
+    """Conserva Secure en HTTPS y usa cookie HTTP sólo en modo local/BOS."""
     origin = _request_origin(request)
     if origin:
         if origin in settings.auth_local_http_origins:
@@ -83,14 +108,8 @@ def _cookie_secure_for_request(request: Request) -> tuple[bool, str]:
     if request.headers.get('cf-connecting-ip') or request.headers.get('cf-ray'):
         return settings.auth_cookie_secure, 'cloudflare'
 
-    client_host = request.client.host if request.client else ''
-    try:
-        is_loopback = bool(client_host and ipaddress.ip_address(client_host).is_loopback)
-    except ValueError:
-        is_loopback = client_host.lower() in {'localhost', 'testclient'}
-
-    if not origin and is_loopback and request.url.scheme.lower() == 'http' and forwarded_proto != 'https':
-        return False, 'loopback_without_browser_origin'
+    if _bos_local_compat_request(request):
+        return False, 'bos_local_compat'
 
     return settings.auth_cookie_secure, 'default'
 
@@ -101,6 +120,7 @@ def _set_auth_cookie(
     key: str,
     value: str,
     secure: bool,
+    legacy_local_http: bool = False,
 ) -> None:
     cookie_options: dict[str, int] = {}
     if not settings.auth_cookie_session_only:
@@ -110,7 +130,7 @@ def _set_auth_cookie(
         value=value,
         httponly=True,
         secure=secure,
-        samesite=settings.auth_cookie_samesite,
+        samesite=None if legacy_local_http else settings.auth_cookie_samesite,
         path='/',
         **cookie_options,
     )
@@ -124,19 +144,34 @@ def _set_session_cookies(
     browser_session: str,
 ) -> None:
     secure, policy_source = _cookie_secure_for_request(request)
-    _set_auth_cookie(response, key=settings.auth_cookie_name, value=token, secure=secure)
-    # Fallback HttpOnly para WebBrowser/BOS que no conserva localStorage o no
-    # envia X-ARCA-Browser-Session. No sustituye a la cookie principal.
-    _set_auth_cookie(
-        response,
-        key=settings.auth_browser_cookie_name,
-        value=browser_session,
-        secure=secure,
-    )
-    logger.info(
-        'auth_cookie_policy secure=%s source=%s client=%s origin_present=%s forwarded_proto=%s',
+    bos_local_compat = _bos_local_compat_request(request)
+    legacy_local_http = bool(settings.auth_cookie_secure and not secure)
+
+    if bos_local_compat:
+        # Modo BOS/LAN local: una sola cookie para maximizar compatibilidad con
+        # WebBrowser legacy. Si la descarta, el frontend usa X-ARCA-Local-Session.
+        _set_auth_cookie(
+            response,
+            key=settings.auth_cookie_name,
+            value=token,
+            secure=False,
+            legacy_local_http=True,
+        )
+    else:
+        _set_auth_cookie(response, key=settings.auth_cookie_name, value=token, secure=secure)
+        _set_auth_cookie(
+            response,
+            key=settings.auth_browser_cookie_name,
+            value=browser_session,
+            secure=secure,
+        )
+
+    logger.warning(
+        'auth_cookie_policy secure=%s source=%s legacy_local_http=%s bos_local_compat=%s client=%s origin_present=%s forwarded_proto=%s',
         secure,
         policy_source,
+        legacy_local_http,
+        bos_local_compat,
         request.client.host if request.client else 'unknown',
         bool(_request_origin(request)),
         (request.headers.get('x-forwarded-proto') or '').split(',')[0].strip().lower() or 'missing',
@@ -176,6 +211,9 @@ def login(payload: LoginRequest, request: Request, response: Response):
         browser_session=session.browser_session,
         csrf_token=session.csrf_token,
         expires_at=session.expires_at,
+        # Fallback deliberado para WebBrowser legacy/BOS. Sólo se expone en
+        # trafico HTTP local autorizado; nunca en el dominio HTTPS.
+        local_session_token=session.token if _bos_local_compat_request(request) else None,
     )
 
 
@@ -193,13 +231,14 @@ def me(request: Request):
 def logout(request: Request, response: Response):
     request.app.state.auth_service.revoke_session(int(request.state.auth_session['id']))
     secure, _ = _cookie_secure_for_request(request)
+    legacy_local_http = bool(settings.auth_cookie_secure and not secure)
     for cookie_name in (settings.auth_cookie_name, settings.auth_browser_cookie_name):
         response.delete_cookie(
             key=cookie_name,
             path='/',
             secure=secure,
             httponly=True,
-            samesite=settings.auth_cookie_samesite,
+            samesite=None if legacy_local_http else settings.auth_cookie_samesite,
         )
     return {'message': 'Sesión cerrada.'}
 

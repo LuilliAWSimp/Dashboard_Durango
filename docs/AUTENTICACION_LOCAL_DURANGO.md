@@ -139,3 +139,9 @@ No se migran tokens Bearer ni usuarios demo. Al desplegar esta versión:
 5. iniciar sesión con la cuenta nueva.
 
 El frontend elimina las claves antiguas `siem_demo_token` y `siem_demo_user` del almacenamiento del navegador.
+
+## Compatibilidad Blue Open Studio / WebBrowser local
+
+Para el WebBrowser embebido de BOS se mantiene habilitado `AUTH_BOS_LOCAL_COMPAT_MODE=true`.
+En accesos HTTP locales autorizados (`localhost`, `127.0.0.1` y `100.102.159.109`) el backend puede emitir un `local_session_token` y aceptar el encabezado `X-ARCA-Local-Session` únicamente en modo local/LAN.
+El acceso público `https://durango.dashboardrsrc.com.mx` conserva cookie HttpOnly `Secure`, `SameSite=Lax`, CSRF y browser binding completo.

@@ -449,6 +449,8 @@ class AuthService:
         self,
         token: str | None,
         browser_session: str | None = None,
+        *,
+        require_browser_session: bool | None = None,
     ) -> dict[str, Any] | None:
         if not token:
             return None
@@ -471,7 +473,12 @@ class AuthService:
                 return None
             if not constant_time_token_match(token, str(row["token_hash"])):
                 return None
-            if self.policy.require_browser_session:
+            effective_require_browser_session = (
+                self.policy.require_browser_session
+                if require_browser_session is None
+                else bool(require_browser_session)
+            )
+            if effective_require_browser_session:
                 stored_browser_hash = row["browser_session_hash"]
                 if not browser_session or not stored_browser_hash:
                     return None

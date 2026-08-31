@@ -17,6 +17,7 @@ from app.auth.dependencies import require_roles
 from app.auth.middleware import (
     ApiExceptionBoundaryMiddleware,
     BROWSER_SESSION_HEADER,
+    LOCAL_SESSION_HEADER,
     LocalAuthMiddleware,
     USER_ACTIVITY_HEADER,
 )
@@ -68,11 +69,13 @@ class LocalAuthTests(unittest.TestCase):
         self.original_cookie_secure = auth_routes.settings.auth_cookie_secure
         self.original_cookie_session_only = auth_routes.settings.auth_cookie_session_only
         self.original_cookie_samesite = auth_routes.settings.auth_cookie_samesite
+        self.original_bos_local_compat_mode = auth_routes.settings.auth_bos_local_compat_mode
         auth_routes.settings.auth_cookie_name = COOKIE_NAME
         auth_routes.settings.auth_browser_cookie_name = BROWSER_COOKIE_NAME
         auth_routes.settings.auth_cookie_secure = False
         auth_routes.settings.auth_cookie_session_only = True
         auth_routes.settings.auth_cookie_samesite = 'lax'
+        auth_routes.settings.auth_bos_local_compat_mode = True
 
     def tearDown(self):
         auth_routes.settings.auth_cookie_name = self.original_cookie_name
@@ -80,6 +83,7 @@ class LocalAuthTests(unittest.TestCase):
         auth_routes.settings.auth_cookie_secure = self.original_cookie_secure
         auth_routes.settings.auth_cookie_session_only = self.original_cookie_session_only
         auth_routes.settings.auth_cookie_samesite = self.original_cookie_samesite
+        auth_routes.settings.auth_bos_local_compat_mode = self.original_bos_local_compat_mode
         self.temp_dir.cleanup()
 
     def build_app(self):
@@ -98,7 +102,7 @@ class LocalAuthTests(unittest.TestCase):
             allow_origins=[ORIGIN, LOCAL_ORIGIN, 'http://127.0.0.1:5173', LAN_ORIGIN],
             allow_credentials=True,
             allow_methods=['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-            allow_headers=['Accept', 'Content-Type', CSRF_HEADER, BROWSER_SESSION_HEADER, USER_ACTIVITY_HEADER],
+            allow_headers=['Accept', 'Content-Type', CSRF_HEADER, BROWSER_SESSION_HEADER, LOCAL_SESSION_HEADER, USER_ACTIVITY_HEADER],
         )
         app.include_router(auth_router, prefix='/api/v1')
 
@@ -156,7 +160,7 @@ class LocalAuthTests(unittest.TestCase):
 
     def test_login_cookie_http_only_samesite_session_only(self):
         client = TestClient(self.build_app())
-        response = client.post('/api/v1/auth/login', json={'username': 'adminlocal', 'password': ADMIN_PASSWORD})
+        response = client.post('/api/v1/auth/login', json={'username': 'adminlocal', 'password': ADMIN_PASSWORD}, headers={'Origin': ORIGIN})
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         self.assertTrue(payload['browser_session'])
@@ -202,7 +206,7 @@ class LocalAuthTests(unittest.TestCase):
         self.assertEqual(production.status_code, 200)
         self.assertIn('secure', production.headers['set-cookie'].lower())
 
-    def test_bos_sin_origin_en_loopback_recibe_cookie_http_y_binding_cookie(self):
+    def test_bos_sin_origin_en_loopback_recibe_cookie_http_y_token_local(self):
         auth_routes.settings.auth_cookie_secure = True
         client = TestClient(self.build_app(), client=('127.0.0.1', 50000))
         response = client.post(
@@ -210,12 +214,32 @@ class LocalAuthTests(unittest.TestCase):
             json={'username': 'adminlocal', 'password': ADMIN_PASSWORD},
         )
         self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload.get('local_session_token'))
         cookie = response.headers['set-cookie'].lower()
         self.assertIn(f'{COOKIE_NAME}=', cookie)
-        self.assertIn(f'{BROWSER_COOKIE_NAME}=', cookie)
+        self.assertNotIn(f'{BROWSER_COOKIE_NAME}=', cookie)
         self.assertNotIn('secure', cookie)
-        # Sin X-ARCA-Browser-Session: el middleware usa el binding HttpOnly.
+        # En modo BOS/local no se exige el binding adicional.
         self.assertEqual(client.get('/api/v1/dashboard').status_code, 200)
+
+    def test_bos_lan_puede_usar_header_local_si_webbrowser_descarta_cookie(self):
+        auth_routes.settings.auth_cookie_secure = True
+        client = TestClient(self.build_app(), client=('127.0.0.1', 50000))
+        response = client.post(
+            '/api/v1/auth/login',
+            json={'username': 'adminlocal', 'password': ADMIN_PASSWORD},
+            headers={'Origin': LAN_ORIGIN},
+        )
+        self.assertEqual(response.status_code, 200)
+        local_token = response.json().get('local_session_token')
+        self.assertTrue(local_token)
+        cookie_less = TestClient(self.build_app(), client=('127.0.0.1', 50001))
+        protected = cookie_less.get(
+            '/api/v1/dashboard',
+            headers={'Origin': LAN_ORIGIN, LOCAL_SESSION_HEADER: local_token},
+        )
+        self.assertEqual(protected.status_code, 200)
 
     def test_dominio_https_mantiene_secure_en_ambas_cookies(self):
         auth_routes.settings.auth_cookie_secure = True
@@ -249,8 +273,8 @@ class LocalAuthTests(unittest.TestCase):
         result = self.service.authenticate(username='adminlocal', password=ADMIN_PASSWORD)
         client = TestClient(self.build_app())
         client.cookies.set(COOKIE_NAME, result.token)
-        self.assertEqual(client.get('/api/v1/dashboard').status_code, 401)
-        self.assertEqual(client.get('/api/v1/dashboard', headers={BROWSER_SESSION_HEADER: 'incorrecto'}).status_code, 401)
+        self.assertEqual(client.get('/api/v1/dashboard', headers={'Origin': ORIGIN}).status_code, 401)
+        self.assertEqual(client.get('/api/v1/dashboard', headers={'Origin': ORIGIN, BROWSER_SESSION_HEADER: 'incorrecto'}).status_code, 401)
 
     def test_multiples_pestanas_comparten_sesion_y_csrf_estable(self):
         first, result = self.session_client()
@@ -366,7 +390,7 @@ class LocalAuthTests(unittest.TestCase):
             headers={
                 'Origin': ORIGIN,
                 'Access-Control-Request-Method': 'GET',
-                'Access-Control-Request-Headers': f'{BROWSER_SESSION_HEADER},{CSRF_HEADER}',
+                'Access-Control-Request-Headers': f'{BROWSER_SESSION_HEADER},{LOCAL_SESSION_HEADER},{CSRF_HEADER}',
             },
         )
         self.assertEqual(preflight.status_code, 200)
@@ -378,7 +402,7 @@ class LocalAuthTests(unittest.TestCase):
             headers={
                 'Origin': LAN_ORIGIN,
                 'Access-Control-Request-Method': 'GET',
-                'Access-Control-Request-Headers': f'{BROWSER_SESSION_HEADER},{CSRF_HEADER}',
+                'Access-Control-Request-Headers': f'{BROWSER_SESSION_HEADER},{LOCAL_SESSION_HEADER},{CSRF_HEADER}',
             },
         )
         self.assertEqual(lan_preflight.status_code, 200)

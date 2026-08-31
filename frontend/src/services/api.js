@@ -6,11 +6,13 @@ let lastHumanActivityAt = 0;
 
 const BROWSER_SESSION_STORAGE_KEY = 'arca_dgo_browser_session';
 const CSRF_STORAGE_KEY = 'arca_dgo_csrf_token';
+const BOS_LOCAL_SESSION_STORAGE_KEY = 'arca_dgo_bos_local_session';
 const LEGACY_TAB_SESSION_STORAGE_KEY = 'arca_dgo_tab_session';
 const LEGACY_TOKEN_KEY = 'siem_demo_token';
 const LEGACY_USER_KEY = 'siem_demo_user';
 const AUTH_CHANNEL = 'arca-dgo-auth';
 const USER_ACTIVITY_WINDOW_MS = 30_000;
+const BOS_LOCAL_HTTP_HOSTS = new Set(['localhost', '127.0.0.1', '100.102.159.109']);
 
 function safeStorage(kind) {
   if (typeof window === 'undefined') return undefined;
@@ -49,6 +51,23 @@ function removeSharedValue(key) {
   memoryStorage.delete(key);
   try { sharedStorage?.removeItem(key); } catch { /* sin acción */ }
   try { tabStorage?.removeItem(key); } catch { /* sin acción */ }
+}
+
+function isBosLocalHttpPage() {
+  if (typeof window === 'undefined') return false;
+  const protocol = String(window.location?.protocol || '').toLowerCase();
+  const host = String(window.location?.hostname || '').toLowerCase();
+  return protocol === 'http:' && BOS_LOCAL_HTTP_HOSTS.has(host);
+}
+
+function readBosLocalSessionToken() {
+  if (!isBosLocalHttpPage()) return '';
+  return readSharedValue(BOS_LOCAL_SESSION_STORAGE_KEY);
+}
+
+export function setBosLocalSessionToken(value) {
+  if (isBosLocalHttpPage() && value) writeSharedValue(BOS_LOCAL_SESSION_STORAGE_KEY, String(value));
+  else removeSharedValue(BOS_LOCAL_SESSION_STORAGE_KEY);
 }
 
 function postAuthMessage(message) {
@@ -104,6 +123,7 @@ export function setCsrfToken(value) {
 export function clearAuthSession({ broadcast = true, notify = true } = {}) {
   removeSharedValue(BROWSER_SESSION_STORAGE_KEY);
   removeSharedValue(CSRF_STORAGE_KEY);
+  removeSharedValue(BOS_LOCAL_SESSION_STORAGE_KEY);
   csrfToken = '';
   clearLegacyAuthStorage();
   if (broadcast) postAuthMessage({ type: 'session-cleared' });
@@ -159,6 +179,11 @@ const api = axios.create({
 
 api.interceptors.request.use((config) => {
   const browserSession = readBrowserSession();
+  const localSessionToken = readBosLocalSessionToken();
+  if (localSessionToken) {
+    config.headers = config.headers || {};
+    config.headers['X-ARCA-Local-Session'] = localSessionToken;
+  }
   if (browserSession) {
     config.headers = config.headers || {};
     config.headers['X-ARCA-Browser-Session'] = browserSession;

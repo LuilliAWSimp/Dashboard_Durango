@@ -12,6 +12,7 @@ from app.api.routes.water_export import router as water_export_router
 from app.auth.middleware import (
     ApiExceptionBoundaryMiddleware,
     BROWSER_SESSION_HEADER,
+    LOCAL_SESSION_HEADER,
     LocalAuthMiddleware,
     USER_ACTIVITY_HEADER,
 )
@@ -62,6 +63,7 @@ app.add_middleware(
         'X-Requested-With',
         settings.auth_csrf_header,
         BROWSER_SESSION_HEADER,
+        LOCAL_SESSION_HEADER,
         USER_ACTIVITY_HEADER,
     ],
     expose_headers=['Content-Disposition'],
