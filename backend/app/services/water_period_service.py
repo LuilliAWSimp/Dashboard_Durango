@@ -27,6 +27,8 @@ from app.services.durango_well_history_fallback import query_bos_well_rows
 from app.services.operation_semantics import expected_minute_samples, interval_operation_metrics, period_activity_label
 from app.services.plant_time import effective_local_end, local_now_naive, local_to_source_naive, source_to_local_naive
 from app.services.totalizer_quality import TotalizerAnalysis, analyze_totalizer_series
+from app.services.water_interval_reconciliation import reconcile_interval
+from app.services.water_quality import classify_water_quality
 
 logger = logging.getLogger(__name__)
 LOCAL_ZONE = ZoneInfo(LOCAL_TIMEZONE)
@@ -262,6 +264,25 @@ def build_period_item(
         validated_volume_m3=period_volume,
         has_discontinuities=analysis.has_discontinuities,
     ).payload()
+    reconciliation = (
+        reconcile_interval(
+            ordered,
+            start=coverage_start,
+            end=coverage_end,
+            previous_reading=previous_close,
+        )
+        if coverage_start and coverage_end
+        else None
+    )
+    quality = classify_water_quality(
+        samples_received=operation['samples_received'],
+        samples_expected=operation['samples_expected'],
+        coverage_percent=operation['coverage_percent'],
+        volume_m3=period_volume,
+        volume_reliable=bool(analysis.reliable and totalizer_values),
+        boundary_complete=bool(reconciliation and reconciliation.boundary_complete),
+        has_discontinuities=analysis.has_discontinuities,
+    )
     activity = period_activity_label(
         samples_received=operation['samples_received'],
         active_samples=operation['active_samples'],
@@ -349,6 +370,28 @@ def build_period_item(
         'ultima_lectura': latest_time.isoformat(timespec='seconds') if latest_time else None,
         'discarded_totalizer_event_details': list(analysis.discarded_events),
         'period_source': period_source,
+        # Transitional common reconciliation contract. Existing legacy volume
+        # fields remain untouched in this incremental; consumers migrate to
+        # these explicit boundaries in the following homologation steps.
+        'reconciled_open_m3': reconciliation.opening_m3 if reconciliation else None,
+        'reconciled_close_m3': reconciliation.closing_m3 if reconciliation else None,
+        'opening_source': reconciliation.opening_source if reconciliation else 'no_data',
+        'missing_previous_reading': reconciliation.missing_previous_reading if reconciliation else True,
+        'boundary_complete': reconciliation.boundary_complete if reconciliation else False,
+        'previous_valid_reading': (
+            reconciliation.previous_valid_reading.payload()
+            if reconciliation and reconciliation.previous_valid_reading
+            else None
+        ),
+        'first_period_reading': (
+            reconciliation.first_period_reading.payload()
+            if reconciliation and reconciliation.first_period_reading
+            else None
+        ),
+        'quality_data_status': quality.data_status,
+        'quality_status': quality.quality_status,
+        'quality_label': quality.quality_label,
+        'quality_volume_reliable': quality.volume_reliable,
     }
 
 
@@ -392,6 +435,10 @@ def summarize_period_items(group_items: list[dict[str, Any]]) -> dict[str, Any]:
         if flow > threshold:
             current_flow_count += 1
     partial_count = sum(1 for item in calculable if bool(item.get('has_discontinuities')))
+    quality_counts: dict[str, int] = {}
+    for item in group_items:
+        quality_key = str(item.get('quality_status') or 'legacy')
+        quality_counts[quality_key] = quality_counts.get(quality_key, 0) + 1
     received_samples = sum(int(item.get('samples_received') or item.get('samples') or 0) for item in group_items)
     expected_samples = sum(int(item.get('samples_expected') or 0) for item in group_items)
     sample_coverage_percent = min((received_samples / expected_samples) * 100.0, 100.0) if expected_samples else 0.0
@@ -417,6 +464,7 @@ def summarize_period_items(group_items: list[dict[str, Any]]) -> dict[str, Any]:
         'samples_received': received_samples,
         'samples_expected': expected_samples,
         'sample_coverage_percent': round(sample_coverage_percent, 2),
+        'quality_counts': quality_counts,
     }
 
 
