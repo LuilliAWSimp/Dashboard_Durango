@@ -94,9 +94,9 @@ function Shell({ user, onLogout, sidebarProps, children, headerMeta, shellClass 
 
   return (
     <div className={`app-shell ${shellClass} theme-${theme}`.trim()} data-theme={theme}>
-      <Sidebar {...sidebarProps} theme={theme} onThemeToggle={onThemeToggle} />
+      <Sidebar {...sidebarProps} theme={theme} onThemeToggle={onThemeToggle} user={user} onLogout={onLogout} />
       <div className="main-shell">
-        <Header title={headerMeta.title} subtitle={headerMeta.subtitle} now={clock} onExport={headerMeta.onExport} onEmail={headerMeta.onEmail} user={user} onLogout={onLogout} />
+        <Header title={headerMeta.title} subtitle={headerMeta.subtitle} now={clock} onExport={headerMeta.onExport} onEmail={headerMeta.onEmail} />
         <div className="plant-context-bar" aria-label="Nombre de planta"><span>{PLANT_NAME}</span></div>
         <main className="page-content">{children}</main>
       </div>

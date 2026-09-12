@@ -369,6 +369,65 @@ class LocalAuthTests(unittest.TestCase):
             touched = connection.execute('SELECT last_activity_at FROM sessions WHERE token_hash = ?', (token_hash,)).fetchone()['last_activity_at']
         self.assertNotEqual(old, touched)
 
+    def test_cambio_propio_conserva_sesion_actual_y_revoca_otras(self):
+        user = self.service.create_user(
+            username='viewerpass',
+            display_name='Viewer Password',
+            password=VIEWER_PASSWORD,
+            role='viewer',
+        )
+        current_client, current_session = self.session_client('viewerpass', VIEWER_PASSWORD)
+        other_session = self.service.authenticate(username='viewerpass', password=VIEWER_PASSWORD)
+
+        response = current_client.post(
+            '/api/v1/auth/change-password',
+            json={
+                'current_password': VIEWER_PASSWORD,
+                'new_password': 'NuevaConsulta2026!',
+            },
+            headers={CSRF_HEADER: current_session.csrf_token},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['other_sessions_revoked'], 1)
+        self.assertEqual(current_client.get('/api/v1/dashboard').status_code, 200)
+        self.assertIsNotNone(self.service.get_session(current_session.token, current_session.browser_session))
+        self.assertIsNone(self.service.get_session(other_session.token, other_session.browser_session))
+
+        with self.assertRaises(InvalidCredentialsError):
+            self.service.authenticate(username='viewerpass', password=VIEWER_PASSWORD)
+        fresh = self.service.authenticate(username='viewerpass', password='NuevaConsulta2026!')
+        self.assertIsNotNone(self.service.get_session(fresh.token, fresh.browser_session))
+
+        with self.service.database.connect() as connection:
+            audit = connection.execute(
+                "SELECT action, details FROM auth_audit WHERE target_user_id = ? ORDER BY id DESC LIMIT 1",
+                (user['id'],),
+            ).fetchone()
+        self.assertEqual(audit['action'], 'login_success')
+
+    def test_cambio_propio_exige_password_actual_y_csrf(self):
+        self.service.create_user(
+            username='operatorpass',
+            display_name='Operator Password',
+            password=OPERATOR_PASSWORD,
+            role='operator',
+        )
+        client, session = self.session_client('operatorpass', OPERATOR_PASSWORD)
+
+        without_csrf = client.post(
+            '/api/v1/auth/change-password',
+            json={'current_password': OPERATOR_PASSWORD, 'new_password': 'NuevaOperador2026!'},
+        )
+        self.assertEqual(without_csrf.status_code, 403)
+
+        wrong_current = client.post(
+            '/api/v1/auth/change-password',
+            json={'current_password': 'Incorrecta2026!', 'new_password': 'NuevaOperador2026!'},
+            headers={CSRF_HEADER: session.csrf_token},
+        )
+        self.assertEqual(wrong_current.status_code, 400)
+        self.assertEqual(client.get('/api/v1/dashboard').status_code, 200)
+
     def test_reset_desactivar_y_revocar_invalidan_sesiones(self):
         user = self.service.create_user(username='operator2', display_name='Operador', password=OPERATOR_PASSWORD, role='operator')
         old = self.service.authenticate(username='operator2', password=OPERATOR_PASSWORD)

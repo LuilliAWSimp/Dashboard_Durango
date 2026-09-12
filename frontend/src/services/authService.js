@@ -28,6 +28,14 @@ export async function logout() {
   }
 }
 
+export async function changeOwnPassword(currentPassword, newPassword) {
+  const { data } = await api.post('/auth/change-password', {
+    current_password: currentPassword,
+    new_password: newPassword,
+  });
+  return data;
+}
+
 export async function listUsers() {
   const { data } = await api.get('/auth/users');
   return data;

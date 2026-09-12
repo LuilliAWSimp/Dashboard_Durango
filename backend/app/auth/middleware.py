@@ -66,8 +66,12 @@ class LocalAuthMiddleware(BaseHTTPMiddleware):
         }
         # Operador solo puede mutar las operaciones explicitamente autorizadas.
         # Cualquier nueva mutacion queda denegada hasta declararla de forma consciente.
-        self.operator_mutation_paths = {
+        self.self_service_mutation_paths = {
             f"{self.api_prefix}/auth/logout",
+            f"{self.api_prefix}/auth/change-password",
+        }
+        self.operator_mutation_paths = {
+            *self.self_service_mutation_paths,
             f"{self.api_prefix}/water/reports/daily/email",
             f"{self.api_prefix}/email/report",
         }
@@ -144,7 +148,7 @@ class LocalAuthMiddleware(BaseHTTPMiddleware):
                 )
 
             role = str(user.get("role") or "")
-            if role == "viewer" and path != f"{self.api_prefix}/auth/logout":
+            if role == "viewer" and path not in self.self_service_mutation_paths:
                 return JSONResponse(status_code=403, content={"detail": "No cuenta con permisos para esta operación."})
             operator_allowed = (
                 path in self.operator_mutation_paths

@@ -57,7 +57,7 @@ class FrontendAuthContractTests(unittest.TestCase):
         auth_ts = self.read('frontend/src/services/authService.ts')
         api_ts = self.read('frontend/src/services/api.ts')
         for symbol in (
-            'getSetupStatus', 'login', 'getCurrentSession', 'logout',
+            'getSetupStatus', 'login', 'getCurrentSession', 'logout', 'changeOwnPassword',
             'listUsers', 'createUser', 'updateUser', 'resetUserPassword', 'revokeUserSessions',
         ):
             self.assertIn(f'function {symbol}', auth_ts)
@@ -66,6 +66,17 @@ class FrontendAuthContractTests(unittest.TestCase):
         self.assertIn('X-CSRF-Token', api_ts)
         self.assertNotIn("export { default } from './api.js'", api_ts)
         self.assertNotIn("export * from './authService.js'", auth_ts)
+
+    def test_sidebar_muestra_autoservicio_de_sesion(self):
+        app_source = self.read('frontend/src/App.jsx')
+        sidebar_source = self.read('frontend/src/components/Sidebar.jsx')
+        session_source = self.read('frontend/src/components/SessionCard.jsx')
+        service_source = self.read('frontend/src/services/authService.js')
+        self.assertIn('user={user} onLogout={onLogout}', app_source)
+        self.assertIn('SessionCard', sidebar_source)
+        self.assertIn('SESIÓN ACTIVA', session_source)
+        self.assertIn('Cambiar contraseña', session_source)
+        self.assertIn("'/auth/change-password'", service_source)
 
     def test_webview_tiene_fallback_de_storage_y_broadcastchannel(self):
         source = self.read('frontend/src/services/api.js')

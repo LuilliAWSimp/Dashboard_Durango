@@ -20,6 +20,11 @@ export interface CurrentSessionResponse {
   local_session_token?: string | null;
 }
 
+export interface ChangePasswordResponse {
+  message: string;
+  other_sessions_revoked: number;
+}
+
 export interface CreateUserPayload {
   username: string;
   display_name: string;
@@ -58,6 +63,14 @@ export async function logout(): Promise<void> {
   } finally {
     clearAuthSession({ broadcast: true, notify: true });
   }
+}
+
+export async function changeOwnPassword(currentPassword: string, newPassword: string): Promise<ChangePasswordResponse> {
+  const { data } = await api.post<ChangePasswordResponse>('/auth/change-password', {
+    current_password: currentPassword,
+    new_password: newPassword,
+  });
+  return data;
 }
 
 export async function listUsers(): Promise<User[]> {
