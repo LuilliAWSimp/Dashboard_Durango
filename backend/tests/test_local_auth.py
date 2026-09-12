@@ -276,23 +276,70 @@ class LocalAuthTests(unittest.TestCase):
         self.assertEqual(client.get('/api/v1/dashboard', headers={'Origin': ORIGIN}).status_code, 401)
         self.assertEqual(client.get('/api/v1/dashboard', headers={'Origin': ORIGIN, BROWSER_SESSION_HEADER: 'incorrecto'}).status_code, 401)
 
-    def test_cookie_auxiliar_sola_no_restaura_sesion_https(self):
+    def test_cookie_auxiliar_permite_recuperar_binding_solo_en_auth_me(self):
         result = self.service.authenticate(username='adminlocal', password=ADMIN_PASSWORD)
         client = TestClient(self.build_app())
         client.cookies.set(COOKIE_NAME, result.token)
         client.cookies.set(BROWSER_COOKIE_NAME, result.browser_session)
 
-        # En web normal la cookie auxiliar no sustituye al estado vivo del
-        # frontend. Sin X-ARCA-Browser-Session debe volver a login.
+        # Una ruta operativa sigue exigiendo el binding explícito por header.
         response = client.get('/api/v1/dashboard', headers={'Origin': ORIGIN})
         self.assertEqual(response.status_code, 401)
 
-        # Una pestaña activa sí envía el binding compartido por header.
+        # /auth/me es la única verificación autoritativa que puede recuperar
+        # el binding desde la cookie HttpOnly si localStorage se perdió.
+        recovered = client.get('/api/v1/auth/me', headers={'Origin': ORIGIN})
+        self.assertEqual(recovered.status_code, 200)
+        self.assertEqual(recovered.json()['browser_session'], result.browser_session)
+
         response = client.get(
             '/api/v1/dashboard',
-            headers={'Origin': ORIGIN, BROWSER_SESSION_HEADER: result.browser_session},
+            headers={'Origin': ORIGIN, BROWSER_SESSION_HEADER: recovered.json()['browser_session']},
         )
         self.assertEqual(response.status_code, 200)
+
+
+    def test_diagnostico_de_rechazo_de_sesion(self):
+        result = self.service.authenticate(username='adminlocal', password=ADMIN_PASSWORD)
+
+        session, reason = self.service.get_session_with_reason('token-inexistente', result.browser_session)
+        self.assertIsNone(session)
+        self.assertEqual(reason, 'session_not_found')
+
+        session, reason = self.service.get_session_with_reason(result.token, None)
+        self.assertIsNone(session)
+        self.assertEqual(reason, 'browser_session_missing')
+
+        session, reason = self.service.get_session_with_reason(result.token, 'binding-incorrecto')
+        self.assertIsNone(session)
+        self.assertEqual(reason, 'browser_session_mismatch')
+
+        self.service.revoke_session(1)
+        session, reason = self.service.get_session_with_reason(result.token, result.browser_session)
+        self.assertIsNone(session)
+        self.assertEqual(reason, 'session_revoked')
+
+        fresh = self.service.authenticate(username='adminlocal', password=ADMIN_PASSWORD)
+        fresh_hash = hashlib.sha256(fresh.token.encode()).hexdigest()
+        with self.service.database.connect() as connection:
+            connection.execute(
+                'UPDATE sessions SET last_activity_at = ? WHERE token_hash = ?',
+                (iso(utc_now() - timedelta(hours=9)), fresh_hash),
+            )
+        session, reason = self.service.get_session_with_reason(fresh.token, fresh.browser_session)
+        self.assertIsNone(session)
+        self.assertEqual(reason, 'session_idle_expired')
+
+        absolute = self.service.authenticate(username='adminlocal', password=ADMIN_PASSWORD)
+        absolute_hash = hashlib.sha256(absolute.token.encode()).hexdigest()
+        with self.service.database.connect() as connection:
+            connection.execute(
+                'UPDATE sessions SET created_at = ? WHERE token_hash = ?',
+                (iso(utc_now() - timedelta(hours=13)), absolute_hash),
+            )
+        session, reason = self.service.get_session_with_reason(absolute.token, absolute.browser_session)
+        self.assertIsNone(session)
+        self.assertEqual(reason, 'session_absolute_expired')
 
     def test_multiples_pestanas_comparten_sesion_y_csrf_estable(self):
         first, result = self.session_client()

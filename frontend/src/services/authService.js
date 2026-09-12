@@ -16,7 +16,11 @@ export async function login(username, password) {
 
 export async function getCurrentSession() {
   const { data } = await api.get('/auth/me');
-  setCsrfToken(data.csrf_token);
+  if (data.browser_session) {
+    setAuthSession(data.browser_session, data.csrf_token, { broadcast: false });
+  } else {
+    setCsrfToken(data.csrf_token);
+  }
   return data;
 }
 

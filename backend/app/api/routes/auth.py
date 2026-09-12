@@ -226,6 +226,7 @@ def me(request: Request):
         user=AuthUser(**session['user']),
         csrf_token=request.app.state.auth_service.csrf_token_for_session(session),
         expires_at=session['expires_at'],
+        browser_session=getattr(request.state, 'auth_browser_session', None),
     )
 
 

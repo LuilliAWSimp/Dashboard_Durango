@@ -110,20 +110,28 @@ class LocalAuthMiddleware(BaseHTTPMiddleware):
             browser_session = browser_session_header or browser_session_cookie or embedded_browser_session
             require_browser_session = False
         elif settings.auth_require_browser_session:
-            browser_session = browser_session_header
+            # /auth/me actúa como verificación autoritativa de sesión. Si el
+            # storage del navegador se perdió, permite recuperar el binding
+            # desde la cookie HttpOnly auxiliar. Las rutas operativas siguen
+            # exigiendo X-ARCA-Browser-Session.
+            if path == f"{self.api_prefix}/auth/me":
+                browser_session = browser_session_header or browser_session_cookie
+            else:
+                browser_session = browser_session_header
             require_browser_session = True
         else:
             browser_session = browser_session_header or browser_session_cookie or embedded_browser_session
             require_browser_session = False
 
-        session = service.get_session(
+        session, rejection_reason = service.get_session_with_reason(
             session_token,
             browser_session,
             require_browser_session=require_browser_session,
         )
         if not session:
             logger.warning(
-                'auth_session_rejected path=%s session_cookie=%s local_header=%s browser_binding=%s composite_cookie=%s bos_local_compat=%s',
+                'auth_session_rejected reason=%s path=%s session_cookie=%s local_header=%s browser_binding=%s composite_cookie=%s bos_local_compat=%s',
+                rejection_reason or 'unknown',
                 path,
                 bool(raw_session_cookie),
                 bool(local_session_header),
@@ -136,6 +144,7 @@ class LocalAuthMiddleware(BaseHTTPMiddleware):
         user = session["user"]
         request.state.auth_session = session
         request.state.auth_user = user
+        request.state.auth_browser_session = browser_session
 
         if request.headers.get(USER_ACTIVITY_HEADER) == "1":
             service.touch_session(int(session["id"]))

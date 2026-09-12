@@ -15,8 +15,8 @@ const USER_ACTIVITY_WINDOW_MS = 30_000;
 const ACTIVE_TABS_STORAGE_KEY = 'arca_dgo_active_tabs';
 const TAB_ID_SESSION_STORAGE_KEY = 'arca_dgo_active_tab_id';
 const TAB_RELOAD_MARKER_SESSION_STORAGE_KEY = 'arca_dgo_tab_reloading';
-const ACTIVE_TAB_TTL_MS = 20_000;
-const ACTIVE_TAB_HEARTBEAT_MS = 5_000;
+const ACTIVE_TAB_TTL_MS = 120_000;
+const ACTIVE_TAB_HEARTBEAT_MS = 15_000;
 const BOS_LOCAL_HTTP_HOSTS = new Set(['localhost', '127.0.0.1', '100.102.159.109']);
 
 function safeStorage(kind) {
@@ -143,12 +143,9 @@ function initializeActiveTabTracking() {
   tabStorage.removeItem(TAB_RELOAD_MARKER_SESSION_STORAGE_KEY);
   const sameTabReload = Boolean(storedTabId && reloadMarker && currentNavigationType() === 'reload');
 
-  // Si esta vista no es una recarga de la misma pestaña y no existe ninguna
-  // pestaña viva, una browser_session persistida pertenece a una sesión de
-  // navegación anterior. Se elimina antes de que App intente /auth/me.
-  if (!sameTabReload && Object.keys(tabs).length === 0 && readSharedValue(BROWSER_SESSION_STORAGE_KEY)) {
-    clearAuthSession({ broadcast: false, notify: false });
-  }
+  // El registro de pestañas es únicamente diagnóstico/limpieza. Un heartbeat
+  // atrasado por throttling del navegador nunca invalida una sesión real.
+  // La autoridad sobre la sesión pertenece al backend mediante /auth/me.
 
   currentActiveTabId = sameTabReload ? storedTabId : createTabId();
   tabStorage.setItem(TAB_ID_SESSION_STORAGE_KEY, currentActiveTabId);
@@ -212,7 +209,7 @@ export function hasBrowserSession() {
   return Boolean(readBrowserSession());
 }
 
-export function setAuthSession(browserSession, nextCsrfToken) {
+export function setAuthSession(browserSession, nextCsrfToken, { broadcast = true } = {}) {
   if (!browserSession) {
     clearAuthSession();
     return;
@@ -223,7 +220,7 @@ export function setAuthSession(browserSession, nextCsrfToken) {
   else removeSharedValue(CSRF_STORAGE_KEY);
   clearLegacyAuthStorage();
   authExpiryDispatched = false;
-  postAuthMessage({ type: 'session-updated' });
+  if (broadcast) postAuthMessage({ type: 'session-updated' });
 }
 
 export function setCsrfToken(value) {
@@ -285,10 +282,54 @@ if (typeof window !== 'undefined') {
   });
 }
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1',
+  baseURL: API_BASE_URL,
   withCredentials: true,
 });
+
+const authProbe = axios.create({
+  baseURL: API_BASE_URL,
+  withCredentials: true,
+});
+
+let authConfirmationPromise = null;
+
+function applyConfirmedSession(data) {
+  const recoveredBrowserSession = String(data?.browser_session || '');
+  const nextCsrfToken = String(data?.csrf_token || '');
+  if (recoveredBrowserSession && recoveredBrowserSession !== readBrowserSession()) {
+    setAuthSession(recoveredBrowserSession, nextCsrfToken, { broadcast: false });
+    return;
+  }
+  if (nextCsrfToken) setCsrfToken(nextCsrfToken);
+}
+
+async function confirmSessionAfterUnauthorized() {
+  if (authConfirmationPromise) return authConfirmationPromise;
+
+  authConfirmationPromise = (async () => {
+    const headers = {};
+    const browserSession = readBrowserSession();
+    const localSessionToken = readBosLocalSessionToken();
+    if (browserSession) headers['X-ARCA-Browser-Session'] = browserSession;
+    if (localSessionToken) headers['X-ARCA-Local-Session'] = localSessionToken;
+
+    try {
+      const { data } = await authProbe.get('/auth/me', { headers });
+      applyConfirmedSession(data);
+      return 'valid';
+    } catch (probeError) {
+      if (probeError?.response?.status === 401) return 'invalid';
+      return 'unknown';
+    } finally {
+      authConfirmationPromise = null;
+    }
+  })();
+
+  return authConfirmationPromise;
+}
 
 api.interceptors.request.use((config) => {
   const browserSession = readBrowserSession();
@@ -317,10 +358,21 @@ api.interceptors.request.use((config) => {
 
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     const url = String(error?.config?.url || '');
     if (error?.response?.status === 401 && !url.includes('/auth/login')) {
-      clearAuthSession({ broadcast: true, notify: true });
+      if (url.includes('/auth/me')) {
+        // /auth/me ya es la verificación autoritativa: un 401 aquí sí
+        // confirma que la sesión dejó de ser válida.
+        clearAuthSession({ broadcast: true, notify: true });
+      } else {
+        const confirmation = await confirmSessionAfterUnauthorized();
+        if (confirmation === 'invalid') {
+          clearAuthSession({ broadcast: true, notify: true });
+        }
+        // 'valid' conserva la sesión. 'unknown' (red/timeout/5xx) tampoco
+        // se convierte en logout: la siguiente petición podrá revalidarla.
+      }
     }
     if (error?.response?.status === 403 && typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('arca-auth-forbidden', {

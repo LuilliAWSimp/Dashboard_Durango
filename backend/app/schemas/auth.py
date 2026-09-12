@@ -40,6 +40,7 @@ class MeResponse(BaseModel):
     user: AuthUser
     csrf_token: str
     expires_at: str
+    browser_session: str | None = None
 
 
 class SetupStatusResponse(BaseModel):

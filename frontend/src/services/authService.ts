@@ -17,6 +17,7 @@ export interface LoginResponse {
 export interface CurrentSessionResponse {
   user: User;
   csrf_token: string;
+  browser_session?: string | null;
   local_session_token?: string | null;
 }
 
@@ -53,7 +54,11 @@ export async function login(username: string, password: string): Promise<LoginRe
 
 export async function getCurrentSession(): Promise<CurrentSessionResponse> {
   const { data } = await api.get<CurrentSessionResponse>('/auth/me');
-  setCsrfToken(data.csrf_token);
+  if (data.browser_session) {
+    setAuthSession(data.browser_session, data.csrf_token, { broadcast: false });
+  } else {
+    setCsrfToken(data.csrf_token);
+  }
   return data;
 }
 

@@ -523,15 +523,15 @@ class AuthService:
             expires_at=iso(absolute_expiry) or "",
         )
 
-    def get_session(
+    def get_session_with_reason(
         self,
         token: str | None,
         browser_session: str | None = None,
         *,
         require_browser_session: bool | None = None,
-    ) -> dict[str, Any] | None:
+    ) -> tuple[dict[str, Any] | None, str | None]:
         if not token:
-            return None
+            return None, "session_cookie_missing"
         token_hash = hash_token(token)
         now = utc_now()
         with self.database.connect() as connection:
@@ -547,10 +547,15 @@ class AuthService:
                 """,
                 (token_hash,),
             ).fetchone()
-            if not row or row["revoked_at"] or not row["is_active"]:
-                return None
+            if not row:
+                return None, "session_not_found"
+            if row["revoked_at"]:
+                return None, "session_revoked"
+            if not row["is_active"]:
+                return None, "user_inactive"
             if not constant_time_token_match(token, str(row["token_hash"])):
-                return None
+                return None, "session_token_mismatch"
+
             effective_require_browser_session = (
                 self.policy.require_browser_session
                 if require_browser_session is None
@@ -559,21 +564,28 @@ class AuthService:
             if effective_require_browser_session:
                 stored_browser_hash = row["browser_session_hash"]
                 if not browser_session or not stored_browser_hash:
-                    return None
+                    return None, "browser_session_missing"
                 if not constant_time_token_match(browser_session, str(stored_browser_hash)):
-                    return None
+                    return None, "browser_session_mismatch"
 
             expires_at = parse_datetime(row["expires_at"])
             created_at = parse_datetime(row["created_at"])
             last_activity = parse_datetime(row["last_activity_at"])
             policy_expiry = created_at + timedelta(hours=self.policy.absolute_hours) if created_at else now
             idle_expiry = last_activity + timedelta(hours=self.policy.idle_hours) if last_activity else now
-            if not expires_at or expires_at <= now or policy_expiry <= now or idle_expiry <= now:
+
+            if not expires_at or expires_at <= now or policy_expiry <= now:
                 connection.execute(
                     "UPDATE sessions SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL",
                     (iso(now), row["id"]),
                 )
-                return None
+                return None, "session_absolute_expired"
+            if idle_expiry <= now:
+                connection.execute(
+                    "UPDATE sessions SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL",
+                    (iso(now), row["id"]),
+                )
+                return None, "session_idle_expired"
 
             user = {
                 "id": int(row["user_id"]),
@@ -591,7 +603,21 @@ class AuthService:
                 "created_at": row["created_at"],
                 "last_activity_at": row["last_activity_at"],
                 "expires_at": row["expires_at"],
-            }
+            }, None
+
+    def get_session(
+        self,
+        token: str | None,
+        browser_session: str | None = None,
+        *,
+        require_browser_session: bool | None = None,
+    ) -> dict[str, Any] | None:
+        session, _ = self.get_session_with_reason(
+            token,
+            browser_session,
+            require_browser_session=require_browser_session,
+        )
+        return session
 
     def touch_session(self, session_id: int) -> None:
         now = utc_now()
