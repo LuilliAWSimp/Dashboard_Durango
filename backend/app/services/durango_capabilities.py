@@ -52,6 +52,7 @@ CAPABILITIES: dict[str, str | bool] = {
     'energy': False,
     'reports': True,
     'shifts': True,
+    'balance': 'pending_physical_validation',
 }
 
 

@@ -15,6 +15,7 @@ import './styles/pages/historicos.css';
 import './styles/pages/turnos.css';
 import './styles/pages/revision-diaria.css';
 import './styles/pages/reportes.css';
+import './styles/pages/balance.css';
 import './styles/pages/operational-cards-details.css';
 import './styles/shared.css';
 

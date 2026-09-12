@@ -17,6 +17,7 @@
 - `pages/turnos.css`: cortes y presentación compartida de turnos.
 - `pages/revision-diaria.css`: Revisión diaria, diagnósticos y contraste propio.
 - `pages/reportes.css`: Reportes, preview, correo programado e histórico completo.
+- `pages/balance.css`: Balance de Agua; cualquier ajuste visual nuevo del módulo debe vivir aquí, no en `global.css`.
 - `pages/operational-cards-details.css`: cards/detalles operativos migrados en la primera fase.
 - `pages/session-controls.css`: sesion lateral y cambio propio de contrasena.
 - `pages/*.css`: cualquier otra pantalla, familia funcional o responsabilidad concreta que se migre despues.
@@ -49,3 +50,7 @@ La fase 18/18B/18C/18D/18E deja propietarios definidos para Shell, Login, Usuari
 `global.css` sigue existiendo como base heredada estable: contiene patrones antiguos, módulos físicos todavía no migrados (por ejemplo Balance/Concesión/UV cuando corresponda) y utilidades cuya responsabilidad aún no justifica una migración. Que permanezcan allí no significa que `global.css` vuelva a ser destino para trabajo nuevo.
 
 La fase CSS se considera **estructuralmente cerrada**, no porque `global.css` esté vacío, sino porque el trabajo nuevo ya tiene destinos claros, las capas están ordenadas y las migraciones futuras pueden hacerse por responsabilidad cuando exista trabajo real sobre cada módulo.
+
+## Durango 19 — Balance de Agua
+
+Al intervenir funcionalmente el Balance se creó `pages/balance.css`. Desde este punto cualquier corrección visual nueva del Balance debe ir a esa hoja. Las reglas antiguas que todavía permanezcan en `global.css` se consideran legado y sólo deben migrarse mediante un cambio dirigido y verificado.

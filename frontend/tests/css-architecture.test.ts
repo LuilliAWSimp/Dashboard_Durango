@@ -20,6 +20,7 @@ test('main carga tokens, legado y capas modulares en orden estable', () => {
     "import './styles/pages/turnos.css';",
     "import './styles/pages/revision-diaria.css';",
     "import './styles/pages/reportes.css';",
+    "import './styles/pages/balance.css';",
     "import './styles/pages/operational-cards-details.css';",
     "import './styles/shared.css';",
   ];
@@ -74,6 +75,7 @@ test('responsabilidades migradas viven fuera de global.css', () => {
   const shifts = read('src/styles/pages/turnos.css');
   const review = read('src/styles/pages/revision-diaria.css');
   const reports = read('src/styles/pages/reportes.css');
+  const balance = read('src/styles/pages/balance.css');
   const shared = read('src/styles/shared.css');
   const shell = read('src/styles/pages/shell.css');
   const login = read('src/styles/pages/login.css');
@@ -97,6 +99,8 @@ test('responsabilidades migradas viven fuera de global.css', () => {
   assert.match(review, /\.daily-review-header-panel/);
   assert.match(reports, /\.durango-report-page/);
   assert.match(reports, /\.scheduled-email-panel/);
+  assert.match(balance, /\.water-balance-page/);
+  assert.match(balance, /\.water-balance-contract-panel/);
   assert.match(details, /\.operational-card-footer/);
   assert.match(shared, /\.export-excel-button/);
   assert.match(shared, /\.export-pdf-button/);

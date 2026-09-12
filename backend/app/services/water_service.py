@@ -6,6 +6,7 @@ from typing import Any
 from app.schemas.dashboard import KpiCard
 from app.schemas.water import WaterDashboardPayload
 from app.services.durango_capabilities import FLOWS, LINES, WELLS, capability_payload, current_flow_threshold_for_sensor, is_jarabes_identity
+from app.services.durango_balance_service import build_durango_balance_payload
 from app.services.durango_terminology import operational_volume_label
 from app.services.water_bos_service import get_bos_water_dashboard_payload
 from app.services.water_period_service import WaterPeriodError, get_period_data, summarize_period_items
@@ -251,6 +252,13 @@ def get_water_dashboard_payload(section: str = 'dashboard', start_date: Any = No
         'lines': summarize_period_items(payload['production_lines']),
         'flows': summarize_period_items(payload['flows']),
     }
+    if section == 'balance':
+        payload['balance'] = build_durango_balance_payload(
+            wells=payload['wells'],
+            lines=payload['production_lines'],
+            flows=payload['flows'],
+            period_data=payload.get('period_data'),
+        )
     payload['cards'] = _cards(payload)
     return WaterDashboardPayload(**payload)
 

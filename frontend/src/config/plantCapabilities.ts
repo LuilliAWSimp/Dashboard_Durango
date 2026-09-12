@@ -9,6 +9,7 @@ export const DURANGO_CAPABILITIES = {
     energy: false,
     reports: true,
     shifts: true,
+    balance: 'pending_physical_validation',
   },
   wells: [
     { operationalKey: 'pozo_1', sensorId: 1001, name: 'Pozo 1', flowUnit: 'L/s', rawFlowUnit: 'm3/h hasta 2026-08-11 12:15; L/s directo desde entonces', normalizationFactor: 'backend-temporal' },

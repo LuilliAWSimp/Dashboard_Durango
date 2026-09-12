@@ -1,0 +1,180 @@
+/* Durango · Balance de Agua
+ * Esta hoja es la responsable de cualquier cambio visual nuevo del módulo.
+ * global.css conserva únicamente la base heredada mientras no exista una
+ * migración dirigida que justifique moverla.
+ */
+
+.water-balance-page {
+  display: grid;
+  gap: 18px;
+}
+
+.water-balance-hero-copy {
+  min-width: 0;
+  flex: 1 1 520px;
+}
+
+.water-balance-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.water-balance-title-row .status-badge {
+  flex: 0 0 auto;
+  max-width: min(300px, 45%);
+  white-space: normal;
+  text-align: center;
+}
+
+.water-balance-period {
+  display: block;
+  margin-top: 12px;
+  color: #8edcff;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.water-balance-hero-grid article {
+  min-width: 0;
+}
+
+.water-balance-hero-grid article > small:last-child {
+  display: block;
+  margin-top: 5px;
+  line-height: 1.35;
+}
+
+.water-balance-inline-warning {
+  margin: 12px 0;
+  padding: 11px 13px;
+  border: 1px solid rgba(245, 158, 11, .32);
+  border-radius: 12px;
+  background: rgba(245, 158, 11, .08);
+  color: #fde68a;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.water-balance-contract-panel {
+  padding: 20px;
+}
+
+.water-balance-contract-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.water-balance-contract-grid article {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  min-width: 0;
+  padding: 15px;
+  border: 1px solid rgba(125, 211, 252, .16);
+  border-radius: 15px;
+  background: rgba(2, 17, 28, .58);
+}
+
+.water-balance-contract-grid article > span {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(14, 165, 233, .13);
+  color: #7dd3fc;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.water-balance-contract-grid p,
+.water-balance-contract-note p {
+  margin: 0;
+  color: #b9dbea;
+  line-height: 1.5;
+}
+
+.water-balance-contract-note {
+  display: grid;
+  gap: 5px;
+  margin-top: 14px;
+  padding: 14px 16px;
+  border-left: 3px solid #0ea5e9;
+  border-radius: 12px;
+  background: rgba(14, 165, 233, .07);
+}
+
+.water-balance-contract-note strong {
+  color: #eefbff;
+}
+
+[data-theme='light'] .water-balance-page .water-balance-hero {
+  border-color: rgba(2, 132, 199, .24);
+  background: linear-gradient(135deg, #eff9ff 0%, #ffffff 72%);
+}
+
+[data-theme='light'] .water-balance-page .water-balance-hero h2,
+[data-theme='light'] .water-balance-page .water-balance-hero-grid strong,
+[data-theme='light'] .water-balance-page .water-balance-contract-note strong,
+[data-theme='light'] .water-balance-page .operational-comparison-difference strong {
+  color: #0f2942;
+}
+
+[data-theme='light'] .water-balance-page .water-balance-hero p,
+[data-theme='light'] .water-balance-page .water-balance-hero-grid small,
+[data-theme='light'] .water-balance-page .water-balance-contract-grid p,
+[data-theme='light'] .water-balance-page .water-balance-contract-note p,
+[data-theme='light'] .water-balance-page .operational-comparison-difference small {
+  color: #46657a;
+}
+
+[data-theme='light'] .water-balance-page .water-balance-hero-grid article,
+[data-theme='light'] .water-balance-page .water-balance-contract-grid article {
+  border-color: rgba(2, 132, 199, .17);
+  background: #f6fbff;
+}
+
+[data-theme='light'] .water-balance-page .water-balance-hero-grid article.warning {
+  border-color: rgba(217, 119, 6, .28);
+  background: #fff8e8;
+}
+
+[data-theme='light'] .water-balance-page .operational-comparison-difference {
+  border-color: rgba(2, 132, 199, .18);
+  background: #f4fbff;
+}
+
+[data-theme='light'] .water-balance-page .water-balance-contract-note {
+  background: #eef9ff;
+}
+
+@media (max-width: 920px) {
+  .water-balance-title-row {
+    flex-direction: column;
+  }
+
+  .water-balance-title-row .status-badge {
+    max-width: 100%;
+  }
+
+  .water-balance-contract-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .water-balance-contract-panel {
+    padding: 16px;
+  }
+
+  .water-balance-contract-grid article {
+    grid-template-columns: 36px minmax(0, 1fr);
+    padding: 13px;
+  }
+}
