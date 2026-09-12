@@ -6777,8 +6777,115 @@ th { color: #c1d0e8; font-weight: 700; position: sticky; top: 0; background: #0f
   z-index: 1200;
   display: grid;
   gap: 10px;
-  width: min(390px, calc(100vw - 32px));
+  width: min(410px, calc(100vw - 32px));
   pointer-events: none;
+}
+
+.toast-viewport-minimized {
+  width: auto;
+  max-width: calc(100vw - 32px);
+}
+
+.toast-toolbar,
+.toast-minimized-pill {
+  pointer-events: auto;
+  border: 1px solid rgba(125, 211, 252, .2);
+  background: linear-gradient(145deg, rgba(3, 19, 31, .98), rgba(4, 13, 27, .98));
+  box-shadow: 0 16px 34px rgba(0, 0, 0, .28);
+}
+
+.toast-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 40px;
+  padding: 6px 7px 6px 11px;
+  border-radius: 14px;
+}
+
+.toast-toolbar-copy,
+.toast-toolbar-actions,
+.toast-minimized-open {
+  display: inline-flex;
+  align-items: center;
+}
+
+.toast-toolbar-copy {
+  min-width: 0;
+  gap: 7px;
+  color: #dff6ff;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.toast-toolbar-copy small {
+  color: #7dd3fc;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.toast-toolbar-actions {
+  flex: 0 0 auto;
+  gap: 5px;
+}
+
+.toast-toolbar-actions button,
+.toast-minimized-open,
+.toast-minimized-close {
+  appearance: none;
+  border: 1px solid rgba(125, 211, 252, .14);
+  background: rgba(1, 12, 24, .48);
+  color: #dff6ff;
+  cursor: pointer;
+}
+
+.toast-toolbar-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 28px;
+  padding: 5px 8px;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.toast-toolbar-actions button:hover,
+.toast-toolbar-actions button:focus-visible,
+.toast-minimized-open:hover,
+.toast-minimized-open:focus-visible,
+.toast-minimized-close:hover,
+.toast-minimized-close:focus-visible {
+  outline: none;
+  border-color: rgba(125, 211, 252, .48);
+  background: rgba(8, 47, 73, .58);
+}
+
+.toast-minimized-pill {
+  display: inline-flex;
+  align-items: stretch;
+  justify-self: end;
+  overflow: hidden;
+  border-radius: 999px;
+}
+
+.toast-minimized-open {
+  gap: 8px;
+  padding: 9px 12px;
+  border: 0;
+  border-right: 1px solid rgba(125, 211, 252, .14);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.toast-minimized-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  border: 0;
 }
 
 .toast-card {
@@ -7136,4 +7243,1976 @@ th { color: #c1d0e8; font-weight: 700; position: sticky; top: 0; background: #0f
 @media (max-width: 640px) {
   .users-create-form { grid-template-columns: 1fr; }
   .users-list-heading { flex-direction: column; }
+}
+
+/* Durango homologacion 04: historico modular completo. */
+.module-history-export-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.module-history-export-actions .report-action-button{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:38px}
+.module-history-excel-button{border-color:rgba(34,197,94,.45)!important;background:rgba(22,101,52,.9)!important;color:#f0fdf4!important}
+.module-history-excel-button:hover:not(:disabled),.module-history-excel-button:focus-visible:not(:disabled){border-color:rgba(134,239,172,.8)!important;background:rgba(21,128,61,.98)!important}
+.module-history-totalizer-control{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:2px 0 12px;padding:10px 12px;border:1px solid rgba(125,211,252,.16);border-radius:14px;background:rgba(3,21,34,.5)}
+.module-history-totalizer-control>span{color:#9ddcf2;font-size:12px;font-weight:800;letter-spacing:.04em}
+@media(max-width:720px){.module-history-export-actions{width:100%}.module-history-export-actions .report-action-button{flex:1}.module-history-totalizer-control{align-items:stretch}.module-history-totalizer-control .module-metric-selector{width:100%}}
+
+/* Homologacion Durango 05: exportacion conciliada cada 5 minutos */
+.five-minute-export-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.five-minute-excel-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid rgba(34, 197, 94, .45);
+  border-radius: 10px;
+  background: rgba(22, 163, 74, .16);
+  color: #bbf7d0;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.five-minute-excel-button:hover:not(:disabled) {
+  background: rgba(22, 163, 74, .24);
+  border-color: rgba(74, 222, 128, .72);
+}
+
+.five-minute-excel-button:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+.five-minute-export-message {
+  max-width: 260px;
+  color: #86efac;
+  font-size: .76rem;
+  line-height: 1.25;
+}
+
+.five-minute-export-message.is-error {
+  color: #fda4af;
+}
+
+.five-minute-excel-button .spin {
+  animation: five-minute-export-spin .8s linear infinite;
+}
+
+@keyframes five-minute-export-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 760px) {
+  .five-minute-export-action,
+  .five-minute-excel-button {
+    width: 100%;
+  }
+  .five-minute-export-action {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .five-minute-export-message {
+    max-width: none;
+  }
+}
+
+/* Homologacion Durango 08A: motivo explicito de calidad sin alterar la validacion. */
+.quality-diagnostic-cell{display:grid;gap:6px;align-items:start}.quality-diagnostic-cell .status-badge{justify-self:start}.quality-diagnostic-cell small,.quality-reason-inline{display:block;max-width:320px;color:#9fc3d2;font-size:11px;line-height:1.35;font-weight:600;text-transform:none;letter-spacing:0}.quality-reason-inline{margin-top:5px}.quality-diagnostic-cell small{white-space:normal}
+
+
+/* Homologacion Durango 09: correo programado */
+.scheduled-email-panel {
+  padding: 22px;
+  display: grid;
+  gap: 18px;
+}
+
+.scheduled-email-heading {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.scheduled-email-heading h3 {
+  margin: 2px 0 5px;
+  font-size: 1.08rem;
+}
+
+.scheduled-email-heading p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.scheduled-email-form-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.9fr) minmax(220px, 0.75fr) minmax(320px, 1.35fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.scheduled-email-field,
+.scheduled-email-formats {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.scheduled-email-field > span,
+.scheduled-email-formats legend {
+  color: var(--muted-2);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.scheduled-email-field input,
+.scheduled-email-field select,
+.scheduled-email-field textarea {
+  width: 100%;
+  border: 1px solid rgba(75, 201, 255, 0.2);
+  background: rgba(4, 13, 28, 0.78);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 10px 12px;
+  outline: none;
+}
+
+.scheduled-email-field textarea {
+  resize: vertical;
+  min-height: 44px;
+}
+
+.scheduled-email-field input:focus,
+.scheduled-email-field select:focus,
+.scheduled-email-field textarea:focus {
+  border-color: rgba(56, 189, 248, 0.72);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.1);
+}
+
+.scheduled-email-formats {
+  border: 1px solid rgba(75, 201, 255, 0.16);
+  border-radius: 12px;
+  padding: 8px 11px 10px;
+  min-width: 190px;
+  grid-template-columns: 1fr 1fr;
+}
+
+.scheduled-email-formats legend {
+  padding: 0 5px;
+}
+
+.scheduled-email-formats label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.scheduled-email-helper {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border: 1px solid rgba(56, 189, 248, 0.14);
+  border-radius: 12px;
+  background: rgba(14, 165, 233, 0.06);
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.scheduled-email-helper svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: #38bdf8;
+}
+
+.scheduled-email-save-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.scheduled-email-save-row small {
+  color: var(--muted-2);
+}
+
+.scheduled-email-list-head {
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+  padding-top: 15px;
+}
+
+.scheduled-email-list-head > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.scheduled-email-list-head span {
+  color: var(--muted-2);
+  font-size: 0.78rem;
+}
+
+.scheduled-email-list {
+  display: grid;
+  gap: 10px;
+}
+
+.scheduled-email-empty {
+  padding: 16px;
+  border: 1px dashed rgba(148, 163, 184, 0.22);
+  border-radius: 14px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.scheduled-email-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 14px 15px;
+  border: 1px solid rgba(56, 189, 248, 0.14);
+  border-radius: 15px;
+  background: rgba(3, 12, 27, 0.48);
+}
+
+.scheduled-email-item.is-disabled {
+  opacity: 0.64;
+}
+
+.scheduled-email-item-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.scheduled-email-item-title {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.scheduled-email-item-title strong {
+  font-size: 0.94rem;
+}
+
+.scheduled-email-item p {
+  margin: 5px 0 8px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.scheduled-email-item-meta {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  color: var(--muted-2);
+  font-size: 0.75rem;
+}
+
+.scheduled-email-item-meta strong {
+  color: var(--text);
+}
+
+.scheduled-email-last-error {
+  color: #fca5a5;
+  width: 100%;
+}
+
+.scheduled-email-item-actions {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.scheduled-email-item-actions .ghost-action {
+  min-height: 36px;
+  padding: 7px 10px;
+  font-size: 0.78rem;
+}
+
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  font-size: 0.66rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.status-chip.success {
+  color: #86efac;
+  background: rgba(34, 197, 94, 0.1);
+  border-color: rgba(34, 197, 94, 0.24);
+}
+
+.status-chip.neutral {
+  color: var(--muted);
+  background: rgba(148, 163, 184, 0.08);
+}
+
+.danger-action {
+  color: #fca5a5 !important;
+}
+
+.scheduled-email-locked {
+  opacity: 0.9;
+}
+
+.pozos-shell.theme-light .scheduled-email-field input,
+.pozos-shell.theme-light .scheduled-email-field select,
+.pozos-shell.theme-light .scheduled-email-field textarea,
+.pozos-shell.theme-light .scheduled-email-item {
+  background: #ffffff;
+  color: #0f2747;
+  border-color: rgba(15, 74, 116, 0.17);
+}
+
+.pozos-shell.theme-light .scheduled-email-helper {
+  background: #eef8ff;
+  border-color: rgba(14, 116, 178, 0.17);
+}
+
+.pozos-shell.theme-light .scheduled-email-item-meta strong,
+.pozos-shell.theme-light .scheduled-email-formats label {
+  color: #0f2747;
+}
+
+@media (max-width: 1180px) {
+  .scheduled-email-form-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .scheduled-email-recipients {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 720px) {
+  .scheduled-email-panel {
+    padding: 16px;
+  }
+  .scheduled-email-form-grid {
+    grid-template-columns: 1fr;
+  }
+  .scheduled-email-recipients {
+    grid-column: auto;
+  }
+  .scheduled-email-save-row,
+  .scheduled-email-item {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .scheduled-email-save-row .report-action-button,
+  .scheduled-email-item-actions .ghost-action {
+    width: 100%;
+    justify-content: center;
+  }
+  .scheduled-email-item-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+}
+
+
+/* Durango homologación 10: histórico completo de planta */
+.historical-export-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  padding: 18px 20px;
+  border-color: rgba(56, 189, 248, .2);
+  background:
+    linear-gradient(135deg, rgba(4, 20, 35, .92), rgba(7, 27, 45, .78)),
+    radial-gradient(circle at 100% 0%, rgba(14, 165, 233, .11), transparent 36%);
+}
+
+.historical-export-copy {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.historical-export-copy h3 {
+  margin: 0;
+  color: #f4fbff;
+  font-size: 18px;
+}
+
+.historical-export-copy p,
+.historical-export-copy small {
+  margin: 0;
+  color: #a9d5e8;
+  line-height: 1.5;
+}
+
+.historical-export-copy p { font-size: 12px; }
+.historical-export-copy small { font-size: 11px; }
+
+.historical-export-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.durango-report-page .historical-excel-button {
+  border-color: rgba(34, 197, 94, .52);
+  background: rgba(22, 101, 52, .92);
+  color: #f0fdf4;
+}
+
+.durango-report-page .historical-excel-button:hover:not(:disabled),
+.durango-report-page .historical-excel-button:focus-visible:not(:disabled) {
+  border-color: rgba(134, 239, 172, .84);
+  background: rgba(21, 128, 61, .98);
+}
+
+@media (max-width: 900px) {
+  .historical-export-panel {
+    grid-template-columns: 1fr;
+  }
+  .historical-export-actions {
+    justify-content: stretch;
+  }
+  .historical-export-actions .report-action-button {
+    flex: 1 1 220px;
+  }
+}
+
+/* Homologacion Durango 11: modo claro/oscuro y contrato visual global. */
+.theme-toggle-button {
+  width: 100%;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pozos-shell .theme-toggle-button svg { color: #fbbf24; }
+.pozos-shell.theme-light .theme-toggle-button svg { color: #dbeafe; }
+.pozos-shell.theme-dark { color-scheme: dark; }
+
+.pozos-shell.theme-light {
+  color-scheme: light;
+  --bg: #edf4fa;
+  --panel: linear-gradient(180deg, rgba(255,255,255,.99), rgba(247,251,255,.99));
+  --panel-soft: linear-gradient(135deg, rgba(224,242,254,.72), rgba(255,255,255,.98));
+  --border: rgba(2,132,199,.18);
+  --text: #10253d;
+  --muted: #5f748b;
+  --muted-2: #71869b;
+  --shadow: 0 14px 34px rgba(30,64,95,.10);
+  color: #10253d;
+  background: #edf4fa;
+}
+
+.pozos-shell.theme-light .main-shell {
+  background:
+    radial-gradient(circle at 82% 4%, rgba(14,165,233,.08), transparent 24%),
+    linear-gradient(180deg, #f7fbff 0%, #edf4fa 100%);
+}
+
+.pozos-shell.theme-light .page-content,
+.pozos-shell.theme-light .pozos-page { color: #10253d; }
+
+/* Sidebar azul permanente en ambos temas. */
+.pozos-shell .sidebar-theme-control {
+  flex: 0 0 auto;
+  padding: 10px 10px 2px;
+}
+.pozos-shell .sidebar-theme-control .theme-toggle-button {
+  width: 100%;
+  margin: 0;
+  background: rgba(8,47,73,.42);
+  border: 1px solid rgba(125,211,252,.16);
+}
+.pozos-shell .sidebar-theme-control .theme-toggle-button:hover {
+  background: rgba(14,116,144,.28);
+  border-color: rgba(125,211,252,.30);
+}
+.pozos-shell .sidebar.collapsed .sidebar-theme-control {
+  width: 100%;
+  padding: 8px 10px 4px;
+  display: grid;
+  place-items: center;
+}
+.pozos-shell .sidebar.collapsed .sidebar-theme-control .theme-toggle-button {
+  width: 48px;
+  min-width: 48px;
+  max-width: 48px;
+  height: 48px;
+  min-height: 48px;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 15px;
+}
+.pozos-shell .sidebar.collapsed .sidebar-theme-control .theme-toggle-button span { display: none !important; }
+
+.pozos-shell.theme-light .sidebar {
+  background:
+    radial-gradient(circle at 28px 24px, rgba(56,189,248,.20), transparent 28%),
+    linear-gradient(180deg, #062743 0%, #073454 58%, #05253f 100%);
+  border-right-color: rgba(125,211,252,.24);
+  box-shadow: 12px 0 34px rgba(15,61,94,.16);
+}
+.pozos-shell.theme-light .brand-row {
+  background: linear-gradient(90deg, rgba(14,165,233,.20), rgba(255,255,255,.025) 70%);
+}
+.pozos-shell.theme-light .brand-title { color: #ffffff; }
+.pozos-shell.theme-light .brand-subtitle,
+.pozos-shell.theme-light .nav-group-title { color: #addff1; }
+.pozos-shell.theme-light .menu-button,
+.pozos-shell.theme-light .sidebar .nav-item,
+.pozos-shell.theme-light .sidebar-footer .nav-item,
+.pozos-shell.theme-light .sidebar-theme-control .theme-toggle-button {
+  color: #eefaff;
+}
+.pozos-shell.theme-light .menu-button,
+.pozos-shell.theme-light .sidebar-footer .nav-item,
+.pozos-shell.theme-light .sidebar-theme-control .theme-toggle-button {
+  background: rgba(7,62,99,.66);
+  border-color: rgba(125,211,252,.22);
+}
+.pozos-shell.theme-light .sidebar .nav-item svg { color: #a7e5f7; }
+.pozos-shell.theme-light .sidebar .nav-item:hover,
+.pozos-shell.theme-light .sidebar-theme-control .theme-toggle-button:hover {
+  background: rgba(14,116,144,.34);
+  border-color: rgba(125,211,252,.28);
+}
+.pozos-shell.theme-light .sidebar .nav-item.active {
+  color: #ffffff;
+  background: linear-gradient(90deg, #0284c7, #0ea5e9);
+  box-shadow: inset 3px 0 0 #bae6fd, 0 10px 24px rgba(2,132,199,.22);
+}
+
+/* Encabezado y contexto siguen siendo azules para conservar identidad ARCA. */
+.pozos-shell.theme-light .header-bar {
+  background: linear-gradient(90deg, #083b63 0%, #0b4f7a 48%, #073657 100%);
+  border-bottom-color: rgba(186,230,253,.22);
+  box-shadow: 0 8px 24px rgba(15,61,94,.12);
+}
+.pozos-shell.theme-light .header-title,
+.pozos-shell.theme-light .header-button,
+.pozos-shell.theme-light .time-chip,
+.pozos-shell.theme-light .user-chip { color: #f8fcff; }
+.pozos-shell.theme-light .header-subtitle { color: #d7edf8; }
+.pozos-shell.theme-light .header-button,
+.pozos-shell.theme-light .time-chip,
+.pozos-shell.theme-light .user-chip {
+  background: rgba(255,255,255,.08);
+  border-color: rgba(186,230,253,.18);
+}
+.pozos-shell.theme-light .header-button:hover { background: rgba(255,255,255,.14); }
+.pozos-shell.theme-light .plant-context-bar { color: #0c4a6e; }
+.pozos-shell.theme-light .plant-context-bar span {
+  color: #075985;
+  background: #ffffff;
+  border-color: rgba(2,132,199,.22);
+  box-shadow: 0 6px 18px rgba(14,116,144,.08);
+}
+
+/* Superficies claras. */
+.pozos-shell.theme-light .panel,
+.pozos-shell.theme-light .chart-panel,
+.pozos-shell.theme-light .module-history-panel,
+.pozos-shell.theme-light .operational-module-comparison,
+.pozos-shell.theme-light .daily-review-status-card,
+.pozos-shell.theme-light .daily-report-preview,
+.pozos-shell.theme-light .report-hero-panel,
+.pozos-shell.theme-light .report-workflow-panel,
+.pozos-shell.theme-light .report-preview-panel,
+.pozos-shell.theme-light .report-data-panel,
+.pozos-shell.theme-light .operational-alerts-panel,
+.pozos-shell.theme-light .scheduled-email-panel,
+.pozos-shell.theme-light .users-admin-header,
+.pozos-shell.theme-light .users-create-panel,
+.pozos-shell.theme-light .users-list-panel {
+  color: #10253d;
+  background: #ffffff;
+  border-color: rgba(2,132,199,.16);
+  box-shadow: 0 14px 34px rgba(30,64,95,.09);
+}
+.pozos-shell.theme-light .panel::before { background: linear-gradient(180deg, rgba(14,165,233,.035), transparent 34%); }
+.pozos-shell.theme-light .compact-hero,
+.pozos-shell.theme-light .hero-panel,
+.pozos-shell.theme-light .report-hero-panel {
+  background: linear-gradient(135deg, #ffffff 0%, #f1f8fd 100%);
+}
+
+/* Todos los KPIs operativos se mantienen azules con texto blanco. */
+.pozos-shell.theme-light .kpi-card {
+  color: #f8fcff;
+  background: linear-gradient(145deg, #0b4f7a 0%, #073b61 100%);
+  border-color: rgba(56,189,248,.38);
+  box-shadow: 0 12px 28px rgba(8,67,103,.14);
+}
+.pozos-shell.theme-light .kpi-card::after { opacity: .12; }
+.pozos-shell.theme-light .kpi-card .kpi-label { color: #cdefff; }
+.pozos-shell.theme-light .kpi-card .kpi-value { color: #ffffff; }
+.pozos-shell.theme-light .kpi-card .kpi-unit { color: #dbeef8; }
+.pozos-shell.theme-light .kpi-card .kpi-trend { color: #bdd8e7; }
+.pozos-shell.theme-light .kpi-card .kpi-glow { opacity: .30; }
+
+/* Tarjetas operativas y de reporte. */
+.pozos-shell.theme-light .operational-element-card,
+.pozos-shell.theme-light .shift-summary-card,
+.pozos-shell.theme-light .shift-detail-disclosure,
+.pozos-shell.theme-light .report-summary-card,
+.pozos-shell.theme-light .summary-item,
+.pozos-shell.theme-light .scheduled-email-item {
+  color: #10253d;
+  background: #ffffff;
+  border-color: rgba(2,132,199,.16);
+  box-shadow: none;
+}
+.pozos-shell.theme-light .operational-element-card:hover,
+.pozos-shell.theme-light .operational-element-card.selected {
+  border-color: rgba(2,132,199,.48);
+  box-shadow: 0 14px 28px rgba(30,64,95,.10);
+}
+.pozos-shell.theme-light .operational-card-head span,
+.pozos-shell.theme-light .operational-metric-grid span,
+.pozos-shell.theme-light .summary-label,
+.pozos-shell.theme-light .report-summary-card span,
+.pozos-shell.theme-light .report-summary-card small,
+.pozos-shell.theme-light .shift-summary-card > span,
+.pozos-shell.theme-light .shift-summary-card > small,
+.pozos-shell.theme-light .scheduled-email-item p,
+.pozos-shell.theme-light .scheduled-email-item-meta { color: #60778d; }
+.pozos-shell.theme-light .operational-card-head strong,
+.pozos-shell.theme-light .operational-metric-grid strong,
+.pozos-shell.theme-light .summary-value,
+.pozos-shell.theme-light .report-summary-card strong,
+.pozos-shell.theme-light .shift-summary-card > strong,
+.pozos-shell.theme-light .scheduled-email-item-title strong,
+.pozos-shell.theme-light .scheduled-email-item-meta strong { color: #102f48; }
+.pozos-shell.theme-light .operational-card-footer {
+  color: #56758c;
+  background: #f2f8fc;
+  border-top-color: rgba(2,132,199,.12);
+}
+.pozos-shell.theme-light .open-detail-link { color: #0369a1; }
+
+/* Controles, formularios y selectores. */
+.pozos-shell.theme-light input,
+.pozos-shell.theme-light select,
+.pozos-shell.theme-light textarea,
+.pozos-shell.theme-light .date-range-fields input,
+.pozos-shell.theme-light .date-range-fields select,
+.pozos-shell.theme-light .module-history-aggregation select,
+.pozos-shell.theme-light .minute-flow-controls input,
+.pozos-shell.theme-light .users-create-form input,
+.pozos-shell.theme-light .users-create-form select,
+.pozos-shell.theme-light .users-table select,
+.pozos-shell.theme-light .users-inline-input,
+.pozos-shell.theme-light .scheduled-email-field input,
+.pozos-shell.theme-light .scheduled-email-field select,
+.pozos-shell.theme-light .scheduled-email-field textarea {
+  color: #12324a;
+  background: #ffffff;
+  border-color: rgba(2,132,199,.28);
+  color-scheme: light;
+}
+.pozos-shell.theme-light select option,
+.pozos-shell.theme-light select optgroup,
+.pozos-shell.theme-light .module-history-aggregation option {
+  color: #10253d;
+  background: #ffffff;
+}
+.pozos-shell.theme-light .date-range-fields label,
+.pozos-shell.theme-light .module-history-aggregation,
+.pozos-shell.theme-light .scheduled-email-field > span,
+.pozos-shell.theme-light .scheduled-email-formats legend,
+.pozos-shell.theme-light .users-create-form label > span { color: #075985; }
+.pozos-shell.theme-light .date-range-reset,
+.pozos-shell.theme-light .ghost-action,
+.pozos-shell.theme-light .module-history-tab,
+.pozos-shell.theme-light .sensor-chip {
+  color: #155170;
+  background: #eaf6fd;
+  border-color: rgba(2,132,199,.22);
+}
+.pozos-shell.theme-light .date-range-apply,
+.pozos-shell.theme-light .primary-action,
+.pozos-shell.theme-light .module-history-tab.active,
+.pozos-shell.theme-light .sensor-chip.active {
+  color: #ffffff;
+  background: linear-gradient(135deg, #0284c7, #0ea5e9);
+  border-color: rgba(2,132,199,.42);
+}
+.pozos-shell.theme-light .module-history-totalizer-control,
+.pozos-shell.theme-light .scheduled-email-helper {
+  color: #355a73;
+  background: #eef8ff;
+  border-color: rgba(14,116,178,.17);
+}
+.pozos-shell.theme-light .module-history-totalizer-control > span { color: #075985; }
+.pozos-shell.theme-light .scheduled-email-formats { border-color: rgba(2,132,199,.18); }
+.pozos-shell.theme-light .scheduled-email-formats label { color: #12324a; }
+
+/* Tablas. */
+.pozos-shell.theme-light table { background: transparent; }
+.pozos-shell.theme-light th,
+.pozos-shell.theme-light .pozos-operacion-table th,
+.pozos-shell.theme-light .shift-detail-table th,
+.pozos-shell.theme-light .shift-overview-table th,
+.pozos-shell.theme-light .daily-report-table th,
+.pozos-shell.theme-light .users-table th {
+  color: #155170;
+  background: #eaf5fb;
+  border-bottom-color: rgba(2,132,199,.16);
+}
+.pozos-shell.theme-light td,
+.pozos-shell.theme-light .pozos-operacion-table td,
+.pozos-shell.theme-light .shift-detail-table td,
+.pozos-shell.theme-light .shift-overview-table td,
+.pozos-shell.theme-light .daily-report-table td,
+.pozos-shell.theme-light .users-table td {
+  color: #18364e;
+  border-bottom-color: rgba(15,82,117,.10);
+}
+.pozos-shell.theme-light .pozos-table-scroll,
+.pozos-shell.theme-light .table-wrapper,
+.pozos-shell.theme-light .daily-report-table-wrap,
+.pozos-shell.theme-light .shift-detail-table-wrap,
+.pozos-shell.theme-light .shift-overview-table-wrap,
+.pozos-shell.theme-light .users-table-wrap {
+  background: #ffffff;
+  border-color: rgba(2,132,199,.14);
+}
+
+/* Estados: sin fondos grises; azul para normal, semanticos para advertencias. */
+.pozos-shell.theme-light .status-pill.normal,
+.pozos-shell.theme-light .status-pill.communication,
+.pozos-shell.theme-light .status-chip.success {
+  color: #ffffff;
+  background: #0b4f7a;
+  border-color: #0b4f7a;
+}
+.pozos-shell.theme-light .status-pill.idle,
+.pozos-shell.theme-light .status-pill.nodata,
+.pozos-shell.theme-light .status-chip.neutral {
+  color: #164e70;
+  background: #eaf6fd;
+  border-color: rgba(2,132,199,.22);
+}
+.pozos-shell.theme-light .status-pill.warning,
+.pozos-shell.theme-light .status-pill.alert,
+.pozos-shell.theme-light .shift-summary-card.partial {
+  color: #8a5800;
+  background: #fff4cf;
+  border-color: rgba(217,119,6,.32);
+}
+.pozos-shell.theme-light .status-pill.critical { color: #a61b1b; background: #fff1f2; border-color: #fecaca; }
+.pozos-shell.theme-light .shift-summary-card.pending { background: #edf8ff; border-color: rgba(2,132,199,.22); }
+.pozos-shell.theme-light .quality-diagnostic-cell small,
+.pozos-shell.theme-light .quality-reason-inline { color: #5d7588; }
+
+/* Graficas: se mantienen colores de series, se aclaran fondo/ejes/tooltips. */
+.pozos-shell.theme-light .recharts-cartesian-grid line,
+.pozos-shell.theme-light .recharts-cartesian-grid-horizontal line,
+.pozos-shell.theme-light .recharts-cartesian-grid-vertical line { stroke: rgba(71,100,124,.16) !important; }
+.pozos-shell.theme-light .recharts-cartesian-axis-line,
+.pozos-shell.theme-light .recharts-cartesian-axis-tick-line { stroke: #94a9bb !important; }
+.pozos-shell.theme-light .recharts-cartesian-axis-tick-value,
+.pozos-shell.theme-light .recharts-text,
+.pozos-shell.theme-light .recharts-label { fill: #405e75 !important; }
+.pozos-shell.theme-light .recharts-legend-item-text { color: #33566f !important; }
+.pozos-shell.theme-light .chart-tooltip,
+.pozos-shell.theme-light .solid-tooltip,
+.pozos-shell.theme-light .module-history-tooltip,
+.pozos-shell.theme-light .minute-well-tooltip {
+  color: #10253d;
+  background: rgba(255,255,255,.98);
+  border-color: rgba(2,132,199,.20);
+  box-shadow: 0 12px 30px rgba(30,64,95,.14);
+}
+.pozos-shell.theme-light .chart-tooltip-label,
+.pozos-shell.theme-light .chart-tooltip-name,
+.pozos-shell.theme-light .chart-tooltip-value,
+.pozos-shell.theme-light .module-history-tooltip-title,
+.pozos-shell.theme-light .module-history-tooltip-grid strong { color: #163a56; }
+.pozos-shell.theme-light .module-history-tooltip-grid span { color: #60788c; }
+
+/* Alertas/notificaciones y usuarios. */
+.pozos-shell.theme-light .notification-toast,
+.pozos-shell.theme-light .operational-alert-card {
+  color: #17384f;
+  background: #ffffff;
+  border-color: rgba(2,132,199,.18);
+  box-shadow: 0 16px 36px rgba(30,64,95,.13);
+}
+.pozos-shell.theme-light .notification-toast-copy strong,
+.pozos-shell.theme-light .operational-alert-copy strong,
+.pozos-shell.theme-light .operational-alerts-heading h2 { color: #14354d; }
+.pozos-shell.theme-light .notification-toast-copy span,
+.pozos-shell.theme-light .operational-alert-copy span,
+.pozos-shell.theme-light .operational-alerts-heading p { color: #60788c; }
+.pozos-shell.theme-light .notification-toast-close {
+  color: #164e70;
+  background: #eff8fd;
+  border-color: rgba(2,132,199,.22);
+}
+.pozos-shell.theme-light .users-table tbody tr:hover td { background: #f5fbff; }
+
+/* Exportaciones conservan codificacion visual. */
+.pozos-shell.theme-light .module-history-excel-button,
+.pozos-shell.theme-light .five-minute-excel-button,
+.pozos-shell.theme-light .historical-excel-button {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #16a34a, #15803d) !important;
+  border-color: #22c55e !important;
+}
+.pozos-shell.theme-light .module-history-pdf-button { color: #991b1b; background: #fff1f2; border-color: #fecaca; }
+
+@media (max-width: 760px) {
+  .pozos-shell .theme-toggle-button { min-height: 46px; }
+}
+
+/* Homologacion Durango 11A: contrato global de contraste para modo claro.
+   Regla: los cianes claros quedan como acento/decoracion; nunca como texto funcional sobre blanco. */
+.pozos-shell.theme-light {
+  --light-page-bg: #F3F8FC;
+  --light-surface: #FFFFFF;
+  --light-title: #0B1F3A;
+  --light-heading: #163A5F;
+  --light-body: #334E68;
+  --light-muted: #5C7184;
+  --light-label: #234A70;
+  --light-accent: #0369A1;
+  --light-border: #C7DCEB;
+  --light-soft: #E8F3FA;
+  --light-hover: #F0F7FB;
+  --bg: var(--light-page-bg);
+  --text: var(--light-body);
+  --muted: var(--light-muted);
+  --muted-2: #687F92;
+  background: var(--light-page-bg);
+  color: var(--light-body);
+}
+
+/* Jerarquia tipografica: titulos oscuros y legibles en todas las superficies claras. */
+.pozos-shell.theme-light .panel-title,
+.pozos-shell.theme-light .hero-title,
+.pozos-shell.theme-light .compact-hero h1,
+.pozos-shell.theme-light .compact-hero h2,
+.pozos-shell.theme-light .compact-hero h3,
+.pozos-shell.theme-light .hero-panel h1,
+.pozos-shell.theme-light .hero-panel h2,
+.pozos-shell.theme-light .hero-panel h3,
+.pozos-shell.theme-light .well-detail-title-row h2,
+.pozos-shell.theme-light .report-center-heading .panel-title,
+.pozos-shell.theme-light .report-preview-heading h3,
+.pozos-shell.theme-light .report-preview-section-heading h4,
+.pozos-shell.theme-light .scheduled-email-heading h3,
+.pozos-shell.theme-light .operational-alerts-heading h3,
+.pozos-shell.theme-light .users-admin-header h1,
+.pozos-shell.theme-light .users-admin-header h2,
+.pozos-shell.theme-light .users-create-panel h2,
+.pozos-shell.theme-light .users-list-panel h2 {
+  color: var(--light-title);
+}
+
+.pozos-shell.theme-light .panel h1,
+.pozos-shell.theme-light .panel h2,
+.pozos-shell.theme-light .panel h3,
+.pozos-shell.theme-light .panel h4 {
+  color: var(--light-heading);
+}
+
+/* Los titulos de mayor jerarquia conservan el azul marino mas oscuro. */
+.pozos-shell.theme-light .report-center-heading .panel-title,
+.pozos-shell.theme-light .report-preview-heading h3,
+.pozos-shell.theme-light .well-detail-title-row h2,
+.pozos-shell.theme-light .compact-hero h2 {
+  color: var(--light-title);
+}
+
+/* Texto normal y secundario. */
+.pozos-shell.theme-light .panel-subtitle,
+.pozos-shell.theme-light .hero-subtitle,
+.pozos-shell.theme-light .compact-hero p,
+.pozos-shell.theme-light .hero-panel p,
+.pozos-shell.theme-light .report-center-heading .panel-subtitle,
+.pozos-shell.theme-light .report-center-heading > p,
+.pozos-shell.theme-light .report-preview-heading p,
+.pozos-shell.theme-light .report-preview-section-heading p,
+.pozos-shell.theme-light .scheduled-email-heading p,
+.pozos-shell.theme-light .operational-alerts-heading p,
+.pozos-shell.theme-light .users-admin-header p,
+.pozos-shell.theme-light .users-create-panel p,
+.pozos-shell.theme-light .users-list-panel p {
+  color: var(--light-muted);
+}
+
+/* Eyebrows, labels y metadatos usan azul medio: visibles, pero por debajo del titulo. */
+.pozos-shell.theme-light .eyebrow,
+.pozos-shell.theme-light .section-eyebrow,
+.pozos-shell.theme-light .report-center-heading > span,
+.pozos-shell.theme-light .report-preview-heading > div > span,
+.pozos-shell.theme-light .operational-alerts-heading span:first-child,
+.pozos-shell.theme-light .report-field-label,
+.pozos-shell.theme-light .date-range-fields label,
+.pozos-shell.theme-light .date-range-fields label > span,
+.pozos-shell.theme-light .scheduled-email-field > span,
+.pozos-shell.theme-light .scheduled-email-formats legend,
+.pozos-shell.theme-light .users-create-form label > span,
+.pozos-shell.theme-light .module-history-aggregation,
+.pozos-shell.theme-light .minute-flow-controls label {
+  color: var(--light-label);
+}
+
+.pozos-shell.theme-light .report-workflow-intro strong,
+.pozos-shell.theme-light .scheduled-email-list-head strong,
+.pozos-shell.theme-light .users-list-heading strong {
+  color: var(--light-heading);
+}
+
+.pozos-shell.theme-light .report-workflow-intro span,
+.pozos-shell.theme-light .scheduled-email-save-row small,
+.pozos-shell.theme-light .scheduled-email-list-head span,
+.pozos-shell.theme-light .scheduled-email-item p,
+.pozos-shell.theme-light .scheduled-email-item-meta,
+.pozos-shell.theme-light .report-summary-note,
+.pozos-shell.theme-light .quality-diagnostic-cell small,
+.pozos-shell.theme-light .quality-reason-inline {
+  color: var(--light-muted);
+}
+
+/* Superficies y bordes: blanco real sobre fondo azul-gris claro. */
+.pozos-shell.theme-light .main-shell {
+  background:
+    radial-gradient(circle at 82% 4%, rgba(14,165,233,.055), transparent 24%),
+    linear-gradient(180deg, #F8FCFF 0%, var(--light-page-bg) 100%);
+}
+.pozos-shell.theme-light .panel,
+.pozos-shell.theme-light .chart-panel,
+.pozos-shell.theme-light .module-history-panel,
+.pozos-shell.theme-light .report-workflow-panel,
+.pozos-shell.theme-light .report-preview-panel,
+.pozos-shell.theme-light .report-data-panel,
+.pozos-shell.theme-light .scheduled-email-panel,
+.pozos-shell.theme-light .operational-alerts-panel {
+  background: var(--light-surface);
+  border-color: var(--light-border);
+}
+
+/* Formularios: texto y placeholders no pueden desaparecer. */
+.pozos-shell.theme-light input,
+.pozos-shell.theme-light select,
+.pozos-shell.theme-light textarea {
+  color: var(--light-title);
+  background: #FFFFFF;
+  border-color: #A9C8DB;
+}
+.pozos-shell.theme-light input::placeholder,
+.pozos-shell.theme-light textarea::placeholder {
+  color: #71869A;
+  opacity: 1;
+}
+.pozos-shell.theme-light input:disabled,
+.pozos-shell.theme-light select:disabled,
+.pozos-shell.theme-light textarea:disabled {
+  color: #667C8F;
+  background: #F3F7FA;
+  opacity: 1;
+}
+
+/* Controles secundarios claros: contraste sin competir con la accion primaria. */
+.pozos-shell.theme-light .ghost-action,
+.pozos-shell.theme-light .date-range-reset,
+.pozos-shell.theme-light .module-history-tab,
+.pozos-shell.theme-light .sensor-chip,
+.pozos-shell.theme-light .report-mode-toggle button:not(.active) {
+  color: var(--light-heading);
+  background: var(--light-soft);
+  border-color: #9FC5DA;
+}
+.pozos-shell.theme-light .ghost-action:hover:not(:disabled),
+.pozos-shell.theme-light .date-range-reset:hover:not(:disabled),
+.pozos-shell.theme-light .module-history-tab:hover:not(:disabled),
+.pozos-shell.theme-light .sensor-chip:hover:not(:disabled),
+.pozos-shell.theme-light .report-mode-toggle button:not(.active):hover {
+  color: var(--light-title);
+  background: #DCECF6;
+  border-color: #6FAAC9;
+}
+.pozos-shell.theme-light .report-mode-toggle {
+  background: #F1F7FB;
+  border-color: #A9C8DB;
+}
+.pozos-shell.theme-light .report-mode-toggle button.active,
+.pozos-shell.theme-light .date-range-apply,
+.pozos-shell.theme-light .primary-action {
+  color: #FFFFFF;
+}
+
+/* Acciones de Reportes: primarias azules, secundarias oscuras y siempre legibles. */
+.pozos-shell.theme-light .durango-report-page .report-action-button {
+  color: #FFFFFF;
+  background: #123B5A;
+  border-color: #245A7D;
+}
+.pozos-shell.theme-light .durango-report-page .report-action-button:hover:not(:disabled) {
+  color: #FFFFFF;
+  background: #0B2F49;
+  border-color: #0B6D9D;
+}
+.pozos-shell.theme-light .durango-report-page .report-action-button.primary-action {
+  color: #FFFFFF;
+  background: linear-gradient(135deg, #0797D5, #057FB5);
+  border-color: #0797D5;
+}
+
+/* Destructivos visibles sin depender de rosa palido. */
+.pozos-shell.theme-light .danger-action,
+.pozos-shell.theme-light .scheduled-email-item-actions .danger-action {
+  color: #B42318;
+  background: #FFF1F0;
+  border-color: #E8A7A2;
+}
+.pozos-shell.theme-light .danger-action:hover:not(:disabled),
+.pozos-shell.theme-light .scheduled-email-item-actions .danger-action:hover:not(:disabled) {
+  color: #8F1811;
+  background: #FFE4E1;
+  border-color: #D87E76;
+}
+
+/* Tablas: cabecera claramente separada y texto funcional oscuro. */
+.pozos-shell.theme-light th,
+.pozos-shell.theme-light .pozos-operacion-table th,
+.pozos-shell.theme-light .shift-detail-table th,
+.pozos-shell.theme-light .shift-overview-table th,
+.pozos-shell.theme-light .daily-report-table th,
+.pozos-shell.theme-light .users-table th {
+  color: var(--light-label);
+  background: var(--light-soft);
+  border-bottom-color: var(--light-border);
+}
+.pozos-shell.theme-light td,
+.pozos-shell.theme-light .pozos-operacion-table td,
+.pozos-shell.theme-light .shift-detail-table td,
+.pozos-shell.theme-light .shift-overview-table td,
+.pozos-shell.theme-light .daily-report-table td,
+.pozos-shell.theme-light .users-table td {
+  color: var(--light-body);
+}
+.pozos-shell.theme-light tbody tr:hover td,
+.pozos-shell.theme-light .users-table tbody tr:hover td {
+  background: var(--light-hover);
+}
+
+/* Estados semanticos estables en modo claro. */
+.pozos-shell.theme-light .status-pill.normal,
+.pozos-shell.theme-light .status-pill.communication,
+.pozos-shell.theme-light .status-chip.success {
+  color: #FFFFFF;
+  background: #124C82;
+  border-color: #124C82;
+}
+.pozos-shell.theme-light .status-pill.idle,
+.pozos-shell.theme-light .status-pill.nodata,
+.pozos-shell.theme-light .status-chip.neutral {
+  color: #44576A;
+  background: #E8EDF2;
+  border-color: #C4CFD8;
+}
+.pozos-shell.theme-light .status-pill.warning,
+.pozos-shell.theme-light .status-pill.alert,
+.pozos-shell.theme-light .shift-summary-card.partial {
+  color: #765B00;
+  background: #FFF3CD;
+  border-color: #E1BF54;
+}
+.pozos-shell.theme-light .status-pill.critical {
+  color: #A61B1B;
+  background: #FDE7E7;
+  border-color: #EAB1B1;
+}
+
+/* Contadores y badges sobre fondos claros. */
+.pozos-shell.theme-light .report-preview-section-heading > span {
+  color: #124C82;
+  background: #E7F3FA;
+  border-color: #A8CADC;
+}
+.pozos-shell.theme-light .scheduled-email-item-title strong,
+.pozos-shell.theme-light .scheduled-email-item-meta strong {
+  color: var(--light-title);
+}
+
+/* Excepciones deliberadas: texto blanco donde el fondo sigue siendo azul. */
+.pozos-shell.theme-light .header-bar .header-title,
+.pozos-shell.theme-light .header-bar .header-subtitle,
+.pozos-shell.theme-light .sidebar .brand-title,
+.pozos-shell.theme-light .sidebar .brand-subtitle,
+.pozos-shell.theme-light .sidebar .nav-group-title,
+.pozos-shell.theme-light .sidebar .nav-item,
+.pozos-shell.theme-light .kpi-card,
+.pozos-shell.theme-light .kpi-card .kpi-label,
+.pozos-shell.theme-light .kpi-card .kpi-value,
+.pozos-shell.theme-light .kpi-card .kpi-unit,
+.pozos-shell.theme-light .kpi-card .kpi-trend {
+  /* Los colores especificos de estas superficies oscuras se mantienen en el contrato 11. */
+}
+
+/* Homologacion Durango 11B: KPIs y cards en modo claro con referencia visual Zapopan.
+   - Todos los KPI cards deben leerse como tarjetas de alto contraste: fondo azul oscuro + texto blanco.
+   - Las tarjetas operativas conservan fondo claro pero toman una jerarquia mas cercana a Zapopan:
+     borde azul suave, encabezado oscuro, estatus tipo pastilla azul, bloques metricos azul-gris y footer claro. */
+.pozos-shell.theme-light .kpi-card {
+  color: #ffffff !important;
+  background: linear-gradient(145deg, #0a4f7e 0%, #083c63 55%, #072f4e 100%) !important;
+  border-color: rgba(14, 165, 233, .34) !important;
+  box-shadow: 0 14px 30px rgba(8, 67, 103, .18) !important;
+}
+
+.pozos-shell.theme-light .kpi-card::before {
+  background: linear-gradient(90deg, rgba(255,255,255,.55), rgba(255,255,255,0));
+}
+
+.pozos-shell.theme-light .kpi-card::after {
+  background: radial-gradient(circle at 78% 78%, rgba(191, 219, 254, .18), transparent 46%);
+  opacity: .36;
+}
+
+.pozos-shell.theme-light .kpi-card .kpi-label {
+  color: #d9efff !important;
+}
+
+.pozos-shell.theme-light .kpi-card .kpi-value,
+.pozos-shell.theme-light .kpi-card .kpi-unit {
+  color: #ffffff !important;
+}
+
+.pozos-shell.theme-light .kpi-card .kpi-trend {
+  color: #d8e9f8 !important;
+}
+
+.pozos-shell.theme-light .kpi-card .kpi-glow {
+  background: radial-gradient(circle, rgba(125, 211, 252, .18), transparent 72%) !important;
+  opacity: .42 !important;
+}
+
+.pozos-shell.theme-light .operational-element-card {
+  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+  border: 1px solid #b8d8ea;
+  box-shadow: 0 10px 24px rgba(26, 71, 102, .10);
+}
+
+.pozos-shell.theme-light .operational-element-card:hover,
+.pozos-shell.theme-light .operational-element-card.selected {
+  border-color: #7ab8d6;
+  box-shadow: 0 16px 30px rgba(26, 71, 102, .14);
+}
+
+.pozos-shell.theme-light .operational-card-head span,
+.pozos-shell.theme-light .operational-metric-grid span {
+  color: #7690a6;
+}
+
+.pozos-shell.theme-light .operational-card-head strong,
+.pozos-shell.theme-light .operational-metric-grid strong {
+  color: #17324a;
+}
+
+.pozos-shell.theme-light .operational-card-head .status-pill.normal,
+.pozos-shell.theme-light .operational-card-head .status-pill.communication,
+.pozos-shell.theme-light .operational-card-head .status-pill.success {
+  background: linear-gradient(90deg, #0b4f7a, #0d5f93);
+  color: #ffffff;
+  border-color: #0b4f7a;
+}
+
+.pozos-shell.theme-light .operational-card-head .status-pill.warning,
+.pozos-shell.theme-light .operational-card-head .status-pill.alert {
+  color: #8a5800;
+  background: #fff4cf;
+  border-color: rgba(217,119,6,.32);
+}
+
+.pozos-shell.theme-light .operational-card-head .status-pill.idle,
+.pozos-shell.theme-light .operational-card-head .status-pill.nodata,
+.pozos-shell.theme-light .operational-card-head .status-pill.critical,
+.pozos-shell.theme-light .operational-card-head .status-chip.neutral {
+  color: #4b5563;
+  background: #eef3f7;
+  border-color: #cbd5df;
+}
+
+.pozos-shell.theme-light .metric-pair {
+  background: linear-gradient(180deg, #eef4f7 0%, #e5edf2 100%);
+  border-color: #d3dce3;
+}
+
+.pozos-shell.theme-light .metric-pair.emphasis {
+  background: linear-gradient(180deg, #e7f1f6 0%, #ddeaf1 100%);
+  border-color: #bfd4e0;
+}
+
+.pozos-shell.theme-light .metric-pair span {
+  color: #7a8fa2;
+}
+
+.pozos-shell.theme-light .metric-pair strong {
+  color: #16324b;
+}
+
+.pozos-shell.theme-light .metric-pair small {
+  color: #6f879b;
+}
+
+.pozos-shell.theme-light .operational-card-footer {
+  color: #5f7488;
+  background: #f7fbfd;
+  border-top-color: #d8e7ef;
+}
+
+.pozos-shell.theme-light .operational-card-footer strong {
+  color: #4e6478;
+}
+
+.pozos-shell.theme-light .operational-card-footer > span.online {
+  color: #607487;
+}
+
+.pozos-shell.theme-light .open-detail-link {
+  color: #0b5f8f;
+}
+
+/* Homologacion Durango 11C: jerarquia del Resumen y Accesos operativos en modo claro. */
+.pozos-shell.theme-light .water-type-card {
+  color: #17324a;
+  background: linear-gradient(180deg, #ffffff 0%, #f7fbfe 100%);
+  border-color: #b9d7e7;
+  box-shadow: 0 10px 24px rgba(26, 71, 102, .09);
+}
+
+.pozos-shell.theme-light .water-type-card:hover {
+  border-color: #79b6d4;
+  box-shadow: 0 15px 30px rgba(26, 71, 102, .13);
+  transform: translateY(-2px);
+}
+
+.pozos-shell.theme-light .water-type-head span {
+  color: #6d879b;
+}
+
+.pozos-shell.theme-light .water-type-head strong {
+  color: #17324a;
+}
+
+.pozos-shell.theme-light .water-type-foot {
+  border-top-color: #d6e6ee;
+}
+
+.pozos-shell.theme-light .water-type-foot p,
+.pozos-shell.theme-light .water-type-foot span {
+  color: #5c7184;
+}
+
+.pozos-shell.theme-light .water-type-card .status-pill.normal,
+.pozos-shell.theme-light .water-type-card .status-pill.communication,
+.pozos-shell.theme-light .water-type-card .status-pill.success {
+  color: #ffffff;
+  background: linear-gradient(90deg, #0b4f7a, #0d679d);
+  border-color: #0b4f7a;
+}
+
+.pozos-shell.theme-light .water-type-card .status-pill.warning,
+.pozos-shell.theme-light .water-type-card .status-pill.alert {
+  color: #765b00;
+  background: #fff3cd;
+  border-color: #e1bf54;
+}
+
+.pozos-shell.theme-light .water-type-card .status-pill.critical {
+  color: #a61b1b;
+  background: #fde7e7;
+  border-color: #eab1b1;
+}
+
+/* Homologacion Durango 11D: Reportes + Revision diaria + Turnos en modo claro.
+   Regla: KPI/report cards de alto contraste, sin superficies grises; estados de turno vivos. */
+.pozos-shell.theme-light .report-summary-card,
+.pozos-shell.theme-light .report-summary-card.review {
+  color: #ffffff;
+  background: linear-gradient(145deg, #0a4f7e 0%, #083c63 58%, #072f4e 100%);
+  border: 1px solid rgba(14, 165, 233, .36);
+  box-shadow: 0 12px 28px rgba(8, 67, 103, .16);
+}
+
+.pozos-shell.theme-light .report-summary-card.review {
+  border-top: 4px solid #f59e0b;
+}
+
+.pozos-shell.theme-light .report-summary-card::after {
+  background: radial-gradient(circle, rgba(125, 211, 252, .18), transparent 68%);
+}
+
+.pozos-shell.theme-light .report-summary-card span {
+  color: #d9efff;
+}
+
+.pozos-shell.theme-light .report-summary-card strong,
+.pozos-shell.theme-light .report-summary-card strong small {
+  color: #ffffff;
+}
+
+.pozos-shell.theme-light .report-summary-card small {
+  color: #d8e9f8;
+}
+
+.pozos-shell.theme-light .report-summary-note {
+  color: #ffffff;
+  background: linear-gradient(90deg, #0b4f7a 0%, #0d679d 100%);
+  border-color: #0b4f7a;
+  border-left-color: #38bdf8;
+  box-shadow: 0 8px 20px rgba(8, 67, 103, .12);
+}
+
+/* Revision diaria: jerarquia y contraste mas marcados. */
+.pozos-shell.theme-light .daily-review-header-panel,
+.pozos-shell.theme-light .daily-review-detail-panel,
+.pozos-shell.theme-light .shift-consumption-panel {
+  background: #ffffff;
+  border-color: #b7d7e8;
+}
+
+.pozos-shell.theme-light .daily-review-header-panel .panel-title,
+.pozos-shell.theme-light .daily-review-detail-panel .panel-title,
+.pozos-shell.theme-light .shift-consumption-panel .panel-title {
+  color: #0b1f3a;
+}
+
+.pozos-shell.theme-light .daily-review-header-panel .panel-subtitle,
+.pozos-shell.theme-light .daily-review-detail-panel .panel-subtitle,
+.pozos-shell.theme-light .shift-consumption-panel .panel-subtitle {
+  color: #4d6a80;
+}
+
+.pozos-shell.theme-light .daily-review-detail-panel .pozos-table-scroll,
+.pozos-shell.theme-light .shift-overview-table-wrap,
+.pozos-shell.theme-light .shift-detail-table-wrap {
+  border: 1px solid #b8d8e8;
+  background: #ffffff;
+}
+
+.pozos-shell.theme-light .daily-review-detail-panel .pozos-operacion-table th,
+.pozos-shell.theme-light .shift-overview-table th,
+.pozos-shell.theme-light .shift-detail-table th {
+  color: #173f5f;
+  background: #dff2fb;
+  border-bottom-color: #a9ccdf;
+}
+
+.pozos-shell.theme-light .daily-review-detail-panel .pozos-operacion-table td,
+.pozos-shell.theme-light .shift-overview-table td,
+.pozos-shell.theme-light .shift-detail-table td {
+  color: #23445d;
+  background: #ffffff;
+  border-bottom-color: #d7e7ef;
+}
+
+.pozos-shell.theme-light .daily-review-detail-panel .pozos-operacion-table tbody tr:nth-child(even) td,
+.pozos-shell.theme-light .shift-overview-table tbody tr:nth-child(even) td,
+.pozos-shell.theme-light .shift-detail-table tbody tr:nth-child(even) td {
+  background: #f1f9fd;
+}
+
+.pozos-shell.theme-light .daily-review-detail-panel .pozos-operacion-table tbody tr:hover td,
+.pozos-shell.theme-light .shift-overview-table tbody tr:hover td,
+.pozos-shell.theme-light .shift-detail-table tbody tr:hover td {
+  background: #e4f4fb;
+}
+
+/* Cards de turno: el estado se reconoce por toda la tarjeta, no solo por el badge. */
+.pozos-shell.theme-light .shift-summary-card {
+  position: relative;
+  color: #17324a;
+  background: #ffffff;
+  border: 2px solid #5ca6cd;
+  box-shadow: inset 0 5px 0 #0b6fa4, 0 10px 24px rgba(26, 92, 128, .12);
+  opacity: 1;
+}
+
+.pozos-shell.theme-light .shift-summary-card.completed {
+  background: linear-gradient(180deg, #ffffff 0%, #eaf6fd 100%);
+  border-color: #4c9bc4;
+  box-shadow: inset 0 5px 0 #0b5f8f, 0 10px 24px rgba(26, 92, 128, .12);
+}
+
+.pozos-shell.theme-light .shift-summary-card.partial {
+  color: #3f3100;
+  background: linear-gradient(180deg, #ffe977 0%, #ffd84d 100%);
+  border-color: #e5a700;
+  box-shadow: inset 0 5px 0 #f59e0b, 0 10px 24px rgba(194, 130, 0, .18);
+}
+
+.pozos-shell.theme-light .shift-summary-card.pending {
+  color: #083b5a;
+  background: linear-gradient(180deg, #b9efff 0%, #72d8f5 100%);
+  border: 2px solid #0ea5e9;
+  box-shadow: inset 0 5px 0 #0284c7, 0 10px 24px rgba(2, 132, 199, .16);
+  opacity: 1;
+}
+
+.pozos-shell.theme-light .shift-summary-card > span {
+  color: #184d6d;
+}
+
+.pozos-shell.theme-light .shift-summary-card > small,
+.pozos-shell.theme-light .shift-summary-card > p,
+.pozos-shell.theme-light .shift-summary-card > em {
+  color: #486a80;
+}
+
+.pozos-shell.theme-light .shift-summary-card > strong {
+  color: #0b2d47;
+}
+
+.pozos-shell.theme-light .shift-summary-card.partial > span,
+.pozos-shell.theme-light .shift-summary-card.partial > small,
+.pozos-shell.theme-light .shift-summary-card.partial > p,
+.pozos-shell.theme-light .shift-summary-card.partial > em,
+.pozos-shell.theme-light .shift-summary-card.partial > strong {
+  color: #3f3100;
+}
+
+.pozos-shell.theme-light .shift-summary-card.pending > span,
+.pozos-shell.theme-light .shift-summary-card.pending > small,
+.pozos-shell.theme-light .shift-summary-card.pending > p,
+.pozos-shell.theme-light .shift-summary-card.pending > em,
+.pozos-shell.theme-light .shift-summary-card.pending > strong {
+  color: #083b5a;
+}
+
+/* Desplegables de turno: misma semantica visual viva. */
+.pozos-shell.theme-light .shift-detail-disclosure {
+  color: #17324a;
+  background: #ffffff;
+  border: 2px solid #6eafd0;
+  box-shadow: inset 4px 0 0 #0b5f8f;
+}
+
+.pozos-shell.theme-light .shift-detail-disclosure.completed {
+  background: #f8fcff;
+  border-color: #6eafd0;
+  box-shadow: inset 5px 0 0 #0b5f8f;
+}
+
+.pozos-shell.theme-light .shift-detail-disclosure.partial {
+  background: #fff3a6;
+  border-color: #e5a700;
+  box-shadow: inset 5px 0 0 #f59e0b;
+}
+
+.pozos-shell.theme-light .shift-detail-disclosure.pending {
+  background: #c8f2ff;
+  border-color: #0ea5e9;
+  box-shadow: inset 5px 0 0 #0284c7;
+}
+
+.pozos-shell.theme-light .shift-detail-disclosure > summary strong {
+  color: #123b57;
+}
+
+.pozos-shell.theme-light .shift-detail-disclosure > summary small {
+  color: #55778d;
+}
+
+.pozos-shell.theme-light .shift-detail-disclosure[open] > summary {
+  border-bottom-color: #b9d9e8;
+}
+
+.pozos-shell.theme-light .shift-detail-groups h4 {
+  color: #153f5d;
+}
+
+/* Homologacion Durango 11E: controles, selectores de fecha y graficas en modo claro.
+   Regla visual: las superficies de control usan blanco/azules ARCA; el gris no se usa como fondo funcional. */
+.pozos-shell.theme-light .date-range-panel,
+.pozos-shell.theme-light .chart-date-range-panel,
+.pozos-shell.theme-light .report-date-range-panel,
+.pozos-shell.theme-light .shift-controls-panel {
+  background: #ffffff !important;
+  border-color: #b8d8ea !important;
+  box-shadow: 0 8px 22px rgba(20, 74, 108, .08) !important;
+}
+
+.pozos-shell.theme-light .date-range-panel .panel-title,
+.pozos-shell.theme-light .date-range-panel .panel-subtitle {
+  color: #163a5f;
+}
+
+.pozos-shell.theme-light .date-range-fields label,
+.pozos-shell.theme-light .date-range-fields label > span,
+.pozos-shell.theme-light .module-history-aggregation,
+.pozos-shell.theme-light .module-history-aggregation > span,
+.pozos-shell.theme-light .minute-flow-controls label,
+.pozos-shell.theme-light .shift-selector-field > span,
+.pozos-shell.theme-light .report-field-label {
+  color: #234a70 !important;
+}
+
+.pozos-shell.theme-light .date-range-fields input,
+.pozos-shell.theme-light .date-range-fields select,
+.pozos-shell.theme-light .minute-flow-controls input,
+.pozos-shell.theme-light .module-history-aggregation select,
+.pozos-shell.theme-light .shift-selector-field select,
+.pozos-shell.theme-light .report-date-input input,
+.pozos-shell.theme-light .history-aggregation-trigger {
+  color: #0b1f3a !important;
+  background: #ffffff !important;
+  border-color: #8ebed8 !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.7) !important;
+  color-scheme: light !important;
+}
+
+.pozos-shell.theme-light .date-range-fields input:hover,
+.pozos-shell.theme-light .date-range-fields select:hover,
+.pozos-shell.theme-light .minute-flow-controls input:hover,
+.pozos-shell.theme-light .module-history-aggregation select:hover,
+.pozos-shell.theme-light .shift-selector-field select:hover,
+.pozos-shell.theme-light .report-date-input input:hover,
+.pozos-shell.theme-light .history-aggregation-trigger:hover {
+  border-color: #3f91bc !important;
+  background: #f8fcff !important;
+}
+
+.pozos-shell.theme-light .date-range-fields input:focus,
+.pozos-shell.theme-light .date-range-fields select:focus,
+.pozos-shell.theme-light .minute-flow-controls input:focus,
+.pozos-shell.theme-light .module-history-aggregation select:focus,
+.pozos-shell.theme-light .shift-selector-field select:focus-visible,
+.pozos-shell.theme-light .report-date-input input:focus,
+.pozos-shell.theme-light .history-aggregation-trigger:focus-visible {
+  outline: none !important;
+  border-color: #0284c7 !important;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, .14) !important;
+}
+
+.pozos-shell.theme-light .date-input-with-icon svg {
+  color: #0369a1 !important;
+  filter: none !important;
+}
+
+.pozos-shell.theme-light .date-input-with-icon input {
+  background: #ffffff !important;
+  color: #0b1f3a !important;
+}
+
+.pozos-shell.theme-light .date-range-apply {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #0b4f7a, #0d6a9f) !important;
+  border-color: #0b4f7a !important;
+}
+
+.pozos-shell.theme-light .date-range-apply:hover {
+  background: linear-gradient(135deg, #083f65, #0b5d8d) !important;
+}
+
+.pozos-shell.theme-light .date-range-reset {
+  color: #163a5f !important;
+  background: #e6f4fb !important;
+  border-color: #9fc5da !important;
+}
+
+.pozos-shell.theme-light .date-range-reset:hover {
+  color: #0b1f3a !important;
+  background: #d7edf8 !important;
+  border-color: #6faac9 !important;
+}
+
+.pozos-shell.theme-light .date-range-status,
+.pozos-shell.theme-light .module-metric-note,
+.pozos-shell.theme-light .auto-refresh-status {
+  color: #164e70 !important;
+  background: #eaf6fd !important;
+  border-color: #9fc5da !important;
+}
+
+.pozos-shell.theme-light .history-aggregation-menu {
+  background: #ffffff !important;
+  border-color: #8ebed8 !important;
+  box-shadow: 0 14px 32px rgba(20, 74, 108, .16) !important;
+}
+
+.pozos-shell.theme-light .history-aggregation-option {
+  color: #163a5f !important;
+  background: #ffffff !important;
+}
+
+.pozos-shell.theme-light .history-aggregation-option:hover,
+.pozos-shell.theme-light .history-aggregation-option:focus-visible {
+  color: #0b1f3a !important;
+  background: #eaf6fd !important;
+}
+
+.pozos-shell.theme-light .history-aggregation-option.is-selected,
+.pozos-shell.theme-light .history-aggregation-option[aria-selected='true'] {
+  color: #ffffff !important;
+  background: #0b4f7a !important;
+  box-shadow: inset 3px 0 0 #38bdf8 !important;
+}
+
+.pozos-shell.theme-light .shift-selector-field select {
+  background-color: #ffffff !important;
+  background-image: linear-gradient(45deg, transparent 50%, #0369a1 50%), linear-gradient(135deg, #0369a1 50%, transparent 50%) !important;
+}
+
+.pozos-shell.theme-light .shift-selector-field select option,
+.pozos-shell.theme-light .module-history-aggregation select option,
+.pozos-shell.theme-light .date-range-fields select option,
+.pozos-shell.theme-light .date-range-fields select optgroup {
+  color: #0b1f3a !important;
+  background: #ffffff !important;
+}
+
+/* Selector Flujo / Totalizador / Ambos: claro real, sin heredar la capsula oscura. */
+.pozos-shell.theme-light .module-metric-selector {
+  background: #eaf6fd !important;
+  border-color: #9fc5da !important;
+  box-shadow: none !important;
+}
+
+.pozos-shell.theme-light .module-metric-selector button {
+  color: #163a5f !important;
+  background: transparent !important;
+  border-color: transparent !important;
+}
+
+.pozos-shell.theme-light .module-metric-selector button:hover,
+.pozos-shell.theme-light .module-metric-selector button:focus-visible {
+  color: #0b1f3a !important;
+  background: #d8edf8 !important;
+  border-color: #8ebed8 !important;
+}
+
+.pozos-shell.theme-light .module-metric-selector button.active {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #0b4f7a, #0d6a9f) !important;
+  border-color: #0b4f7a !important;
+  box-shadow: 0 6px 14px rgba(11, 79, 122, .16) !important;
+}
+
+.pozos-shell.theme-light .module-selection-heading {
+  color: #234a70 !important;
+}
+
+.pozos-shell.theme-light .module-selection-heading button {
+  color: #0369a1 !important;
+  background: transparent !important;
+}
+
+.pozos-shell.theme-light .module-selection-heading button:hover,
+.pozos-shell.theme-light .module-selection-heading button:focus-visible {
+  color: #0b4f7a !important;
+  background: #eaf6fd !important;
+  border-color: #8ebed8 !important;
+}
+
+.pozos-shell.theme-light .module-history-tab,
+.pozos-shell.theme-light .sensor-chip,
+.pozos-shell.theme-light .minute-flow-selection .sensor-chip {
+  color: #164e70 !important;
+  background: #ffffff !important;
+  border-color: #9fc5da !important;
+}
+
+.pozos-shell.theme-light .module-history-tab:hover,
+.pozos-shell.theme-light .sensor-chip:hover,
+.pozos-shell.theme-light .minute-flow-selection .sensor-chip:hover {
+  color: #0b1f3a !important;
+  background: #eaf6fd !important;
+  border-color: #6faac9 !important;
+}
+
+.pozos-shell.theme-light .module-history-tab.active,
+.pozos-shell.theme-light .sensor-chip.active,
+.pozos-shell.theme-light .minute-flow-selection .sensor-chip.active {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #0284c7, #0b4f7a) !important;
+  border-color: #0b4f7a !important;
+}
+
+/* Graficas claras: grid, ejes y leyendas con contraste suficiente. */
+.pozos-shell.theme-light .recharts-cartesian-grid line,
+.pozos-shell.theme-light .recharts-cartesian-grid-horizontal line,
+.pozos-shell.theme-light .recharts-cartesian-grid-vertical line {
+  stroke: rgba(31, 78, 112, .28) !important;
+  stroke-width: 1 !important;
+}
+
+.pozos-shell.theme-light .recharts-cartesian-axis-line,
+.pozos-shell.theme-light .recharts-cartesian-axis-tick-line {
+  stroke: #6f8fa6 !important;
+}
+
+.pozos-shell.theme-light .recharts-cartesian-axis-tick-value,
+.pozos-shell.theme-light .recharts-text,
+.pozos-shell.theme-light .recharts-label {
+  fill: #334e68 !important;
+}
+
+.pozos-shell.theme-light .recharts-legend-item-text {
+  color: #234a70 !important;
+  font-weight: 700 !important;
+}
+
+.pozos-shell.theme-light .recharts-reference-line-line,
+.pozos-shell.theme-light .recharts-reference-dot circle {
+  stroke: #52758d !important;
+}
+
+/* Las barras de volumen deben conservarse visibles sobre fondo blanco. */
+.pozos-shell.theme-light .module-history-panel .recharts-bar-rectangle path {
+  opacity: .86;
+}
+
+/* Homologacion Durango 11F: cards operativas y detalle individual simplificados.
+   Regla: en modo claro los bloques internos dejan de usar gris; se usa blanco + azules ARCA.
+   La interfaz operativa evita tecnicismos como "conciliado" y oculta comunicacion cuando es normal. */
+.pozos-shell.theme-light .metric-pair,
+.pozos-shell.theme-light .metric-pair.emphasis,
+.pozos-shell.theme-light .well-detail-hero-metrics article {
+  background: #eaf6fd !important;
+  border-color: #b8d8ea !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .72) !important;
+}
+
+.pozos-shell.theme-light .metric-pair span,
+.pozos-shell.theme-light .well-detail-hero-metrics span {
+  color: #234a70 !important;
+}
+
+.pozos-shell.theme-light .metric-pair strong,
+.pozos-shell.theme-light .well-detail-hero-metrics strong {
+  color: #163a5f !important;
+}
+
+.pozos-shell.theme-light .metric-pair small,
+.pozos-shell.theme-light .well-detail-hero-metrics small {
+  color: #5c7184 !important;
+}
+
+.pozos-shell.theme-light .well-detail-hero-metrics article.attention {
+  background: #fff4cf !important;
+  border-color: #f4b400 !important;
+  box-shadow: inset 4px 0 0 #f4b400 !important;
+}
+
+.pozos-shell.theme-light .well-detail-hero-metrics article.attention span,
+.pozos-shell.theme-light .well-detail-hero-metrics article.attention strong {
+  color: #6b4300 !important;
+}
+
+.pozos-shell.theme-light .operational-card-footer {
+  background: #eaf6fd !important;
+  border-top-color: #b8d8ea !important;
+  color: #355a73 !important;
+}
+
+.pozos-shell.theme-light .operational-card-footer .last-reading-label {
+  color: #234a70 !important;
+  font-weight: 800;
+}
+
+.pozos-shell.theme-light .operational-card-footer .warning {
+  color: #8a5800 !important;
+  font-weight: 800;
+}
+
+.pozos-shell.theme-light .operational-card-head .status-pill.idle,
+.pozos-shell.theme-light .operational-card-head .status-pill.nodata,
+.pozos-shell.theme-light .operational-card-head .status-pill.critical,
+.pozos-shell.theme-light .operational-card-head .status-chip.neutral {
+  color: #164e70 !important;
+  background: #dff2fb !important;
+  border-color: #8ebed8 !important;
+}
+
+.pozos-shell.theme-light .operational-period-summary {
+  background: #ffffff !important;
+}
+
+/* Homologacion Durango 11G: correcciones finas del detalle individual en modo claro.
+   Ajustes solicitados por el usuario:
+   - oscurecer subtitulo y navegacion entre elementos;
+   - eliminar capsulas grises poco legibles del rango;
+   - aclarar el estado vacio del historico;
+   - selector de turnos totalmente azul, sin recorte blanco y con texto blanco. */
+.pozos-shell.theme-light .well-detail-main-head p {
+  color: #234a70 !important;
+}
+
+.pozos-shell.theme-light .back-inline-button {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #6f8ea3, #8fa6b6) !important;
+  border-color: #6f8ea3 !important;
+  box-shadow: 0 10px 20px rgba(111, 142, 163, .22) !important;
+}
+
+.pozos-shell.theme-light .back-inline-button:hover,
+.pozos-shell.theme-light .back-inline-button:focus-visible {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #5f7d92, #8098aa) !important;
+  border-color: #5f7d92 !important;
+}
+
+.pozos-shell.theme-light .operational-sibling-navigation button,
+.pozos-shell.theme-light .operational-sibling-navigation strong {
+  color: #163a5f !important;
+}
+
+.pozos-shell.theme-light .operational-sibling-navigation button:hover,
+.pozos-shell.theme-light .operational-sibling-navigation button:focus-visible {
+  color: #0b1f3a !important;
+}
+
+.pozos-shell.theme-light .date-range-meta span {
+  color: #163a5f !important;
+  background: #eaf6fd !important;
+  border-color: #9fc5da !important;
+}
+
+.pozos-shell.theme-light .chart-empty-state {
+  color: #234a70 !important;
+  background: #f4fbff !important;
+  border-color: rgba(15, 82, 117, .20) !important;
+}
+
+.pozos-shell.theme-light .shift-selector-field select {
+  color: #ffffff !important;
+  background-color: #0b4f7a !important;
+  background-image:
+    linear-gradient(45deg, transparent 50%, #ffffff 50%),
+    linear-gradient(135deg, #ffffff 50%, transparent 50%),
+    linear-gradient(135deg, #0b4f7a, #0d6a9f) !important;
+  background-position:
+    calc(100% - 18px) 18px,
+    calc(100% - 12px) 18px,
+    0 0 !important;
+  background-size: 6px 6px, 6px 6px, 100% 100% !important;
+  background-repeat: no-repeat !important;
+  border-color: #0b4f7a !important;
+  box-shadow: 0 8px 18px rgba(11, 79, 122, .16) !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+}
+
+.pozos-shell.theme-light .shift-selector-field select:hover {
+  color: #ffffff !important;
+  background-color: #083f65 !important;
+  background-image:
+    linear-gradient(45deg, transparent 50%, #ffffff 50%),
+    linear-gradient(135deg, #ffffff 50%, transparent 50%),
+    linear-gradient(135deg, #083f65, #0b5d8d) !important;
+  border-color: #083f65 !important;
+}
+
+.pozos-shell.theme-light .shift-selector-field select:focus-visible {
+  color: #ffffff !important;
+  border-color: #0b4f7a !important;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, .14), 0 10px 20px rgba(11, 79, 122, .18) !important;
+}
+
+.pozos-shell.theme-light .shift-selector-field select option {
+  color: #0b1f3a !important;
+  background: #ffffff !important;
+}
+
+/* Homologacion Durango 11J: codigo visual unico para exportaciones.
+   Excel = verde. PDF = rojo vino sobrio, distinto a alarmas/criticos. */
+.pozos-shell .export-excel-button,
+.pozos-shell .module-history-excel-button,
+.pozos-shell .five-minute-excel-button,
+.pozos-shell .historical-excel-button,
+.pozos-shell .header-export-excel {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #16853f, #126b34) !important;
+  border-color: #2ea85a !important;
+  box-shadow: 0 8px 18px rgba(18, 107, 52, .18) !important;
+}
+
+.pozos-shell .export-excel-button:hover:not(:disabled),
+.pozos-shell .module-history-excel-button:hover:not(:disabled),
+.pozos-shell .five-minute-excel-button:hover:not(:disabled),
+.pozos-shell .historical-excel-button:hover:not(:disabled),
+.pozos-shell .header-export-excel:hover:not(:disabled),
+.pozos-shell .export-excel-button:focus-visible,
+.pozos-shell .module-history-excel-button:focus-visible,
+.pozos-shell .five-minute-excel-button:focus-visible,
+.pozos-shell .historical-excel-button:focus-visible,
+.pozos-shell .header-export-excel:focus-visible {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #126b34, #0f582b) !important;
+  border-color: #43ba69 !important;
+}
+
+.pozos-shell .export-pdf-button,
+.pozos-shell .module-history-pdf-button,
+.pozos-shell .historical-pdf-button,
+.pozos-shell .header-export-pdf {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #8b4a54, #6f3b44) !important;
+  border-color: #ad727a !important;
+  box-shadow: 0 8px 18px rgba(111, 59, 68, .16) !important;
+}
+
+.pozos-shell .export-pdf-button:hover:not(:disabled),
+.pozos-shell .module-history-pdf-button:hover:not(:disabled),
+.pozos-shell .historical-pdf-button:hover:not(:disabled),
+.pozos-shell .header-export-pdf:hover:not(:disabled),
+.pozos-shell .export-pdf-button:focus-visible,
+.pozos-shell .module-history-pdf-button:focus-visible,
+.pozos-shell .historical-pdf-button:focus-visible,
+.pozos-shell .header-export-pdf:focus-visible {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #78414a, #60343c) !important;
+  border-color: #bd858c !important;
+}
+
+/* En modo claro se mantiene exactamente el mismo codigo visual para que el formato
+   se reconozca por color independientemente del tema. */
+.pozos-shell.theme-light .export-excel-button,
+.pozos-shell.theme-light .module-history-excel-button,
+.pozos-shell.theme-light .five-minute-excel-button,
+.pozos-shell.theme-light .historical-excel-button,
+.pozos-shell.theme-light .header-export-excel {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #16853f, #126b34) !important;
+  border-color: #2ea85a !important;
+}
+
+.pozos-shell.theme-light .export-pdf-button,
+.pozos-shell.theme-light .module-history-pdf-button,
+.pozos-shell.theme-light .historical-pdf-button,
+.pozos-shell.theme-light .header-export-pdf {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #8b4a54, #6f3b44) !important;
+  border-color: #ad727a !important;
 }

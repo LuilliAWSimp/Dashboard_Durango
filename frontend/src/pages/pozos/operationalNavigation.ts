@@ -5,7 +5,7 @@ import type { DateRange, FlexibleRecord, HistoryAggregation } from './types.ts';
 export type OperationalModule = 'well' | 'line' | 'flow';
 export type OperationalIdentity = number | string;
 
-const HISTORY_AGGREGATIONS: HistoryAggregation[] = ['quarter_hour', 'hourly', 'daily'];
+const HISTORY_AGGREGATIONS: HistoryAggregation[] = ['minute', 'quarter_hour', 'hourly', 'daily'];
 
 function number(value: unknown): number | null {
   if (value === null || value === undefined || value === '') return null;

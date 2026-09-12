@@ -9,6 +9,7 @@ Durango usa una base local de autenticación totalmente independiente de otras p
 - Sesión principal: cookie HTTP-only `arca_dgo_session`.
 - CSRF estable durante la sesión.
 - Vínculo auxiliar de navegador compartido entre pestañas; el token principal nunca se guarda en JavaScript.
+- Registro de pestañas activas `arca_dgo_active_tabs`: heartbeat cada 5 s y TTL de 20 s.
 - Roles: `admin`, `operator`, `viewer`.
 - Expiración por inactividad humana: 8 horas.
 - Expiración absoluta: 12 horas.
@@ -57,7 +58,7 @@ AUTH_LOCAL_HTTP_ORIGINS=http://localhost:5173,http://127.0.0.1:5173,http://100.1
 - No es necesario cambiar globalmente `AUTH_COOKIE_SECURE=false`; producción conserva `AUTH_COOKIE_SECURE=true`.
 - La excepción HTTP se limita a `AUTH_LOCAL_HTTP_ORIGINS`; no acepta comodines.
 
-Esto permite que el widget WebBrowser de Blue Open Studio abra `http://localhost:5173` sin quedar atrapado en Login por rechazo de una cookie `Secure`. Además, el backend emite un binding auxiliar HttpOnly (`arca_dgo_browser_session`) y lo acepta como fallback cuando el WebBrowser no conserva `localStorage` o no envía `X-ARCA-Browser-Session`. El token principal continúa exclusivamente en `arca_dgo_session`.
+Esto permite que el widget WebBrowser de Blue Open Studio abra `http://localhost:5173` sin quedar atrapado en Login por rechazo de una cookie `Secure`. En modo BOS/local el backend puede aceptar el binding auxiliar por cookie/header porque algunos WebBrowser no conservan `localStorage` de forma fiable. En el dominio HTTPS normal, cuando `AUTH_REQUIRE_BROWSER_SESSION=true`, la cookie auxiliar por sí sola no restaura la sesión: el frontend debe enviar `X-ARCA-Browser-Session`. El token principal continúa exclusivamente en `arca_dgo_session`.
 
 Si BOS omite `Origin` y `Referer`, el backend detecta el proxy local por loopback siempre que no existan señales de Cloudflare/HTTPS. En ese caso únicamente esa sesión local HTTP usa cookies sin `Secure`; el dominio público sigue usando `Secure`.
 
@@ -92,10 +93,31 @@ Las restricciones se validan también en backend. Un botón oculto en frontend n
 
 La cookie HTTP-only se comparte por el navegador. El frontend comparte únicamente el vínculo auxiliar de navegador y el CSRF mediante `localStorage`, eventos `storage` y `BroadcastChannel`.
 
-- Pestañas nuevas restauran `/auth/me` automáticamente.
+- Pestañas nuevas restauran `/auth/me` automáticamente mientras exista al menos otra pestaña activa.
 - `/auth/me` no rota el CSRF.
 - Un `401`, logout, expiración o revocación sincroniza la salida de todas las pestañas.
 - El polling de fondo no renueva por sí solo el límite de inactividad; sólo solicitudes cercanas a interacción humana marcan actividad.
+
+### Cierre de todas las pestañas
+
+El navegador web normal mantiene un mapa compartido:
+
+```text
+arca_dgo_active_tabs
+```
+
+Cada pestaña registra un identificador y actualiza su timestamp cada `5 s`. Las entradas con más de `20 s` se consideran vencidas.
+
+```text
+ACTIVE_TAB_HEARTBEAT_MS = 5_000
+ACTIVE_TAB_TTL_MS       = 20_000
+```
+
+Al cerrar una pestaña se retira su entrada. Al abrir una vista nueva, si no queda ninguna pestaña activa y todavía existe una `arca_dgo_browser_session` local, ese estado se limpia antes de intentar `/auth/me`. Como el backend HTTPS exige `X-ARCA-Browser-Session`, una cookie principal/auxiliar remanente no basta para recuperar la sesión.
+
+Una recarga de la misma pestaña conserva el identificador temporal de esa pestaña para no provocar un logout accidental durante `F5`/reload.
+
+El modo BOS/WebBrowser HTTP local conserva su excepción controlada y no depende de este registro de pestañas, porque algunos navegadores embebidos no implementan almacenamiento moderno de forma fiable.
 
 ## CORS
 

@@ -13,6 +13,7 @@ import {
 import type { OperationalIdentity, OperationalModule } from '../operationalNavigation';
 import type { DashboardData, FlexibleRecord } from '../types';
 import type { OperationalSectionConfig, OperationalSectionItem } from '../operationalSectionConfig';
+import { displayOperationalState, isNormalCommunication } from '../operationalDisplay';
 import ChartEmptyState from './ChartEmptyState';
 import MetricPair from './MetricPair';
 import ModuleHistoryPanel from './ModuleHistoryPanel';
@@ -61,7 +62,7 @@ function statusType(value: unknown): string {
   const text = String(value || '').toLowerCase();
   if (text.includes('revisión') || text.includes('atrasada') || text.includes('parcial')) return 'warning';
   if (text.includes('sin histórico') || text.includes('sin registro') || text.includes('sin lectura')) return 'communication';
-  if (text.includes('apagado') || text.includes('sin flujo')) return 'idle';
+  if (text.includes('apagado') || text.includes('sin flujo') || text.includes('detenido')) return 'idle';
   if (text.includes('activo') || text.includes('operando')) return 'normal';
   if (text.includes('actividad')) return text.includes('sin actividad') ? 'idle' : 'normal';
   return 'idle';
@@ -303,15 +304,17 @@ export default function OperationalModuleSection({
       )}
 
       <section className="panel fade-up">
-        <PanelHeader title={labels?.cardTitle || `Elementos de ${title.toLowerCase()}`} subtitle="Lectura actual y métricas generales; selecciona una tarjeta para abrir su análisis" />
+        <PanelHeader title={labels?.cardTitle || `Elementos de ${title.toLowerCase()}`} subtitle="Lectura actual y datos principales; selecciona una tarjeta para abrir su análisis" />
         {controller.error ? <div className="status-pill alert">{controller.error}</div> : null}
 
         <div className={`operational-card-grid ${module === 'well' ? 'operational-well-grid' : ''}`}>
           {rows.map((row, index) => {
             const identity = resolveOperationalIdentity(row, index, module);
             const activity = periodMessage(row);
-            const state = String(row.current_state || (currentFlow(row) === null ? 'Sin registros' : currentFlow(row)! > 0 ? 'Activo' : 'Sin flujo'));
+            const rawState = String(row.current_state || (currentFlow(row) === null ? 'Sin registros' : currentFlow(row)! > 0 ? 'Activo' : 'Sin flujo'));
+            const state = displayOperationalState(rawState);
             const communication = String(row.communication || row.estado_comunicacion || 'Sin lectura');
+            const communicationNeedsAttention = !isNormalCommunication(communication);
             const volume = number(row.period_m3);
             const flow = currentFlow(row);
             const totalizer = number(row.current_totalizer_m3 ?? row.totalizador_m3);
@@ -329,24 +332,23 @@ export default function OperationalModuleSection({
                         <span>{title}</span>
                         <strong>{itemName(row, index)}</strong>
                       </div>
-                      <StatusBadge type={statusType(state)}>{state}</StatusBadge>
+                      <StatusBadge type={statusType(rawState)}>{state}</StatusBadge>
                     </div>
                     <div className="metric-pairs-grid operational-metric-grid">
                       <MetricPair label="Flujo actual" value={flow === null ? 'Sin dato' : fmt(flow)} unit={flow === null ? '' : String(row.flow_unit || 'L/s')} />
                       <MetricPair label="Totalizador actual" value={totalizer === null ? 'Sin totalizador' : fmt(totalizer)} unit={totalizer === null ? '' : 'm³'} />
                       <MetricPair
-                        label="Volumen validado del periodo"
+                        label="Volumen del periodo"
                         value={volume === null ? 'No disponible' : fmt(volume)}
                         unit={volume === null ? '' : 'm³'}
                       />
-                      <MetricPair label="Validación" value={String(row.validation || (volume === null ? 'Sin volumen validado' : row.has_discontinuities ? 'Validación parcial' : 'Validado'))} />
                       <MetricPair label="Actividad del periodo" value={activity} />
-                      <MetricPair label="Tiempo activo" value={number(row.active_minutes) === null ? '—' : fmt(row.active_minutes)} unit={number(row.active_minutes) === null ? '' : 'min'} />
-                      <MetricPair label="Cobertura" value={number(row.coverage_percent) === null ? '—' : fmt(row.coverage_percent)} unit={number(row.coverage_percent) === null ? '' : '%'} />
                     </div>
                   </div>
                   <div className="operational-card-footer">
-                    <span className={communication.toLowerCase().includes('actual') ? 'online' : 'warning'}><i />{communication}</span>
+                    {communicationNeedsAttention
+                      ? <span className="warning"><i />{communication}</span>
+                      : <span className="last-reading-label">Última lectura</span>}
                     <strong>{formatSqlDate(row.last_update || row.ultima_lectura)}</strong>
                     <span className="open-detail-link">Abrir detalle</span>
                   </div>
@@ -381,7 +383,7 @@ export default function OperationalModuleSection({
         <div className="pozos-table-scroll">
           <table className="pozos-operacion-table">
             <thead>
-              <tr><th>Elemento</th><th>Estado actual</th><th>Flujo actual</th><th>Apertura</th><th>Cierre</th><th>Volumen periodo</th><th>Actividad</th><th>Tiempo activo</th><th>Cobertura</th><th>Comunicación</th><th>Última actualización</th></tr>
+              <tr><th>Elemento</th><th>Estado actual</th><th>Flujo actual</th><th>Totalizador inicial</th><th>Totalizador final</th><th>Volumen periodo</th><th>Actividad</th><th>Tiempo activo</th><th>Cobertura</th><th>Comunicación</th><th>Última actualización</th></tr>
             </thead>
             <tbody>
               {rows.map((row, index) => {
@@ -389,7 +391,7 @@ export default function OperationalModuleSection({
                 return (
                   <tr key={`table-${module}-${identity}`}>
                     <td>{itemName(row, index)}</td>
-                    <td>{String(row.current_state || 'Sin registros')}</td>
+                    <td>{displayOperationalState(row.current_state || 'Sin registros')}</td>
                     <td>{currentFlow(row) === null ? '—' : `${fmt(currentFlow(row))} ${String(row.flow_unit || 'L/s')}`}</td>
                     <td>{number(row.period_open_m3) === null ? '—' : `${fmt(row.period_open_m3)} m³`}</td>
                     <td>{number(row.period_close_m3) === null ? '—' : `${fmt(row.period_close_m3)} m³`}</td>

@@ -21,7 +21,11 @@ class TotalizerValidationConfig:
     absolute_volume_tolerance_m3: float = 3.0
     relative_volume_tolerance: float = 0.40
     zero_flow_expected_threshold_m3: float = 0.05
-    zero_flow_increment_tolerance_m3: float = 0.50
+    # Small totalizer updates can arrive asynchronously with respect to the
+    # instantaneous flow sample. Keep the tolerance aligned with the general
+    # absolute engineering tolerance so normal batched PLC updates are not
+    # classified as discontinuities.
+    zero_flow_increment_tolerance_m3: float = 3.0
     max_flow_gap_seconds: float = 300.0
     minimum_flow_coverage_ratio: float = 0.50
 
@@ -244,12 +248,24 @@ def analyze_totalizer_series(
 
     for row in rows[first_index + 1:]:
         elapsed_sample = max((row.timestamp - previous_row.timestamp).total_seconds(), 0.0)
-        if 0 < elapsed_sample <= config.max_flow_gap_seconds and previous_row.instant_value is not None:
-            integrated = _flow_volume_m3(previous_row.instant_value, elapsed_sample, flow_unit)
-            if integrated is not None:
-                expected_since_update += integrated
-                covered_flow_seconds += elapsed_sample
-                flow_validation_seen = True
+        if 0 < elapsed_sample <= config.max_flow_gap_seconds:
+            # The SCADA totalizer and instantaneous flow are not guaranteed to
+            # update in the same acquisition cycle. Using only the previous
+            # flow sample creates a one-minute phase bias at starts/stops. A
+            # trapezoidal estimate is symmetric and remains conservative when
+            # only one endpoint has flow data.
+            endpoint_flows = [
+                value
+                for value in (previous_row.instant_value, row.instant_value)
+                if value is not None
+            ]
+            if endpoint_flows:
+                representative_flow = sum(endpoint_flows) / len(endpoint_flows)
+                integrated = _flow_volume_m3(representative_flow, elapsed_sample, flow_unit)
+                if integrated is not None:
+                    expected_since_update += integrated
+                    covered_flow_seconds += elapsed_sample
+                    flow_validation_seen = True
         previous_row = row
 
         if row.total_value is None:
@@ -273,7 +289,7 @@ def analyze_totalizer_series(
             reject_reason = 'reinicio_o_caida_de_totalizador'
         elif require_flow_validation and not physical_validation_available:
             reject_reason = 'flujo_insuficiente_para_validar_incremento'
-        elif physical_validation_available and not _is_increment_compatible(
+        elif require_flow_validation and physical_validation_available and not _is_increment_compatible(
             increment,
             expected_since_update,
             config=config,

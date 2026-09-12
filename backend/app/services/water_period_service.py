@@ -27,6 +27,8 @@ from app.services.durango_well_history_fallback import query_bos_well_rows
 from app.services.operation_semantics import expected_minute_samples, interval_operation_metrics, period_activity_label
 from app.services.plant_time import effective_local_end, local_now_naive, local_to_source_naive, source_to_local_naive
 from app.services.totalizer_quality import TotalizerAnalysis, analyze_totalizer_series
+from app.services.water_interval_reconciliation import reconcile_interval
+from app.services.water_quality import build_quality_diagnostic, classify_water_quality
 
 logger = logging.getLogger(__name__)
 LOCAL_ZONE = ZoneInfo(LOCAL_TIMEZONE)
@@ -144,7 +146,7 @@ def query_readings_window(sensor_ids: list[int], start_dt: datetime, end_dt: dat
         raise WaterPeriodError('No fue posible consultar la información del periodo.', status='sql_error') from exc
 
 
-def query_previous_closes(sensor_ids: list[int], before_dt: datetime) -> dict[int, tuple[datetime | None, float | None]]:
+def query_previous_closes(sensor_ids: list[int], before_dt: datetime) -> dict[int, tuple[datetime | None, float | None, float | None]]:
     placeholders, params = _sensor_params(sensor_ids)
     params['before_dt'] = local_to_source_naive(before_dt, LOCAL_TIMEZONE)
     sql = text(f"""
@@ -153,6 +155,7 @@ def query_previous_closes(sensor_ids: list[int], before_dt: datetime) -> dict[in
                 reading.sensor_id,
                 COALESCE(reading.ts_local, reading.ts_minute) AS operational_ts,
                 TRY_CONVERT(float, reading.total_value) AS total_value,
+                TRY_CONVERT(float, reading.instant_value) AS instant_value,
                 ROW_NUMBER() OVER (
                     PARTITION BY reading.sensor_id
                     ORDER BY COALESCE(reading.ts_local, reading.ts_minute) DESC
@@ -163,7 +166,7 @@ def query_previous_closes(sensor_ids: list[int], before_dt: datetime) -> dict[in
               AND TRY_CONVERT(float, reading.total_value) IS NOT NULL
               AND TRY_CONVERT(float, reading.total_value) > 0
         )
-        SELECT sensor_id, operational_ts, total_value
+        SELECT sensor_id, operational_ts, total_value, instant_value
         FROM ranked
         WHERE row_number = 1
     """)
@@ -173,7 +176,15 @@ def query_previous_closes(sensor_ids: list[int], before_dt: datetime) -> dict[in
                 return {}
             rows = session.execute(sql, params).fetchall()
         return {
-            int(row._mapping['sensor_id']): (source_to_local_naive(row._mapping.get('operational_ts'), LOCAL_TIMEZONE), _num(row._mapping.get('total_value')))
+            int(row._mapping['sensor_id']): (
+                source_to_local_naive(row._mapping.get('operational_ts'), LOCAL_TIMEZONE),
+                _num(row._mapping.get('total_value')),
+                normalize_flow_lps(
+                    row._mapping.get('sensor_id'),
+                    row._mapping.get('instant_value'),
+                    source_to_local_naive(row._mapping.get('operational_ts'), LOCAL_TIMEZONE),
+                ),
+            )
             for row in rows
         }
     except SQLAlchemyError:
@@ -231,7 +242,10 @@ def build_period_item(
     latest = ordered[-1] if ordered else None
     latest_time = _dt(latest.get('operational_ts')) if latest else None
     communication, communication_status = _communication(latest_time, end_day)
-    previous_stamp, previous_value = previous_close or (None, None)
+    previous_values = tuple(previous_close or ())
+    previous_stamp = previous_values[0] if len(previous_values) > 0 else None
+    previous_value = previous_values[1] if len(previous_values) > 1 else None
+    previous_flow = previous_values[2] if len(previous_values) > 2 else None
 
     totalizer_values = [_num(row.get('total_value')) for row in ordered]
     totalizer_values = [value for value in totalizer_values if value is not None and value > 0]
@@ -262,6 +276,51 @@ def build_period_item(
         validated_volume_m3=period_volume,
         has_discontinuities=analysis.has_discontinuities,
     ).payload()
+    reconciliation = (
+        reconcile_interval(
+            ordered,
+            start=coverage_start,
+            end=coverage_end,
+            previous_reading=previous_close,
+        )
+        if coverage_start and coverage_end
+        else None
+    )
+    reconciled_analysis_rows = list(ordered)
+    if previous_stamp is not None and previous_value is not None:
+        reconciled_analysis_rows.insert(0, {
+            'operational_ts': previous_stamp,
+            'total_value': previous_value,
+            'instant_value': previous_flow,
+            'source': 'previous_query',
+        })
+    reconciled_analysis = _analysis_rows(reconciled_analysis_rows, contract) if reconciled_analysis_rows else analysis
+    reconciled_volume = reconciled_analysis.validated_volume_m3
+    reconciled_reliable = bool(
+        reconciliation
+        and reconciliation.boundary_complete
+        and reconciled_analysis.reliable
+        and reconciliation.closing_m3 is not None
+    )
+    quality = classify_water_quality(
+        samples_received=operation['samples_received'],
+        samples_expected=operation['samples_expected'],
+        coverage_percent=operation['coverage_percent'],
+        volume_m3=reconciled_volume,
+        volume_reliable=reconciled_reliable,
+        boundary_complete=bool(reconciliation and reconciliation.boundary_complete),
+        has_discontinuities=reconciled_analysis.has_discontinuities,
+    )
+    quality_diagnostic = build_quality_diagnostic(
+        quality_status=quality.quality_status,
+        coverage_percent=quality.coverage_percent,
+        boundary_complete=bool(reconciliation and reconciliation.boundary_complete),
+        missing_previous_reading=bool(reconciliation is None or reconciliation.missing_previous_reading),
+        closing_m3=reconciliation.closing_m3 if reconciliation else None,
+        volume_m3=reconciled_volume,
+        volume_reliable=reconciled_reliable,
+        discarded_events=list(reconciled_analysis.discarded_events),
+    )
     activity = period_activity_label(
         samples_received=operation['samples_received'],
         active_samples=operation['active_samples'],
@@ -349,6 +408,35 @@ def build_period_item(
         'ultima_lectura': latest_time.isoformat(timespec='seconds') if latest_time else None,
         'discarded_totalizer_event_details': list(analysis.discarded_events),
         'period_source': period_source,
+        # Transitional common reconciliation contract. Existing legacy volume
+        # fields remain untouched in this incremental; consumers migrate to
+        # these explicit boundaries in the following homologation steps.
+        'reconciled_open_m3': reconciliation.opening_m3 if reconciliation else None,
+        'reconciled_close_m3': reconciliation.closing_m3 if reconciliation else None,
+        'reconciled_validated_volume_m3': reconciled_volume,
+        'reconciled_volume_reliable': reconciled_reliable,
+        'reconciled_discarded_volume_m3': reconciled_analysis.discarded_volume_m3,
+        'reconciled_discarded_totalizer_events': reconciled_analysis.discarded_totalizer_events,
+        'reconciled_discarded_totalizer_event_details': list(reconciled_analysis.discarded_events),
+        'reconciled_has_discontinuities': reconciled_analysis.has_discontinuities,
+        'opening_source': reconciliation.opening_source if reconciliation else 'no_data',
+        'missing_previous_reading': reconciliation.missing_previous_reading if reconciliation else True,
+        'boundary_complete': reconciliation.boundary_complete if reconciliation else False,
+        'previous_valid_reading': (
+            reconciliation.previous_valid_reading.payload()
+            if reconciliation and reconciliation.previous_valid_reading
+            else None
+        ),
+        'first_period_reading': (
+            reconciliation.first_period_reading.payload()
+            if reconciliation and reconciliation.first_period_reading
+            else None
+        ),
+        'quality_data_status': quality.data_status,
+        'quality_status': quality.quality_status,
+        'quality_label': quality.quality_label,
+        'quality_volume_reliable': quality.volume_reliable,
+        **quality_diagnostic,
     }
 
 
@@ -392,6 +480,10 @@ def summarize_period_items(group_items: list[dict[str, Any]]) -> dict[str, Any]:
         if flow > threshold:
             current_flow_count += 1
     partial_count = sum(1 for item in calculable if bool(item.get('has_discontinuities')))
+    quality_counts: dict[str, int] = {}
+    for item in group_items:
+        quality_key = str(item.get('quality_status') or 'legacy')
+        quality_counts[quality_key] = quality_counts.get(quality_key, 0) + 1
     received_samples = sum(int(item.get('samples_received') or item.get('samples') or 0) for item in group_items)
     expected_samples = sum(int(item.get('samples_expected') or 0) for item in group_items)
     sample_coverage_percent = min((received_samples / expected_samples) * 100.0, 100.0) if expected_samples else 0.0
@@ -417,6 +509,7 @@ def summarize_period_items(group_items: list[dict[str, Any]]) -> dict[str, Any]:
         'samples_received': received_samples,
         'samples_expected': expected_samples,
         'sample_coverage_percent': round(sample_coverage_percent, 2),
+        'quality_counts': quality_counts,
     }
 
 

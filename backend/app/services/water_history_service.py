@@ -37,7 +37,7 @@ from app.services.water_bos_service import get_bos_water_dashboard_payload
 
 logger = logging.getLogger(__name__)
 LOCAL_ZONE = ZoneInfo(LOCAL_TIMEZONE)
-Aggregation = Literal['quarter_hour', 'hourly', 'daily']
+Aggregation = Literal['minute', 'quarter_hour', 'hourly', 'daily']
 Module = Literal['well', 'line', 'flow']
 _CACHE: dict[str, dict[str, Any]] = {}
 CACHE_TTL_CURRENT_SECONDS = 60
@@ -66,13 +66,15 @@ def _validate(module: str, sensor_id: Any, start_date: str, end_date: str, aggre
     allowed_identities = {identity_key(value) for value in SENSORS_BY_MODULE[module]}
     if requested_identity not in allowed_identities:
         raise ValueError('El elemento solicitado no pertenece al contrato de Durango.')
-    if aggregation not in {'quarter_hour', 'hourly', 'daily'}:
+    if aggregation not in {'minute', 'quarter_hour', 'hourly', 'daily'}:
         raise ValueError('Agrupación histórica no permitida.')
     start = _parse_date(start_date)
     end = _parse_date(end_date)
     if start > end:
         start, end = end, start
     days = (end - start).days + 1
+    if aggregation == 'minute' and days > 1:
+        raise ValueError('La agrupación de 1 minuto permite un máximo de 1 día.')
     if aggregation == 'quarter_hour' and days > 7:
         raise ValueError('La agrupación de 15 minutos permite un máximo de 7 días.')
     if aggregation == 'hourly' and days > 31:
@@ -83,6 +85,8 @@ def _validate(module: str, sensor_id: Any, start_date: str, end_date: str, aggre
 
 
 def _step(aggregation: Aggregation) -> timedelta:
+    if aggregation == 'minute':
+        return timedelta(minutes=1)
     if aggregation == 'quarter_hour':
         return timedelta(minutes=15)
     if aggregation == 'hourly':
@@ -91,6 +95,8 @@ def _step(aggregation: Aggregation) -> timedelta:
 
 
 def _floor(value: datetime, aggregation: Aggregation) -> datetime:
+    if aggregation == 'minute':
+        return value.replace(second=0, microsecond=0)
     if aggregation == 'quarter_hour':
         return value.replace(minute=(value.minute // 15) * 15, second=0, microsecond=0)
     if aggregation == 'hourly':
@@ -325,6 +331,28 @@ def _aggregate(
         maxs = [_num(row.get('flow_max')) for row in bucket_rows]
         mins = [value for value in mins if value is not None]
         maxs = [value for value in maxs if value is not None]
+        if aggregation == 'minute':
+            observed_open = next((_num(row.get('total_open')) for row in bucket_rows if _num(row.get('total_open')) is not None), None)
+            observed_close = next((_num(row.get('total_close')) for row in reversed(bucket_rows) if _num(row.get('total_close')) is not None), None)
+            result[bucket] = {
+                'samples': samples,
+                'active_samples': active_samples,
+                'flow_avg': flow_avg,
+                'flow_active_avg': flow_active_avg,
+                'flow_min': min(mins) if mins else None,
+                'flow_max': max(maxs) if maxs else None,
+                'total_open': observed_open,
+                'total_close': observed_close,
+                'volume': None,
+                'reliable': False,
+                'status': 'minute_observation',
+                'validated_volume_m3': None,
+                'discarded_volume_m3': 0.0,
+                'discarded_totalizer_events': 0,
+                'discarded_totalizer_event_details': [],
+                'has_discontinuities': False,
+            }
+            continue
         total_points = list(validation_by_bucket.get(bucket) or [])
         if not total_points:
             # For ranges longer than the bounded physical-validation window, or
@@ -619,21 +647,26 @@ def get_water_history(*, module: str, sensor_id: Any, start_date: str, end_date:
         else:
             raw_rows = query_lavadora_rows(query_start_dt, query_end_dt).get(str(identity), [])
             source = 'dbo.SensorsBOS_Lavadoras' if raw_rows else 'no_data'
-        rows = _bos_rows_to_15m(identity, raw_rows)
-        validation_rows = raw_rows
+        rows = _raw_rows_to_minute(identity, raw_rows) if aggregation == 'minute' else _bos_rows_to_15m(identity, raw_rows)
+        validation_rows = [] if aggregation == 'minute' else raw_rows
     elif not legacy_only:
         try:
-            rows = _query_15m(int(identity), query_start_dt, query_end_dt) if query_end_dt > query_start_dt else []
+            rows = (
+                _raw_rows_to_minute(identity, _query_minute_history_rows([int(identity)], query_start_dt, query_end_dt))
+                if aggregation == 'minute' and query_end_dt > query_start_dt
+                else _query_15m(int(identity), query_start_dt, query_end_dt) if query_end_dt > query_start_dt
+                else []
+            )
         except WaterHistoryError as exc:
             if module != 'well' or start != end:
                 raise exc
             fallback_rows = query_bos_well_rows(int(identity), query_start_dt, query_end_dt)
             if not fallback_rows:
                 raise exc
-            rows = _bos_rows_to_15m(identity, fallback_rows)
-            validation_rows = fallback_rows
+            rows = _raw_rows_to_minute(identity, fallback_rows) if aggregation == 'minute' else _bos_rows_to_15m(identity, fallback_rows)
+            validation_rows = [] if aggregation == 'minute' else fallback_rows
             source = 'bos_fallback'
-        if module == 'well' and not validation_rows and query_end_dt > query_start_dt:
+        if module == 'well' and aggregation != 'minute' and not validation_rows and query_end_dt > query_start_dt:
             validation_rows = _query_physical_validation_rows([int(identity)], query_start_dt, query_end_dt)
 
     points = _build_points(
@@ -746,6 +779,83 @@ def _query_15m_multi(sensor_ids: list[int], start_dt: datetime, end_dt: datetime
         raise WaterHistoryError('No fue posible consultar el histórico de planta.', status='sql_error') from exc
 
 
+def _query_minute_history_rows(sensor_ids: list[int], start_dt: datetime, end_dt: datetime) -> list[dict[str, Any]]:
+    params: dict[str, Any] = {
+        'start_dt': local_to_source_naive(start_dt, LOCAL_TIMEZONE),
+        'end_dt': local_to_source_naive(end_dt, LOCAL_TIMEZONE),
+        'pozo_1_sensor_id': POZO_1_FLOW_SENSOR_ID,
+        'pozo_1_flow_cutoff': POZO_1_FLOW_CALIBRATION_CUTOFF_LOCAL,
+        'pozo_1_legacy_factor': POZO_1_LEGACY_FLOW_NORMALIZATION_FACTOR,
+    }
+    placeholders: list[str] = []
+    for index, sensor_id in enumerate(sensor_ids):
+        key = f'sensor_{index}'
+        placeholders.append(f':{key}')
+        params[key] = int(sensor_id)
+    sql = text(f"""
+        SELECT
+            reading.sensor_id,
+            COALESCE(reading.ts_local, reading.ts_minute) AS reading_ts,
+            CASE
+                WHEN reading.sensor_id = :pozo_1_sensor_id
+                     AND COALESCE(reading.ts_local, reading.ts_minute) < :pozo_1_flow_cutoff
+                THEN TRY_CONVERT(float, reading.instant_value) * :pozo_1_legacy_factor
+                ELSE TRY_CONVERT(float, reading.instant_value)
+            END AS flow_value,
+            TRY_CONVERT(float, reading.total_value) AS total_value
+        FROM iot.readings_minute AS reading
+        WHERE reading.sensor_id IN ({', '.join(placeholders)})
+          AND COALESCE(reading.ts_local, reading.ts_minute) >= :start_dt
+          AND COALESCE(reading.ts_local, reading.ts_minute) < :end_dt
+        ORDER BY reading.sensor_id, COALESCE(reading.ts_local, reading.ts_minute)
+    """)
+    try:
+        with SessionLocal() as session:
+            exists = session.execute(text("SELECT CASE WHEN OBJECT_ID('iot.readings_minute','U') IS NULL THEN 0 ELSE 1 END")).scalar()
+            if not exists:
+                raise WaterHistoryError('La fuente histórica no está disponible.', status='no_history_source')
+            rows = [dict(row._mapping) for row in session.execute(sql, params).fetchall()]
+            return _localized_rows(rows, 'reading_ts', source_timezone=LOCAL_TIMEZONE, normalize_flows=False)
+    except WaterHistoryError:
+        raise
+    except OperationalError as exc:
+        message = str(exc).lower()
+        status = 'timeout' if any(token in message for token in ('timeout', 'hyt00', 'hyt01')) else 'sql_error'
+        raise WaterHistoryError('La consulta histórica tardó demasiado.' if status == 'timeout' else 'No fue posible consultar el histórico de planta.', status=status) from exc
+    except SQLAlchemyError as exc:
+        raise WaterHistoryError('No fue posible consultar el histórico de planta.', status='sql_error') from exc
+
+
+def _raw_rows_to_minute(identity: Any, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    grouped: dict[datetime, list[dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        stamp = _dt(row.get('reading_ts') or row.get('operational_ts'))
+        if stamp is not None:
+            grouped[_floor(stamp, 'minute')].append(row)
+    result: list[dict[str, Any]] = []
+    for bucket, bucket_rows in sorted(grouped.items()):
+        bucket_rows = sorted(bucket_rows, key=lambda row: _dt(row.get('reading_ts') or row.get('operational_ts')) or datetime.min)
+        flows = [_num(row.get('flow_value') if row.get('flow_value') is not None else row.get('instant_value')) for row in bucket_rows]
+        flows = [value for value in flows if value is not None]
+        active_flows = [value for value in flows if value > 0]
+        totals = [_num(row.get('total_value')) for row in bucket_rows]
+        totals = [value for value in totals if value is not None]
+        has_sample = bool(flows or totals)
+        result.append({
+            'sensor_id': identity,
+            'bucket_start': bucket,
+            'samples': 1 if has_sample else 0,
+            'active_samples': 1 if active_flows else 0,
+            'flow_avg': sum(flows) / len(flows) if flows else None,
+            'flow_active_avg': sum(active_flows) / len(active_flows) if active_flows else None,
+            'flow_min': min(flows) if flows else None,
+            'flow_max': max(flows) if flows else None,
+            'total_open': totals[0] if totals else None,
+            'total_close': totals[-1] if totals else None,
+        })
+    return result
+
+
 def _bos_rows_to_15m(sensor_id: int, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     grouped: dict[datetime, list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
@@ -814,10 +924,15 @@ def get_water_history_module(*, module: str, start_date: str, end_date: str, agg
         ]
         if line_flow_ids and query_end_dt > query_start_dt:
             try:
-                for row in _query_15m_multi(line_flow_ids, query_start_dt, query_end_dt):
-                    row_sensor = int(row.get('sensor_id') or 0)
-                    if row_sensor in grouped:
-                        grouped[row_sensor].append(row)
+                if aggregation == 'minute':
+                    raw_line_rows = _query_minute_history_rows(line_flow_ids, query_start_dt, query_end_dt)
+                    for identity in line_flow_ids:
+                        grouped[identity] = _raw_rows_to_minute(identity, [row for row in raw_line_rows if int(row.get('sensor_id') or 0) == identity])
+                else:
+                    for row in _query_15m_multi(line_flow_ids, query_start_dt, query_end_dt):
+                        row_sensor = int(row.get('sensor_id') or 0)
+                        if row_sensor in grouped:
+                            grouped[row_sensor].append(row)
             except WaterHistoryError as exc:
                 query_error = exc
         washer_rows = query_lavadora_rows(query_start_dt, query_end_dt)
@@ -826,21 +941,27 @@ def get_water_history_module(*, module: str, start_date: str, end_date: str, agg
             if item_contract(identity).get('table') == 'dbo.SensorsBOS_Linea':
                 continue
             raw_rows = jarabes_rows if is_jarabes_identity(identity) else washer_rows.get(str(identity), [])
-            grouped[identity] = _bos_rows_to_15m(identity, raw_rows)
-            validation_grouped[identity] = raw_rows
+            grouped[identity] = _raw_rows_to_minute(identity, raw_rows) if aggregation == 'minute' else _bos_rows_to_15m(identity, raw_rows)
+            validation_grouped[identity] = [] if aggregation == 'minute' else raw_rows
     elif not legacy_only:
         numeric_ids = [int(value) for value in identities]
         rows: list[dict[str, Any]] = []
         try:
             if query_end_dt > query_start_dt:
-                rows = _query_15m_multi(numeric_ids, query_start_dt, query_end_dt)
+                if aggregation == 'minute':
+                    raw_rows = _query_minute_history_rows(numeric_ids, query_start_dt, query_end_dt)
+                    for identity in numeric_ids:
+                        grouped[identity] = _raw_rows_to_minute(identity, [row for row in raw_rows if int(row.get('sensor_id') or 0) == identity])
+                else:
+                    rows = _query_15m_multi(numeric_ids, query_start_dt, query_end_dt)
         except WaterHistoryError as exc:
             query_error = exc
-        for row in rows:
-            row_sensor = int(row.get('sensor_id') or 0)
-            if row_sensor in grouped:
-                grouped[row_sensor].append(row)
-        if module == 'well' and query_end_dt > query_start_dt:
+        if aggregation != 'minute':
+            for row in rows:
+                row_sensor = int(row.get('sensor_id') or 0)
+                if row_sensor in grouped:
+                    grouped[row_sensor].append(row)
+        if module == 'well' and aggregation != 'minute' and query_end_dt > query_start_dt:
             for row in _query_physical_validation_rows(numeric_ids, query_start_dt, query_end_dt):
                 validation_sensor = int(row.get('sensor_id') or 0)
                 if validation_sensor in validation_grouped:
@@ -865,8 +986,8 @@ def get_water_history_module(*, module: str, start_date: str, end_date: str, agg
         if not sensor_rows and module == 'well' and start == end and query_end_dt > query_start_dt:
             bos_rows = query_bos_well_rows(int(identity), query_start_dt, query_end_dt)
             if bos_rows:
-                sensor_rows = _bos_rows_to_15m(identity, bos_rows)
-                sensor_validation_rows = bos_rows
+                sensor_rows = _raw_rows_to_minute(identity, bos_rows) if aggregation == 'minute' else _bos_rows_to_15m(identity, bos_rows)
+                sensor_validation_rows = [] if aggregation == 'minute' else bos_rows
                 source_status = 'bos_fallback'
         points = _build_points(
             identity, aggregation, requested_start_dt, requested_end_dt, sensor_rows, sensor_validation_rows,

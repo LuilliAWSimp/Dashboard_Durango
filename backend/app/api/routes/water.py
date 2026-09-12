@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
 
@@ -10,7 +10,11 @@ from app.schemas.export import DailyWaterReportEmailRequest
 from app.schemas.water import WaterDashboardPayload, WaterSourceActivateResponse, WaterSourceInfo, WaterSourceValidation
 from app.services.email_service import EmailDeliveryError, EmailNotConfiguredError, ensure_smtp_configured, send_email_with_bytes_attachments
 from app.services.water_daily_report_service import ReportDataUnavailableError, build_daily_water_report_excel, build_daily_water_report_pdf, get_daily_water_report
+from app.services.water_daily_review_service import DailyReviewError, get_daily_water_review
+from app.services.water_five_minute_export_service import FiveMinuteExportError, build_five_minute_excel, get_five_minute_export_data
 from app.services.water_history_service import WaterHistoryError, get_water_history, get_water_history_module, get_wells_minute_flow
+from app.services.water_historical_export_service import HistoricalExportError, build_full_historical_excel, build_full_historical_pdf
+from app.services.water_module_history_pdf_service import build_module_history_pdf
 from app.services.water_service import WATER_SECTION_META, get_water_dashboard_payload, get_water_report_catalog
 from app.services.water_shift_service import get_shift_consumption_data
 from app.services.water_source_service import activate_source, list_sources, read_upload_json, register_upload, validate_source_data
@@ -40,7 +44,7 @@ def read_water_history(
     sensor_id: str = Query(..., min_length=1),
     start_date: str = Query(...),
     end_date: str = Query(...),
-    aggregation: str = Query(..., pattern='^(quarter_hour|hourly|daily)$'),
+    aggregation: str = Query(..., pattern='^(minute|quarter_hour|hourly|daily)$'),
     force_refresh: bool = Query(False),
 ):
     try:
@@ -55,7 +59,7 @@ def read_water_history(
 
 
 @router.get('/history/module')
-def read_water_history_module(module: str = Query(..., pattern='^(well|line|flow)$'), start_date: str = Query(...), end_date: str = Query(...), aggregation: str = Query(..., pattern='^(quarter_hour|hourly|daily)$'), force_refresh: bool = Query(False)):
+def read_water_history_module(module: str = Query(..., pattern='^(well|line|flow)$'), start_date: str = Query(...), end_date: str = Query(...), aggregation: str = Query(..., pattern='^(minute|quarter_hour|hourly|daily)$'), force_refresh: bool = Query(False)):
     try:
         return get_water_history_module(module=module, start_date=start_date, end_date=end_date, aggregation=aggregation, force_refresh=force_refresh)
     except ValueError as exc:
@@ -67,6 +71,48 @@ def read_water_history_module(module: str = Query(..., pattern='^(well|line|flow
         raise HTTPException(status_code=500, detail='No fue posible consultar el histórico por módulo.') from exc
 
 
+@router.get('/history/five-minute/excel')
+def download_water_history_five_minute_excel(
+    module: str = Query(..., pattern='^(well|line|flow)$'),
+    element_id: str = Query(..., min_length=1),
+    start_date: str = Query(...),
+    end_date: str = Query(...),
+):
+    try:
+        payload = get_five_minute_export_data(
+            module=module,
+            element_id=element_id,
+            start_date=start_date,
+            end_date=end_date,
+        )
+        content, filename = build_five_minute_excel(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except FiveMinuteExportError as exc:
+        raise HTTPException(status_code=504 if exc.status == 'timeout' else 503, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception('No fue posible generar el Excel conciliado de 5 minutos: %s', exc)
+        raise HTTPException(status_code=500, detail='No fue posible generar el Excel conciliado de 5 minutos.') from exc
+    return Response(
+        content=content,
+        media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post('/history/module/pdf')
+def download_water_history_module_pdf(payload: dict[str, Any]):
+    try:
+        content, filename = build_module_history_pdf(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return Response(
+        content=content,
+        media_type='application/pdf',
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+    )
+
+
 @router.get('/wells/minute-flow')
 def read_wells_minute_flow(start_datetime: str = Query(...), end_datetime: str = Query(...), force_refresh: bool = Query(False)):
     try:
@@ -76,6 +122,29 @@ def read_wells_minute_flow(start_datetime: str = Query(...), end_datetime: str =
     except Exception as exc:
         logger.exception('No fue posible consultar el flujo minuto a minuto de pozos: %s', exc)
         raise HTTPException(status_code=500, detail='No fue posible consultar el flujo minuto a minuto de pozos.') from exc
+
+
+@router.get('/review/daily')
+def read_daily_water_review(
+    date: Optional[str] = Query(None),
+    include_shifts: bool = Query(True),
+    include_comparatives: bool = Query(True),
+    force_refresh: bool = Query(False),
+):
+    try:
+        return get_daily_water_review(
+            review_date=date,
+            include_shifts=include_shifts,
+            include_comparatives=include_comparatives,
+            force_refresh=force_refresh,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except DailyReviewError as exc:
+        raise HTTPException(status_code=504 if exc.status == 'timeout' else 503, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception('No fue posible consultar la revisión diaria conciliada: %s', exc)
+        raise HTTPException(status_code=500, detail='No fue posible consultar la revisión diaria conciliada.') from exc
 
 
 @router.get('/shifts')
@@ -117,6 +186,49 @@ def _report_or_error(
     except Exception as exc:
         logger.exception('No fue posible generar el reporte diario: %s', exc)
         raise HTTPException(status_code=500, detail='No fue posible generar el reporte diario.') from exc
+
+
+
+@router.get('/reports/historical/excel')
+def download_full_historical_excel(
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
+):
+    try:
+        content, filename = build_full_historical_excel(start_date=start_date, end_date=end_date)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except HistoricalExportError as exc:
+        raise HTTPException(status_code=504 if exc.status == 'timeout' else 503, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception('No fue posible generar el histórico completo Excel de Durango: %s', exc)
+        raise HTTPException(status_code=500, detail='No fue posible generar el histórico completo de planta.') from exc
+    return Response(
+        content=content,
+        media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get('/reports/historical/pdf')
+def download_full_historical_pdf(
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
+):
+    try:
+        content, filename = build_full_historical_pdf(start_date=start_date, end_date=end_date)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except HistoricalExportError as exc:
+        raise HTTPException(status_code=504 if exc.status == 'timeout' else 503, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception('No fue posible generar el histórico completo PDF de Durango: %s', exc)
+        raise HTTPException(status_code=500, detail='No fue posible generar el resumen histórico de planta.') from exc
+    return Response(
+        content=content,
+        media_type='application/pdf',
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get('/reports/daily')

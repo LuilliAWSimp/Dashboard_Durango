@@ -131,3 +131,19 @@ test('correo fallido conserva modal y muestra toast de error', () => {
   assert.match(reports, /title: 'No se pudo enviar el correo'/);
   assert.match(reports, /Conservamos el formulario abierto/);
 });
+
+test('centro global limita a una notificación visible y conserva cola de ocho', () => {
+  const center = readFileSync(new URL('../src/pages/pozos/components/NotificationCenter.tsx', import.meta.url), 'utf8');
+  assert.match(center, /MAX_VISIBLE_TOASTS = 1/);
+  assert.match(center, /MAX_QUEUED_TOASTS = 8/);
+  assert.match(center, /\.slice\(0, MAX_QUEUED_TOASTS\)/);
+  assert.match(center, /dedupeKey: `water-alert:\$\{alert\.id\}`/);
+});
+
+test('centro global permite minimizar, expandir y cerrar todas', () => {
+  const center = readFileSync(new URL('../src/pages/pozos/components/NotificationCenter.tsx', import.meta.url), 'utf8');
+  assert.match(center, /Minimizar notificaciones/);
+  assert.match(center, /Expandir \$\{items\.length\}/);
+  assert.match(center, /Cerrar todas/);
+  assert.match(center, /onDismissAll/);
+});

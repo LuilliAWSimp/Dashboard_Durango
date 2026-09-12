@@ -35,3 +35,25 @@ class DurangoHistoryOverviewTests(unittest.TestCase):
         self.assertEqual(first['points'][32]['flow_avg_lps'],4.0)
         self.assertEqual(first['points'][32]['totalizer_close_m3'],103.6)
 if __name__=='__main__': unittest.main()
+
+class DurangoMinuteModuleHistoryTests(unittest.TestCase):
+    def setUp(self):
+        history._CACHE.clear()
+
+    def test_minute_module_accepts_one_day_and_preserves_observed_totalizer(self):
+        raw = [
+            {'sensor_id': 1001, 'reading_ts': datetime(2026, 8, 12, 8, 0), 'flow_value': 10.0, 'total_value': 500.0},
+            {'sensor_id': 1001, 'reading_ts': datetime(2026, 8, 12, 8, 1), 'flow_value': 0.0, 'total_value': 500.2},
+        ]
+        with patch.object(history, '_query_minute_history_rows', return_value=raw), patch.object(history, 'query_bos_well_rows', return_value=[]):
+            payload = history.get_water_history_module(module='well', start_date='2026-08-12', end_date='2026-08-12', aggregation='minute', force_refresh=True)
+        pozo1 = next(item for item in payload['series'] if item['sensor_id'] == 1001)
+        point = pozo1['points'][8 * 60]
+        self.assertEqual(point['aggregation'], 'minute')
+        self.assertEqual(point['flow_avg_lps'], 10.0)
+        self.assertEqual(point['totalizer_close_m3'], 500.0)
+        self.assertIsNone(point['volume_m3'])
+
+    def test_minute_module_rejects_more_than_one_calendar_day(self):
+        with self.assertRaisesRegex(ValueError, 'máximo de 1 día'):
+            history.get_water_history_module(module='well', start_date='2026-08-12', end_date='2026-08-13', aggregation='minute', force_refresh=True)

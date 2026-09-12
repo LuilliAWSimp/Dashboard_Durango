@@ -8,8 +8,8 @@ export default function Header({ title, subtitle, now, onExport, onEmail, user, 
         {subtitle ? <div className="header-subtitle">{subtitle}</div> : null}
       </div>
       <div className="header-actions">
-        {onExport ? <button className="header-button" onClick={() => onExport('excel')}><Download size={15} /> Excel</button> : null}
-        {onExport ? <button className="header-button" onClick={() => onExport('pdf')}><FileText size={15} /> PDF</button> : null}
+        {onExport ? <button className="header-button header-export-excel" onClick={() => onExport('excel')}><Download size={15} /> Excel</button> : null}
+        {onExport ? <button className="header-button header-export-pdf" onClick={() => onExport('pdf')}><FileText size={15} /> PDF</button> : null}
         {onExport ? <button className="header-button" onClick={() => onExport('html')}><CodeXml size={15} /> HTML</button> : null}
         {onExport ? <button className="header-button" onClick={() => onExport('png')}><FileImage size={15} /> Imagen</button> : null}
         <div className="time-chip">{now}</div>

@@ -14,11 +14,13 @@ import ChartEmptyState from '../components/ChartEmptyState';
 import PanelHeader from '../components/PanelHeader';
 import StatusBadge from '../components/StatusBadge';
 import { useNotifications } from '../components/NotificationCenter';
+import ScheduledReportEmailPanel from '../components/ScheduledReportEmailPanel';
+import { downloadFullHistoricalExcel, downloadFullHistoricalPdf } from '../../../services/waterHistoricalExportService';
 
 type ReportMode = 'day' | 'range';
 type ReportSectionKey = 'wells' | 'production_lines' | 'washers' | 'jarabes';
 type ReportFilters = { date?: string; startDate?: string; endDate?: string };
-type ExportAction = 'pdf' | 'xlsx' | 'html' | null;
+type ExportAction = 'pdf' | 'xlsx' | 'html' | 'historical-excel' | 'historical-pdf' | null;
 
 const REPORT_SECTIONS: Array<{ key: ReportSectionKey; label: string }> = [
   { key: 'wells', label: 'Pozos' },
@@ -58,9 +60,9 @@ function statusType(value: unknown): string {
 }
 
 function validationStatusType(item: any): string {
-  const status = String(item?.validation_status || '').toLowerCase();
-  if (status === 'partial') return 'warning';
-  if (status === 'unavailable') return 'idle';
+  const status = String(item?.quality_status || item?.validation_status || '').toLowerCase();
+  if (status === 'partial' || status === 'partial_coverage' || status === 'review') return 'warning';
+  if (status === 'unavailable' || status === 'no_data') return 'idle';
   return statusType(validationLabel(item));
 }
 
@@ -69,9 +71,18 @@ function reportRows(report: any, key: ReportSectionKey): any[] {
 }
 
 function validationLabel(item: any): string {
-  if (item?.validated_volume_m3 !== null && item?.validated_volume_m3 !== undefined) return 'Validado';
+  if (item?.quality_label) return String(item.quality_label);
   if (item?.validation && String(item.validation) !== 'Validación parcial') return String(item.validation);
+  if (item?.validated_volume_m3 !== null && item?.validated_volume_m3 !== undefined) return 'Validado';
   return 'Sin volumen validado';
+}
+
+function qualityReason(item: any): string {
+  const reason = String(item?.quality_reason || '').trim();
+  if (!reason) return '';
+  const details = item?.quality_details && typeof item.quality_details === 'object' ? item.quality_details : {};
+  const stamp = details.timestamp ? ` · ${fmtLocalDate(details.timestamp)}` : '';
+  return `${reason}${stamp}`;
 }
 
 function ReportSkeleton() {
@@ -123,7 +134,7 @@ function ReportPreviewTable({ rows, sectionKey }: { rows: any[]; sectionKey: Rep
               <td>{item.closing_m3 == null ? 'No disponible' : `${fmt(item.closing_m3)} m³`}</td>
               <td>{item.validated_volume_m3 == null ? 'Sin volumen validado' : `${fmt(item.validated_volume_m3)} m³`}</td>
               <td><StatusBadge type={statusType(item.activity)}>{item.activity}</StatusBadge></td>
-              <td><StatusBadge type={validationStatusType(item)}>{validationLabel(item)}</StatusBadge></td>
+              <td><div className="quality-diagnostic-cell"><StatusBadge type={validationStatusType(item)}>{validationLabel(item)}</StatusBadge>{qualityReason(item) ? <small>{qualityReason(item)}</small> : null}</div></td>
               <td>{item.communication}</td>
               <td>{fmtLocalDate(item.last_update)}</td>
             </tr>
@@ -238,6 +249,27 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
     }
   };
 
+  const runHistoricalExport = async (format: 'excel' | 'pdf') => {
+    if (exportAction) return;
+    const action: ExportAction = format === 'excel' ? 'historical-excel' : 'historical-pdf';
+    setExportAction(action);
+    setError('');
+    try {
+      if (format === 'excel') await downloadFullHistoricalExcel();
+      else await downloadFullHistoricalPdf();
+    } catch (caught) {
+      const candidate = caught as { response?: { data?: { detail?: string } }; message?: string };
+      setError(candidate.response?.data?.detail || candidate.message || 'No fue posible generar el histórico completo de planta.');
+      notify({
+        tone: 'error',
+        title: 'No se pudo generar el histórico completo',
+        message: candidate.response?.data?.detail || candidate.message || 'Revisa la conexión con SQL Server e intenta nuevamente.',
+      });
+    } finally {
+      setExportAction(null);
+    }
+  };
+
   const send = async () => {
     if (!canEmail) {
       notify({ tone: 'error', title: 'Acción no permitida', message: 'Su rol no permite enviar reportes por correo.' });
@@ -328,8 +360,8 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
             <div className="report-actions-block">
               <span className="report-field-label">Acciones</span>
               <div className="report-actions" aria-label="Acciones del reporte">
-                <button type="button" className="report-action-button primary-action" disabled={isBusy} onClick={() => void runExport('pdf')}><FileDown size={17} /> {exportAction === 'pdf' ? 'Generando PDF...' : 'Generar PDF'}</button>
-                <button type="button" className="report-action-button" disabled={isBusy} onClick={() => void runExport('xlsx')}><FileSpreadsheet size={17} /> {exportAction === 'xlsx' ? 'Generando Excel...' : 'Exportar Excel'}</button>
+                <button type="button" className="report-action-button export-pdf-button" disabled={isBusy} onClick={() => void runExport('pdf')}><FileDown size={17} /> {exportAction === 'pdf' ? 'Generando PDF...' : 'Generar PDF'}</button>
+                <button type="button" className="report-action-button export-excel-button" disabled={isBusy} onClick={() => void runExport('xlsx')}><FileSpreadsheet size={17} /> {exportAction === 'xlsx' ? 'Generando Excel...' : 'Exportar Excel'}</button>
                 <button type="button" className="report-action-button" disabled={isBusy} onClick={() => void runExport('html')}><Eye size={17} /> {exportAction === 'html' ? 'Generando vista...' : 'Vista HTML'}</button>
                 {canEmail ? <button type="button" className="report-action-button" disabled={sending} onClick={() => setEmailOpen(true)}><Mail size={17} /> Enviar por correo</button> : null}
               </div>
@@ -340,18 +372,51 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
         {error ? <div className="status-pill alert">{error}</div> : null}
       </section>
 
+      <ScheduledReportEmailPanel currentUser={currentUser} />
+
+      <section className="panel historical-export-panel fade-up" aria-label="Histórico completo de planta">
+        <div className="historical-export-copy">
+          <span className="report-field-label">Histórico completo de planta</span>
+          <h3>Crudo + conciliado + cobertura</h3>
+          <p>
+            Excel conserva el detalle por minuto y separa datos crudos de datos conciliados. PDF resume cobertura, huecos y criterios de calidad.
+            Pozos/Líneas tienen registro físico confirmado desde 03/06/2026 15:35; el segmento hidráulico validado inicia 04/08/2026 18:16.
+          </p>
+          <small>Pozo 1 conserva su cambio de unidad del 11/08 y Jarabes mantiene el corte 3010 → 3004 sin mezclar identidades.</small>
+        </div>
+        <div className="historical-export-actions">
+          <button
+            type="button"
+            className="report-action-button historical-excel-button export-excel-button"
+            disabled={isBusy}
+            onClick={() => void runHistoricalExport('excel')}
+          >
+            <FileSpreadsheet size={17} /> {exportAction === 'historical-excel' ? 'Generando histórico...' : 'Excel histórico completo'}
+          </button>
+          <button
+            type="button"
+            className="report-action-button historical-pdf-button export-pdf-button"
+            disabled={isBusy}
+            onClick={() => void runHistoricalExport('pdf')}
+          >
+            <FileDown size={17} /> {exportAction === 'historical-pdf' ? 'Generando resumen...' : 'PDF histórico'}
+          </button>
+        </div>
+      </section>
+
       {loading && !report ? <ReportSkeleton /> : null}
 
       {report ? <>
         <section className="report-summary-grid fade-up" aria-label="Resumen ejecutivo del reporte">
           {summaryCards.map((card) => <article className="report-summary-card" key={card.label}><span>{card.label}</span><strong>{fmtVolume(card.value)}</strong></article>)}
-          <article className="report-summary-card review"><span>Volúmenes validados</span><strong>{Number(summary.validated_items_count ?? 0).toLocaleString('es-MX')} <small>elementos</small></strong><small>Datos aceptados para operación.</small></article>
+          <article className="report-summary-card review"><span>Volúmenes validados</span><strong>{Number(summary.validated_items_count ?? 0).toLocaleString('es-MX')} <small>de {Number(summary.monitored_items_count ?? 0).toLocaleString('es-MX')}</small></strong><small>Datos aceptados para operación.</small></article>
+          <article className={`report-summary-card ${summary.coverage_complete ? '' : 'review'}`}><span>Cobertura del reporte</span><strong>{summary.coverage_label || 'Sin dato'}</strong><small>{summary.coverage_complete ? 'Todos los elementos tienen volumen confiable.' : `${Number(summary.review_count ?? 0)} en revisión · ${Number(summary.no_data_count ?? 0)} sin datos.`}</small></article>
         </section>
         <p className="report-summary-note">{summary.note}</p>
         {report.legacy_notice ? <div className="status-pill alert">{report.legacy_notice}</div> : null}
 
         <section className="panel fade-up report-data-panel report-preview-panel">
-          <div className="report-preview-heading"><div><span>Vista previa ligera</span><h3>Vista previa del reporte</h3><p>Pozos, Líneas, Lavadoras y Jarabes · Periodo {report.period_label}</p></div></div>
+          <div className="report-preview-heading"><div><span>Vista previa ligera</span><h3>Vista previa del reporte</h3><p>Pozos, Líneas, Lavadoras y Jarabes · Periodo {report.period_label}</p><small>{report.report_source === 'daily_review' ? 'Fuente: Revisión diaria conciliada' : 'Fuente: periodo conciliado'}</small></div></div>
           <div className="report-preview-sections">
             {REPORT_SECTIONS.map((section) => <ReportPreviewSection key={section.key} report={report} section={section} />)}
           </div>

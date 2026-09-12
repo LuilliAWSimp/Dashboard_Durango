@@ -61,6 +61,25 @@ def _cut_status(day: date, start: datetime, end: datetime) -> tuple[str, datetim
     return 'Pendiente', None
 
 
+
+
+def _canonical_shift_item(item: dict[str, Any]) -> dict[str, Any]:
+    """Expose reconciled boundaries in shift outputs while preserving compatibility aliases."""
+    row = dict(item)
+    if 'reconciled_open_m3' in row:
+        row['period_open_m3'] = row.get('reconciled_open_m3')
+        row['period_close_m3'] = row.get('reconciled_close_m3')
+        row['period_m3'] = row.get('reconciled_validated_volume_m3') if row.get('reconciled_volume_reliable') else None
+        row['period_delta_m3'] = row['period_m3']
+        row['validated_volume_m3'] = row['period_m3']
+        row['period_m3_reliable'] = bool(row.get('reconciled_volume_reliable'))
+        row['volume_reliable'] = bool(row.get('reconciled_volume_reliable'))
+        row['has_discontinuities'] = bool(row.get('reconciled_has_discontinuities'))
+        row['validation'] = row.get('quality_label') or row.get('validation')
+        row['validation_status'] = row.get('quality_status') or row.get('validation_status')
+    return row
+
+
 def _summary(items: list[dict[str, Any]]) -> dict[str, Any]:
     reliable = [item for item in items if item.get('validated_volume_m3') is not None]
     received = sum(int(item.get('samples_received') or item.get('samples') or 0) for item in items)
@@ -159,6 +178,7 @@ def get_shift_consumption_data(report_date: Any = None, *, force_refresh: bool =
             window_start=query_start,
             window_end=query_end,
         ))
+        items = [_canonical_shift_item(item) for item in items]
         wells = [item for item in items if item.get('module') == 'well']
         lines = [item for item in items if item.get('module') == 'line']
         flows = [item for item in items if item.get('module') == 'flow']
