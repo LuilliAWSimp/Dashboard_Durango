@@ -9,6 +9,10 @@ test('main carga tokens, legado y capas modulares en orden estable', () => {
   const expected = [
     "import './styles/tokens.css';",
     "import './styles/global.css';",
+    "import './styles/pages/shell.css';",
+    "import './styles/pages/login.css';",
+    "import './styles/pages/usuarios.css';",
+    "import './styles/theme.css';",
     "import './styles/pages/resumen.css';",
     "import './styles/pages/operational-modules.css';",
     "import './styles/pages/detalles.css';",
@@ -45,6 +49,11 @@ test('global.css queda marcado como base heredada congelada', () => {
   assert.doesNotMatch(globalCss, /\.reportes-page \{/);
   assert.doesNotMatch(globalCss, /Homologacion Durango 11D:/);
   assert.doesNotMatch(globalCss, /Homologacion Durango 11E:/);
+  assert.doesNotMatch(globalCss, /Homologacion Durango 11: modo claro\/oscuro/);
+  assert.doesNotMatch(globalCss, /Homologacion Durango 11A:/);
+  assert.doesNotMatch(globalCss, /Durango · autenticación local y administración de usuarios/);
+  assert.doesNotMatch(globalCss, /Pantalla de precarga inicial Durango/);
+  assert.doesNotMatch(globalCss, /Pozos domain polish/);
 });
 
 test('tokens concentra variables heredadas y aliases semanticos', () => {
@@ -66,6 +75,10 @@ test('responsabilidades migradas viven fuera de global.css', () => {
   const review = read('src/styles/pages/revision-diaria.css');
   const reports = read('src/styles/pages/reportes.css');
   const shared = read('src/styles/shared.css');
+  const shell = read('src/styles/pages/shell.css');
+  const login = read('src/styles/pages/login.css');
+  const users = read('src/styles/pages/usuarios.css');
+  const theme = read('src/styles/theme.css');
 
   assert.match(resumen, /\.dashboard-resumen-page/);
   assert.match(resumen, /\.summary-operational-kpis/);
@@ -87,6 +100,14 @@ test('responsabilidades migradas viven fuera de global.css', () => {
   assert.match(details, /\.operational-card-footer/);
   assert.match(shared, /\.export-excel-button/);
   assert.match(shared, /\.export-pdf-button/);
+  assert.match(shell, /\.pozos-shell \.sidebar/);
+  assert.match(shell, /\.plant-context-bar/);
+  assert.match(login, /\.login-shell/);
+  assert.match(login, /\.initial-loader-screen/);
+  assert.match(users, /\.users-page/);
+  assert.match(users, /\.users-create-form/);
+  assert.match(theme, /Homologacion Durango 11:/);
+  assert.match(theme, /Homologacion Durango 11A:/);
 });
 
 test('Resumen y modulos operativos exponen scopes reales sin alterar el layout', () => {
@@ -126,4 +147,23 @@ test('Revision diaria y Reportes tienen frontera modular real', () => {
   assert.match(reportSection, /className="reportes-page durango-report-page"/);
   assert.match(reviewCss, /display:\s*contents/);
   assert.match(reportCss, /report-summary-card/);
+});
+
+
+test('Shell, Login y Usuarios tienen frontera modular y tema transversal', () => {
+  const app = read('src/App.jsx');
+  const loginPage = read('src/pages/LoginPage.jsx');
+  const usersPage = read('src/pages/UsersPage.tsx');
+  const shellCss = read('src/styles/pages/shell.css');
+  const loginCss = read('src/styles/pages/login.css');
+  const usersCss = read('src/styles/pages/usuarios.css');
+  const themeCss = read('src/styles/theme.css');
+
+  assert.match(app, /shellClass="pozos-shell"/);
+  assert.match(loginPage, /className="login-shell"/);
+  assert.match(usersPage, /className="users-page"/);
+  assert.match(shellCss, /Interfaz operativa compacta/);
+  assert.match(loginCss, /Pantalla de precarga inicial Durango/);
+  assert.match(usersCss, /users-table/);
+  assert.match(themeCss, /theme-light/);
 });

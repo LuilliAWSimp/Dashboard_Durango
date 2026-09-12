@@ -6,6 +6,10 @@
 
 - `tokens.css`: valores globales y aliases semanticos `--arca-*`.
 - `shared.css`: patrones que son realmente compartidos por varias pantallas.
+- `theme.css`: contrato transversal claro/oscuro heredado 11/11A; mantiene la precedencia del tema sin devolverla a `global.css`.
+- `pages/shell.css`: Shell operativo, Sidebar, Header, navegación, contexto de planta y selector de tema.
+- `pages/login.css`: Login y precarga inicial.
+- `pages/usuarios.css`: administración local de usuarios.
 - `pages/resumen.css`: Resumen ejecutivo, KPIs propios del Resumen y alertas embebidas.
 - `pages/operational-modules.css`: superficies/KPIs/cards compartidos por Pozos, Lineas, Lavadoras y Jarabes.
 - `pages/detalles.css`: estructura base del detalle operativo.
@@ -38,6 +42,10 @@ Los wrappers usan `display: contents` para aportar una frontera CSS sin introduc
 
 La migracion es gradual. No se crean hojas vacias para aparentar modularizacion y no se trasladan bloques muertos solo para reducir el numero de lineas de `global.css`.
 
-## Durango 18D
+## Durango 18E — cierre estructural de la fase CSS
 
-Detalles, históricos, turnos, Revisión diaria y Reportes ya tienen hojas responsables. Los overrides mixtos 11D/11E se retiraron de `global.css` y se repartieron entre `shared.css` y las hojas de responsabilidad correspondientes. Los restos de tema claro heredados de 11/11A se revisarán en el cierre 18E junto con Shell/Auth/Usuarios.
+La fase 18/18B/18C/18D/18E deja propietarios definidos para Shell, Login, Usuarios, Resumen, módulos operativos, Detalles, Históricos, Turnos, Revisión diaria y Reportes. El contrato transversal de tema 11/11A vive ahora en `theme.css`.
+
+`global.css` sigue existiendo como base heredada estable: contiene patrones antiguos, módulos físicos todavía no migrados (por ejemplo Balance/Concesión/UV cuando corresponda) y utilidades cuya responsabilidad aún no justifica una migración. Que permanezcan allí no significa que `global.css` vuelva a ser destino para trabajo nuevo.
+
+La fase CSS se considera **estructuralmente cerrada**, no porque `global.css` esté vacío, sino porque el trabajo nuevo ya tiene destinos claros, las capas están ordenadas y las migraciones futuras pueden hacerse por responsabilidad cuando exista trabajo real sobre cada módulo.

@@ -152,7 +152,7 @@ export default function UsersPage() {
   };
 
   return (
-    <>
+    <div className="users-page">
       <section className="panel fade-up users-admin-header">
         <PanelHeader title="Usuarios" subtitle="Administración local de accesos para Planta Durango." />
         <p className="panel-subtitle">Las credenciales y sesiones se administran exclusivamente en este servidor. No se comparten con otras plantas.</p>
@@ -202,6 +202,6 @@ export default function UsersPage() {
           </table>
         </div>
       </section>
-    </>
+    </div>
   );
 }
