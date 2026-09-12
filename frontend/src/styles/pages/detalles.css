@@ -1,0 +1,241 @@
+/* Durango 18C · Detalles individuales
+   Responsabilidad: hero, navegación y estructura base del detalle operativo.
+   Los overrides finos de modo claro de 11F/11G permanecen temporalmente en
+   operational-cards-details.css y cargan después de esta hoja. */
+
+/* Detalle técnico de pozo */
+.well-detail-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(360px, .7fr);
+  gap: 22px;
+  align-items: stretch;
+  padding: 24px;
+  border-color: rgba(125, 211, 252, .16);
+  background:
+    radial-gradient(circle at 12% 14%, rgba(14,165,233,.18), transparent 30%),
+    linear-gradient(135deg, rgba(8,47,73,.74), rgba(3,15,28,.95));
+}
+
+.well-detail-hero.warning { border-color: rgba(245,158,11,.28); }
+.well-detail-hero.critical { border-color: rgba(248,113,113,.34); }
+.well-detail-hero.idle,
+.well-detail-hero.nodata { border-style: dashed; }
+
+.back-inline-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  border: 1px solid rgba(125,211,252,.18);
+  background: rgba(8,47,73,.34);
+  color: #dff7ff;
+  border-radius: 999px;
+  padding: 9px 12px;
+  cursor: pointer;
+  font-weight: 700;
+  transition: transform .18s ease, border-color .18s ease, background .18s ease;
+}
+
+.back-inline-button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(125,211,252,.32);
+  background: rgba(14,116,144,.24);
+}
+
+.well-detail-title-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.well-detail-title-row h2 {
+  margin: 6px 0 8px;
+  color: #f1fbff;
+  font-size: clamp(26px, 2.3vw, 38px);
+  line-height: 1.05;
+}
+
+.well-detail-main-head p {
+  margin: 0;
+  max-width: 760px;
+  color: #a8d3e9;
+  line-height: 1.55;
+}
+
+.well-detail-hero-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.well-detail-hero-metrics article {
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(125,211,252,.14);
+  background: rgba(3, 15, 28, .44);
+}
+
+.well-detail-hero-metrics span {
+  display: block;
+  margin-bottom: 8px;
+  color: #8bcce2;
+  font-size: 11px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.well-detail-hero-metrics strong {
+  color: #f3fbff;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.well-detail-hero-metrics small {
+  color: #9ed1e6;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.well-detail-grid-main {
+  grid-template-columns: minmax(0, 1.45fr) minmax(340px, .55fr);
+}
+
+.well-detail-secondary-grid {
+  grid-template-columns: minmax(280px, .9fr) minmax(260px, .55fr) minmax(280px, .7fr);
+}
+
+.diagnostic-stack {
+  display: grid;
+  gap: 14px;
+}
+
+.diagnostic-stack article {
+  display: grid;
+  grid-template-columns: 38px 1fr;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid rgba(125,211,252,.12);
+  border-radius: 18px;
+  background: rgba(8,47,73,.28);
+}
+
+.diagnostic-icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 14px;
+  color: #dff9ff;
+  background: rgba(14,165,233,.16);
+}
+
+.diagnostic-stack span,
+.well-efficiency-card span,
+.load-factor-value span,
+.metadata-list span {
+  display: block;
+  color: #8bcce2;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  margin-bottom: 6px;
+}
+
+.diagnostic-stack strong {
+  display: block;
+  color: #effbff;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.well-efficiency-card {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.well-efficiency-card > div,
+.load-factor-box,
+.metadata-list div {
+  padding: 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(125,211,252,.12);
+  background: rgba(8,47,73,.26);
+}
+
+.well-efficiency-card strong,
+.load-factor-value strong,
+.metadata-list strong {
+  color: #f3fbff;
+  font-size: 20px;
+  line-height: 1.1;
+}
+
+.well-efficiency-card small {
+  color: #9ed1e6;
+  font-size: 12px;
+}
+
+.efficiency-gap.warning {
+  border-color: rgba(245,158,11,.26);
+  background: rgba(245,158,11,.08);
+}
+
+.load-factor-box {
+  display: grid;
+  gap: 14px;
+}
+
+.load-factor-track {
+  overflow: hidden;
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(125,211,252,.12);
+}
+
+.load-factor-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #0ea5e9, #38bdf8);
+}
+
+.load-factor-box p {
+  margin: 0;
+  color: #a8d3e9;
+  font-size: 13px;
+}
+
+.metadata-list {
+  display: grid;
+  gap: 12px;
+}
+
+.metadata-list strong {
+  font-size: 15px;
+}
+
+.well-history-panel {
+  padding: 18px;
+}
+
+.well-history-table {
+  min-width: 760px;
+}
+
+@media (max-width: 1180px) {
+  .well-detail-hero,
+  .well-detail-grid-main,
+  .well-detail-secondary-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .well-detail-hero-metrics,
+  .well-efficiency-card {
+    grid-template-columns: 1fr;
+  }
+}

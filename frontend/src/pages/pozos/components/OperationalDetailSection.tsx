@@ -189,7 +189,7 @@ export default function OperationalDetailSection({ module, sensorId, backPath, s
 
   return (
     <>
-      <section className="well-detail-hero panel fade-up">
+      <section className={`well-detail-hero panel fade-up operational-detail-hero operational-detail-${module}`}>
         <div className="well-detail-main-head">
           <button type="button" className="back-inline-button" onClick={goBack}>
             <ArrowLeft size={16} /> Volver
@@ -233,6 +233,7 @@ export default function OperationalDetailSection({ module, sensorId, backPath, s
         status={current.loading ? 'Actualizando periodo...' : undefined}
         title="Rango del detalle"
         subtitle="El rango actualiza indicadores, histórico y exportación conciliada de 5 minutos."
+        className={`operational-detail-range operational-detail-${module}`}
         extraAction={(
           <FiveMinuteExcelExportButton
             module={module}
@@ -251,9 +252,10 @@ export default function OperationalDetailSection({ module, sensorId, backPath, s
         items={historyItems}
         panelTitle={`Histórico operativo · ${name}`}
         panelSubtitle="Flujo y totalizador usan la misma fuente histórica común del módulo; los huecos permanecen como ausencia de registro."
+        className="operational-detail-history"
       />
 
-      <section className="panel fade-up operational-period-summary">
+      <section className={`panel fade-up operational-period-summary operational-detail-summary operational-detail-${module}`}>
         <PanelHeader title="Resumen del periodo" subtitle="Lecturas principales del elemento en el rango seleccionado" />
         <div className="metric-pairs-grid">
           <MetricPair label="Totalizador inicial" value={fmt(detailOpen)} unit={num(detailOpen) === null ? '' : 'm³'} />

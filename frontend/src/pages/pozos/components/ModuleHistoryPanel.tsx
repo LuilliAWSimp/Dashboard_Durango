@@ -52,6 +52,7 @@ interface Props {
   items?: HistoryItem[];
   panelTitle?: string;
   panelSubtitle?: string;
+  className?: string;
 }
 
 function intervalLabel(startValue: unknown, endValue: unknown, aggregation: HistoryAggregation): string {
@@ -235,7 +236,7 @@ function tick(value: number, aggregation: HistoryAggregation): string {
   return date.toLocaleString('es-MX', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
-export default function ModuleHistoryPanel({ range, fixedModule, aggregation: controlledAggregation, onAggregationChange, colors, items, panelTitle, panelSubtitle }: Props) {
+export default function ModuleHistoryPanel({ range, fixedModule, aggregation: controlledAggregation, onAggregationChange, colors, items, panelTitle, panelSubtitle, className = '' }: Props) {
   const [tabModule, setTabModule] = useState<ComparisonModule>(fixedModule || 'well');
   const module = fixedModule || tabModule;
   const palette = colors?.length ? colors : COLORS;
@@ -377,7 +378,7 @@ export default function ModuleHistoryPanel({ range, fixedModule, aggregation: co
   const totalizerAxisLabel = metric === 'both' ? operationalVolumeAxisLabel(module) : effectiveTotalizerDisplay === 'delta' ? 'Variación (m³)' : 'Totalizador (m³)';
 
   return (
-    <section className="panel chart-panel fade-up module-history-panel operational-module-comparison">
+    <section className={`panel chart-panel fade-up module-history-panel operational-module-comparison operational-history-panel operational-history-${module} ${className}`.trim()}>
       <PanelHeader
         title={panelTitle || (fixedModule ? `Comparativa de ${MODULE_LABELS[module].toLowerCase()}` : 'Histórico operativo por módulo')}
         subtitle={panelSubtitle || 'Compara flujo y totalizador; los huecos permanecen como ausencia de registro'}

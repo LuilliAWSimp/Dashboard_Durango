@@ -8,6 +8,9 @@
 - `shared.css`: patrones que son realmente compartidos por varias pantallas.
 - `pages/resumen.css`: Resumen ejecutivo, KPIs propios del Resumen y alertas embebidas.
 - `pages/operational-modules.css`: superficies/KPIs/cards compartidos por Pozos, Lineas, Lavadoras y Jarabes.
+- `pages/detalles.css`: estructura base del detalle operativo.
+- `pages/historicos.css`: controles, tooltips y exportaciones del histórico.
+- `pages/turnos.css`: cortes y presentación compartida de turnos.
 - `pages/operational-cards-details.css`: cards/detalles operativos migrados en la primera fase.
 - `pages/session-controls.css`: sesion lateral y cambio propio de contrasena.
 - `pages/*.css`: cualquier otra pantalla, familia funcional o responsabilidad concreta que se migre despues.
@@ -32,3 +35,7 @@ Los wrappers usan `display: contents` para aportar una frontera CSS sin introduc
 7. retirar la regla heredada solo cuando su reemplazo este verificado.
 
 La migracion es gradual. No se crean hojas vacias para aparentar modularizacion y no se trasladan bloques muertos solo para reducir el numero de lineas de `global.css`.
+
+## Durango 18C
+
+Detalles, históricos y turnos ya tienen scopes/hojas responsables. Los overrides mixtos 11D/11E permanecen temporalmente en `global.css` hasta 18D para migrarlos junto con Revisión diaria y Reportes sin romper la cascada.

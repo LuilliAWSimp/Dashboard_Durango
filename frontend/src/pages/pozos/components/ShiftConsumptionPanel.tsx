@@ -228,7 +228,7 @@ export default function ShiftConsumptionPanel({ group = 'all', itemIdentity: sel
   }, [effectiveData, selectedShift]);
 
   return (
-    <section className="panel fade-up shift-consumption-panel">
+    <section className={`panel fade-up shift-consumption-panel operational-shifts-panel operational-shifts-${group} ${reviewMode ? 'operational-shifts-review' : itemIdentity !== undefined ? 'operational-shifts-detail' : 'operational-shifts-module'}`.trim()}>
       <PanelHeader title={title} subtitle="Turnos sin traslape; apertura y cierre se calculan con totalizadores válidos." />
       <div className="date-range-panel shift-controls-panel">
         <div className="date-range-fields">

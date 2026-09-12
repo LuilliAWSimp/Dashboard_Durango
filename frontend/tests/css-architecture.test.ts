@@ -11,6 +11,9 @@ test('main carga tokens, legado y capas modulares en orden estable', () => {
     "import './styles/global.css';",
     "import './styles/pages/resumen.css';",
     "import './styles/pages/operational-modules.css';",
+    "import './styles/pages/detalles.css';",
+    "import './styles/pages/historicos.css';",
+    "import './styles/pages/turnos.css';",
     "import './styles/pages/operational-cards-details.css';",
     "import './styles/shared.css';",
   ];
@@ -32,6 +35,10 @@ test('global.css queda marcado como base heredada congelada', () => {
   assert.doesNotMatch(globalCss, /Homologacion Durango 11J:/);
   assert.doesNotMatch(globalCss, /Durango live summary refresh/);
   assert.doesNotMatch(globalCss, /Durango operational alerts and notifications/);
+  assert.doesNotMatch(globalCss, /Detalle técnico de pozo/);
+  assert.doesNotMatch(globalCss, /Historical aggregation control/);
+  assert.doesNotMatch(globalCss, /Operational cuts by shift/);
+  assert.doesNotMatch(globalCss, /Durango homologacion 04: historico modular completo/);
 });
 
 test('tokens concentra variables heredadas y aliases semanticos', () => {
@@ -47,6 +54,9 @@ test('responsabilidades migradas viven fuera de global.css', () => {
   const resumen = read('src/styles/pages/resumen.css');
   const modules = read('src/styles/pages/operational-modules.css');
   const details = read('src/styles/pages/operational-cards-details.css');
+  const detailBase = read('src/styles/pages/detalles.css');
+  const history = read('src/styles/pages/historicos.css');
+  const shifts = read('src/styles/pages/turnos.css');
   const shared = read('src/styles/shared.css');
 
   assert.match(resumen, /\.dashboard-resumen-page/);
@@ -57,6 +67,11 @@ test('responsabilidades migradas viven fuera de global.css', () => {
   assert.match(modules, /\.operational-element-card/);
   assert.match(modules, /\.metric-pair/);
   assert.match(details, /\.well-detail-main-head/);
+  assert.match(detailBase, /\.well-detail-hero/);
+  assert.match(history, /\.history-aggregation-trigger/);
+  assert.match(history, /\.module-history-export-actions/);
+  assert.match(shifts, /\.shift-summary-card/);
+  assert.match(shifts, /\.shift-detail-disclosure/);
   assert.match(details, /\.operational-card-footer/);
   assert.match(shared, /\.export-excel-button/);
   assert.match(shared, /\.export-pdf-button/);
@@ -72,4 +87,18 @@ test('Resumen y modulos operativos exponen scopes reales sin alterar el layout',
   assert.match(operational, /operational-module-page operational-module-\$\{module\}-page/);
   assert.match(resumen, /\.dashboard-resumen-page\s*\{\s*display:\s*contents;/s);
   assert.match(modules, /\.operational-module-page\s*\{\s*display:\s*contents;/s);
+});
+
+
+test('Detalles, historicos y turnos exponen scopes semanticos', () => {
+  const detail = read('src/pages/pozos/components/OperationalDetailSection.tsx');
+  const history = read('src/pages/pozos/components/ModuleHistoryPanel.tsx');
+  const shifts = read('src/pages/pozos/components/ShiftConsumptionPanel.tsx');
+  const elementHistory = read('src/pages/pozos/components/ElementHistoryPanel.tsx');
+
+  assert.match(detail, /operational-detail-hero operational-detail-\$\{module\}/);
+  assert.match(detail, /className="operational-detail-history"/);
+  assert.match(history, /operational-history-panel operational-history-\$\{module\}/);
+  assert.match(shifts, /operational-shifts-panel operational-shifts-\$\{group\}/);
+  assert.match(elementHistory, /operational-element-history operational-history-\$\{module\}/);
 });
