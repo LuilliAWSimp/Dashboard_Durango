@@ -9,7 +9,6 @@ from app.api.routes.export import router as export_router
 from app.api.routes.plants import router as plants_router
 from app.api.routes.report_email_schedules import router as report_email_schedules_router
 from app.api.routes.water import router as water_router
-from app.api.routes.water_export import router as water_export_router
 from app.auth.middleware import (
     ApiExceptionBoundaryMiddleware,
     BROWSER_SESSION_HEADER,
@@ -82,7 +81,6 @@ app.include_router(email_router, prefix=settings.api_v1_prefix)
 app.include_router(plants_router, prefix=settings.api_v1_prefix)
 app.include_router(report_email_schedules_router, prefix=settings.api_v1_prefix)
 app.include_router(water_router, prefix=settings.api_v1_prefix)
-app.include_router(water_export_router, prefix=settings.api_v1_prefix)
 
 
 @app.on_event('startup')
