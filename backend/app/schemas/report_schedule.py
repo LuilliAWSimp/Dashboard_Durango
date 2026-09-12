@@ -17,6 +17,8 @@ class ReportEmailScheduleCreate(BaseModel):
     cc: list[EmailStr] = Field(default_factory=list, max_length=20)
     enabled: bool = True
     send_delay_minutes: int | None = Field(default=None, ge=1, le=60)
+    send_time_local: str | None = Field(default=None, pattern=r'^([01]\d|2[0-3]):[0-5]\d$')
+    send_time_local_2: str | None = Field(default=None, pattern=r'^([01]\d|2[0-3]):[0-5]\d$')
     subject: str | None = Field(default=None, max_length=180)
     message: str | None = Field(default=None, max_length=4000)
 
@@ -29,5 +31,7 @@ class ReportEmailScheduleUpdate(BaseModel):
     cc: list[EmailStr] | None = Field(default=None, max_length=20)
     enabled: bool | None = None
     send_delay_minutes: int | None = Field(default=None, ge=1, le=60)
+    send_time_local: str | None = Field(default=None, pattern=r'^([01]\d|2[0-3]):[0-5]\d$')
+    send_time_local_2: str | None = Field(default=None, pattern=r'^([01]\d|2[0-3]):[0-5]\d$')
     subject: str | None = Field(default=None, max_length=180)
     message: str | None = Field(default=None, max_length=4000)

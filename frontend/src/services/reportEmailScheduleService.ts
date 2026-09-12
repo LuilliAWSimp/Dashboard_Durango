@@ -7,6 +7,8 @@ export interface ReportEmailRun {
   id: string;
   period_start: string;
   period_end: string;
+  period_mode?: ScheduledReportPeriodMode;
+  due_at?: string | null;
   status: string;
   attempt: number;
   started_at?: string | null;
@@ -26,6 +28,8 @@ export interface ReportEmailSchedule {
   cc: string[];
   timezone: string;
   send_delay_minutes: number;
+  send_time_local: string;
+  send_time_local_2?: string | null;
   subject?: string | null;
   message?: string | null;
   created_at: string;
@@ -42,6 +46,8 @@ export interface ReportEmailSchedulePayload {
   recipients: string[];
   cc?: string[];
   send_delay_minutes?: number;
+  send_time_local?: string;
+  send_time_local_2?: string | null;
   subject?: string;
   message?: string;
 }
@@ -67,5 +73,10 @@ export async function deleteReportEmailSchedule(id: string): Promise<void> {
 
 export async function runReportEmailScheduleNow(id: string): Promise<Record<string, unknown>> {
   const { data } = await api.post<Record<string, unknown>>(`/report-email-schedules/${id}/run-now`);
+  return data;
+}
+
+export async function listReportEmailRuns(id: string, limit = 20): Promise<ReportEmailRun[]> {
+  const { data } = await api.get<ReportEmailRun[]>(`/report-email-schedules/${id}/runs`, { params: { limit } });
   return data;
 }
