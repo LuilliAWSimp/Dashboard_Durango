@@ -5,7 +5,8 @@ import { DURANGO_CAPABILITIES } from '../../../config/plantCapabilities';
 import useAutoRefresh from '../../../hooks/useAutoRefresh';
 import { downloadWaterModuleHistoryPdf } from '../../../services/waterModuleHistoryExportService';
 import { fetchWaterModuleHistory } from '../../../services/waterService';
-import { rangeIncludesToday, recommendedHistoryAggregation } from '../dateUtils';
+import { formatOperationalDateRange, rangeIncludesToday, recommendedHistoryAggregation } from '../dateUtils';
+import { operationalVolumeAxisLabel, operationalVolumeLabel } from '../operationalTerminology';
 import {
   buildModuleComparisonRows,
   comparisonAxis,
@@ -121,7 +122,7 @@ function downloadModuleHistoryExcel({
     ['Módulo', moduleLabel],
     ['Métrica', metricLabel],
     ['Agrupación', aggregationLabel],
-    ['Rango', `${startDate} a ${endDate}`],
+    ['Rango', formatOperationalDateRange({ startDate, endDate })],
     ['Elementos', selectedNames.join(', ')],
     ['Generado', new Date().toLocaleString('es-MX')],
   ];
@@ -170,6 +171,7 @@ function ModuleTooltip({
   totalizerDisplay,
   palette,
   items,
+  module,
 }: {
   active?: boolean;
   payload?: Array<{ payload?: ComparisonRow }>;
@@ -179,6 +181,7 @@ function ModuleTooltip({
   totalizerDisplay: TotalizerDisplay;
   palette: string[];
   items: HistoryItem[];
+  module: ComparisonModule;
 }) {
   if (!active || !payload?.length) return null;
   const row = payload.find((entry) => entry.payload)?.payload;
@@ -205,7 +208,7 @@ function ModuleTooltip({
               <div className="module-history-tooltip-grid">
                 {metric !== 'totalizer' ? <><span>Flujo promedio</span><strong>{row[`flow_${identity}`] == null ? 'Sin datos' : `${formatNumber(row[`flow_${identity}`])} ${item?.flowUnit || 'L/s'}`}</strong></> : null}
                 {metric !== 'flow' ? <>
-                  <span>{metric === 'both' ? 'Volumen del intervalo' : totalizerDisplay === 'delta' ? 'Variación del periodo' : 'Totalizador observado'}</span><strong>{totalizerValue == null ? 'Sin datos' : `${formatNumber(totalizerValue)} m³`}</strong>
+                  <span>{metric === 'both' ? operationalVolumeLabel(module, { scope: 'interval' }) : totalizerDisplay === 'delta' ? 'Variación del periodo' : 'Totalizador observado'}</span><strong>{totalizerValue == null ? 'Sin datos' : `${formatNumber(totalizerValue)} m³`}</strong>
                   {metric !== 'both' && totalizerDisplay === 'delta' ? <><span>Totalizador observado</span><strong>{absolute == null ? 'Sin datos' : `${formatNumber(absolute)} m³`}</strong></> : null}
                 </> : null}
                 {status === 'future_interval' ? <><span>Estado</span><strong>Intervalo futuro</strong></> : <>
@@ -312,7 +315,7 @@ export default function ModuleHistoryPanel({ range, fixedModule, aggregation: co
     if (axes.showFlow) result.push({ key: `flow_${identity}`, name: `${sourceSeries?.name || item?.name || identity} · Flujo`, metric: 'flow', unit: item?.flowUnit || 'L/s', color });
     if (axes.showTotalizer) result.push({
       key: metric === 'both' ? `volume_${identity}` : effectiveTotalizerDisplay === 'delta' ? `totalizer_delta_${identity}` : `totalizer_${identity}`,
-      name: `${sourceSeries?.name || item?.name || identity} · ${metric === 'both' ? 'Volumen del periodo' : effectiveTotalizerDisplay === 'delta' ? 'Variación totalizador' : 'Totalizador'}`,
+      name: `${sourceSeries?.name || item?.name || identity} · ${metric === 'both' ? operationalVolumeLabel(module, { scope: 'period' }) : effectiveTotalizerDisplay === 'delta' ? 'Variación totalizador' : 'Totalizador'}`,
       metric: 'totalizer',
       unit: 'm³',
       color: totalizerColor,
@@ -356,6 +359,10 @@ export default function ModuleHistoryPanel({ range, fixedModule, aggregation: co
         aggregation_label: AGGREGATION_LABELS[aggregation],
         start_date: String(filteredData?.start_date || range.startDate || ''),
         end_date: String(filteredData?.end_date || range.endDate || ''),
+        range_label: formatOperationalDateRange({
+          startDate: String(filteredData?.start_date || range.startDate || ''),
+          endDate: String(filteredData?.end_date || range.endDate || ''),
+        }),
         selected_names: selectedNames,
         rows: exportRows,
         series: exportSeries,
@@ -367,7 +374,7 @@ export default function ModuleHistoryPanel({ range, fixedModule, aggregation: co
     }
   };
 
-  const totalizerAxisLabel = metric === 'both' ? 'Volumen (m³)' : effectiveTotalizerDisplay === 'delta' ? 'Variación (m³)' : 'Totalizador (m³)';
+  const totalizerAxisLabel = metric === 'both' ? operationalVolumeAxisLabel(module) : effectiveTotalizerDisplay === 'delta' ? 'Variación (m³)' : 'Totalizador (m³)';
 
   return (
     <section className="panel chart-panel fade-up module-history-panel operational-module-comparison">
@@ -395,7 +402,7 @@ export default function ModuleHistoryPanel({ range, fixedModule, aggregation: co
         </div>
       </div>
       {metric === 'totalizer' ? <div className="module-history-totalizer-control"><span>Visualización del totalizador</span><div className="module-metric-selector" role="group" aria-label="Visualización del totalizador"><button type="button" className={totalizerDisplay === 'delta' ? 'active' : ''} onClick={() => setTotalizerDisplay('delta')}>Variación del periodo</button><button type="button" className={totalizerDisplay === 'absolute' ? 'active' : ''} onClick={() => setTotalizerDisplay('absolute')}>Valor absoluto</button></div></div> : null}
-      {metric === 'both' ? <div className="status-pill module-metric-note">Flujo se muestra como línea en el eje izquierdo y el volumen del periodo como barras en el eje derecho.</div> : null}
+      {metric === 'both' ? <div className="status-pill module-metric-note">Flujo se muestra como línea en el eje izquierdo y {operationalVolumeLabel(module, { scope: 'period' }).toLowerCase()} como barras en el eje derecho.</div> : null}
       {aggregation === 'minute' ? <div className="status-pill module-metric-note">La vista de 1 minuto admite un máximo de un día por consulta.</div> : null}
       <div className="module-selection-heading">
         <span>Elementos visibles</span>
@@ -418,7 +425,7 @@ export default function ModuleHistoryPanel({ range, fixedModule, aggregation: co
             <XAxis dataKey="timestamp" type="number" scale="time" domain={['dataMin', 'dataMax']} tickFormatter={(value) => tick(Number(value), aggregation)} minTickGap={32} stroke="#b9e7ff" />
             {axes.showFlow ? <YAxis yAxisId="flow" stroke="#7dd3fc" width={62} tickFormatter={(value) => Number(value).toLocaleString('es-MX')} label={{ value: 'L/s', angle: -90, position: 'insideLeft', fill: '#7dd3fc' }} /> : null}
             {axes.showTotalizer ? <YAxis yAxisId="totalizer" orientation={axes.independentAxes ? 'right' : 'left'} stroke="#c4b5fd" width={78} tickFormatter={(value) => Number(value).toLocaleString('es-MX')} label={{ value: totalizerAxisLabel, angle: axes.independentAxes ? 90 : -90, position: axes.independentAxes ? 'insideRight' : 'insideLeft', fill: '#c4b5fd' }} /> : null}
-            <Tooltip content={<ModuleTooltip aggregation={aggregation} selected={visible} metric={metric} totalizerDisplay={effectiveTotalizerDisplay} palette={palette} items={activeItems} />} filterNull={false} allowEscapeViewBox={{ x: true, y: true }} wrapperStyle={{ zIndex: 120, pointerEvents: 'none' }} offset={16} />
+            <Tooltip content={<ModuleTooltip aggregation={aggregation} selected={visible} metric={metric} totalizerDisplay={effectiveTotalizerDisplay} palette={palette} items={activeItems} module={module} />} filterNull={false} allowEscapeViewBox={{ x: true, y: true }} wrapperStyle={{ zIndex: 120, pointerEvents: 'none' }} offset={16} />
             <Legend />
             <Line yAxisId={axes.showFlow ? 'flow' : 'totalizer'} dataKey="tooltipAnchor" stroke="transparent" dot={false} activeDot={false} legendType="none" isAnimationActive={false} />
             {visible.flatMap((identity) => {
@@ -428,7 +435,7 @@ export default function ModuleHistoryPanel({ range, fixedModule, aggregation: co
               const totalizerColor = TOTALIZER_COLORS[Math.max(itemIndex, 0) % TOTALIZER_COLORS.length];
               const chartSeries = [];
               if (axes.showFlow) chartSeries.push(<Line key={`flow-${identity}`} yAxisId="flow" type="linear" dataKey={`flow_${identity}`} name={`${series?.name || identity} · Flujo (L/s)`} stroke={color} strokeWidth={2.7} dot={false} activeDot={{ r: 4 }} connectNulls={false} isAnimationActive={false} />);
-              if (axes.showTotalizer && metric === 'both') chartSeries.push(<Bar key={`totalizer-bar-${identity}`} yAxisId="totalizer" dataKey={`volume_${identity}`} name={`${series?.name || identity} · Volumen del periodo (m³)`} fill={totalizerColor} fillOpacity={0.72} barSize={16} radius={[4, 4, 0, 0]} isAnimationActive={false} />);
+              if (axes.showTotalizer && metric === 'both') chartSeries.push(<Bar key={`totalizer-bar-${identity}`} yAxisId="totalizer" dataKey={`volume_${identity}`} name={`${series?.name || identity} · ${operationalVolumeLabel(module, { scope: 'period' })} (m³)`} fill={totalizerColor} fillOpacity={0.72} barSize={16} radius={[4, 4, 0, 0]} isAnimationActive={false} />);
               if (axes.showTotalizer && metric !== 'both') chartSeries.push(<Line key={`totalizer-${identity}-${effectiveTotalizerDisplay}`} yAxisId="totalizer" type="linear" dataKey={effectiveTotalizerDisplay === 'delta' ? `totalizer_delta_${identity}` : `totalizer_${identity}`} name={`${series?.name || identity} · ${effectiveTotalizerDisplay === 'delta' ? 'Variación totalizador' : 'Totalizador'} (m³)`} stroke={totalizerColor} strokeWidth={2.4} dot={false} activeDot={{ r: 4 }} connectNulls={false} isAnimationActive={false} />);
               return chartSeries;
             })}

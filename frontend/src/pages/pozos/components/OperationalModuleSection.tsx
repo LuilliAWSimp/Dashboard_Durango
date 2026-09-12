@@ -5,6 +5,7 @@ import { formatSqlDate } from '../dateUtils';
 import {
   buildOperationalDetailPath,
   buildOperationalNavigationSearch,
+  buildOperationalReturnState,
   configuredOperationalIdentity,
   configuredOperationalItems,
   readOperationalNavigationContext,
@@ -14,6 +15,7 @@ import type { OperationalIdentity, OperationalModule } from '../operationalNavig
 import type { DashboardData, FlexibleRecord } from '../types';
 import type { OperationalSectionConfig, OperationalSectionItem } from '../operationalSectionConfig';
 import { displayOperationalState, isNormalCommunication } from '../operationalDisplay';
+import { operationalVolumeLabel } from '../operationalTerminology';
 import ChartEmptyState from './ChartEmptyState';
 import MetricPair from './MetricPair';
 import ModuleHistoryPanel from './ModuleHistoryPanel';
@@ -262,7 +264,7 @@ export default function OperationalModuleSection({
   const expectedCount = configuredItems?.length || rows.length;
   const openDetail = (identity: OperationalIdentity) => {
     navigate(buildOperationalDetailPath(route, identity, controller.range, aggregation, module), {
-      state: { fromOperationalModule: true },
+      state: buildOperationalReturnState(location.pathname, location.search, location.state),
     });
   };
   const labels = sectionConfig?.labels;
@@ -290,7 +292,7 @@ export default function OperationalModuleSection({
       ) : (
         <section className="cards-grid stagger-grid">
           <KpiCard
-            label="Volumen validado del periodo"
+            label={operationalVolumeLabel(module, { validated: true, scope: 'period' })}
             value={rawSummary.totalM3 === null ? 'No disponible' : fmt(rawSummary.totalM3)}
             unit={rawSummary.totalM3 === null ? '' : 'm³'}
             trend={rawSummary.totalM3 === null ? 'No disponible' : 'Suma de incrementos validados'}
@@ -338,7 +340,7 @@ export default function OperationalModuleSection({
                       <MetricPair label="Flujo actual" value={flow === null ? 'Sin dato' : fmt(flow)} unit={flow === null ? '' : String(row.flow_unit || 'L/s')} />
                       <MetricPair label="Totalizador actual" value={totalizer === null ? 'Sin totalizador' : fmt(totalizer)} unit={totalizer === null ? '' : 'm³'} />
                       <MetricPair
-                        label="Volumen del periodo"
+                        label={operationalVolumeLabel(module, { scope: 'period' })}
                         value={volume === null ? 'No disponible' : fmt(volume)}
                         unit={volume === null ? '' : 'm³'}
                       />
@@ -383,7 +385,7 @@ export default function OperationalModuleSection({
         <div className="pozos-table-scroll">
           <table className="pozos-operacion-table">
             <thead>
-              <tr><th>Elemento</th><th>Estado actual</th><th>Flujo actual</th><th>Totalizador inicial</th><th>Totalizador final</th><th>Volumen periodo</th><th>Actividad</th><th>Tiempo activo</th><th>Cobertura</th><th>Comunicación</th><th>Última actualización</th></tr>
+              <tr><th>Elemento</th><th>Estado actual</th><th>Flujo actual</th><th>Totalizador inicial</th><th>Totalizador final</th><th>{operationalVolumeLabel(module, { scope: 'period' })}</th><th>Actividad</th><th>Tiempo activo</th><th>Cobertura</th><th>Comunicación</th><th>Última actualización</th></tr>
             </thead>
             <tbody>
               {rows.map((row, index) => {
@@ -395,7 +397,7 @@ export default function OperationalModuleSection({
                     <td>{currentFlow(row) === null ? '—' : `${fmt(currentFlow(row))} ${String(row.flow_unit || 'L/s')}`}</td>
                     <td>{number(row.period_open_m3) === null ? '—' : `${fmt(row.period_open_m3)} m³`}</td>
                     <td>{number(row.period_close_m3) === null ? '—' : `${fmt(row.period_close_m3)} m³`}</td>
-                    <td>{number(row.period_m3) === null ? 'No disponible' : row.has_discontinuities ? `Volumen validado parcial: ${fmt(row.period_m3)} m³` : `${fmt(row.period_m3)} m³`}</td>
+                    <td>{number(row.period_m3) === null ? 'No disponible' : row.has_discontinuities ? `${operationalVolumeLabel(module, { validated: true })} parcial: ${fmt(row.period_m3)} m³` : `${fmt(row.period_m3)} m³`}</td>
                     <td>{periodMessage(row)}</td>
                     <td>{number(row.active_minutes) === null ? '—' : `${fmt(row.active_minutes)} min`}</td>
                     <td>{number(row.coverage_percent) === null ? '—' : `${fmt(row.coverage_percent)}% · ${String(row.coverage_status || '')}`}</td>

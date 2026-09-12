@@ -7,6 +7,7 @@ import ChartEmptyState from './ChartEmptyState';
 import PanelHeader from './PanelHeader';
 import StatusBadge from './StatusBadge';
 import { JARABES_SECTION_CONFIG, LAVADORAS_SECTION_CONFIG } from '../operationalSectionConfig';
+import { operationalVolumeLabel } from '../operationalTerminology';
 
 type GroupMode = 'well' | 'line' | 'flow' | 'all';
 
@@ -140,14 +141,14 @@ function DetailTable({ shift, group, selectedIdentity, allowedItems, emptyMessag
   return (
     <div className="pozos-table-scroll shift-detail-table-wrap">
       <table className="pozos-operacion-table shift-detail-table">
-        <thead><tr><th>Elemento</th><th>Apertura</th><th>Cierre</th><th>Volumen turno</th><th>Flujo promedio</th><th>Mínimo / máximo</th><th>Muestras</th><th>Actividad</th><th>Comunicación</th></tr></thead>
+        <thead><tr><th>Elemento</th><th>Apertura</th><th>Cierre</th><th>{operationalVolumeLabel(group, { scope: 'period' }).replace('del periodo', 'del turno')}</th><th>Flujo promedio</th><th>Mínimo / máximo</th><th>Muestras</th><th>Actividad</th><th>Comunicación</th></tr></thead>
         <tbody>
           {detailRows.map((item) => (
             <tr key={`${shift.id}-${group}-${item.sensor_id || item.operational_key}`}>
               <td>{item.name}</td>
               <td>{item.period_open_m3 == null ? '—' : `${fmt(item.period_open_m3)} m³`}</td>
               <td>{item.period_close_m3 == null ? '—' : `${fmt(item.period_close_m3)} m³`}</td>
-              <td>{item.period_m3 == null ? item.activity : item.has_discontinuities ? `Volumen validado parcial: ${fmt(item.period_m3)} m³` : `${fmt(item.period_m3)} m³`}</td>
+              <td>{item.period_m3 == null ? item.activity : item.has_discontinuities ? `${operationalVolumeLabel(group, { validated: true })} parcial: ${fmt(item.period_m3)} m³` : `${fmt(item.period_m3)} m³`}</td>
               <td>{item.flow_avg == null ? '—' : `${fmt(item.flow_avg)} ${item.flow_unit || 'L/s'}`}</td>
               <td>{item.flow_min == null || item.flow_max == null ? '—' : `${fmt(item.flow_min)} / ${fmt(item.flow_max)} ${item.flow_unit || 'L/s'}`}</td>
               <td>{Number(item.samples || 0).toLocaleString('es-MX')}</td>

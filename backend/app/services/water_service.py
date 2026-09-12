@@ -6,6 +6,7 @@ from typing import Any
 from app.schemas.dashboard import KpiCard
 from app.schemas.water import WaterDashboardPayload
 from app.services.durango_capabilities import FLOWS, LINES, WELLS, capability_payload, current_flow_threshold_for_sensor, is_jarabes_identity
+from app.services.durango_terminology import operational_volume_label
 from app.services.water_bos_service import get_bos_water_dashboard_payload
 from app.services.water_period_service import WaterPeriodError, get_period_data, summarize_period_items
 
@@ -183,9 +184,9 @@ def _cards(payload: dict[str, Any]) -> list[KpiCard]:
         return f"{prefix}{group.get('active_count', 0)}/{total} con actividad · {group.get('current_flow_count', 0)}/{total} con flujo actual"
 
     return [
-        KpiCard(label='Volumen validado de pozos', value=value(wells), unit=unit(wells), trend=trend(wells, len(WELLS)), accent='blue'),
-        KpiCard(label='Volumen validado de líneas', value=value(lines), unit=unit(lines), trend=trend(lines, len(LINES)), accent='cyan'),
-        KpiCard(label='Volumen validado de flujos', value=value(flows), unit=unit(flows), trend=trend(flows, len(FLOWS)), accent='indigo'),
+        KpiCard(label=f"{operational_volume_label('well', validated=True)} de pozos", value=value(wells), unit=unit(wells), trend=trend(wells, len(WELLS)), accent='blue'),
+        KpiCard(label=f"{operational_volume_label('line', validated=True)} de líneas", value=value(lines), unit=unit(lines), trend=trend(lines, len(LINES)), accent='cyan'),
+        KpiCard(label=f"{operational_volume_label('flow', validated=True)} de flujos", value=value(flows), unit=unit(flows), trend=trend(flows, len(FLOWS)), accent='indigo'),
         KpiCard(label='Validación parcial', value=str(int(wells.get('partial_count', 0)) + int(lines.get('partial_count', 0)) + int(flows.get('partial_count', 0))), unit='elementos', trend='Con volumen utilizable y eventos descartados', accent='brown'),
     ]
 

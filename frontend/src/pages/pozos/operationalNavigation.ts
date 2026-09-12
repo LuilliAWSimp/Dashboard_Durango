@@ -59,6 +59,31 @@ export function resolveOperationalIdentity(
     : numericIdentity(row.id) || String(row.id || `elemento_${index + 1}`);
 }
 
+
+export interface OperationalReturnState {
+  returnTo?: string;
+  fromOperationalModule?: boolean;
+  [key: string]: unknown;
+}
+
+export function buildOperationalReturnState(
+  pathname: string,
+  search = '',
+  existingState?: unknown,
+): OperationalReturnState {
+  const base = existingState && typeof existingState === 'object' && !Array.isArray(existingState)
+    ? existingState as Record<string, unknown>
+    : {};
+  return { ...base, returnTo: `${pathname}${search}`, fromOperationalModule: true };
+}
+
+export function resolveOperationalReturnTarget(state: unknown, fallback: string): string {
+  if (!state || typeof state !== 'object' || Array.isArray(state)) return fallback;
+  const candidate = String((state as Record<string, unknown>).returnTo || '').trim();
+  if (!candidate.startsWith('/') || candidate.startsWith('//')) return fallback;
+  return candidate;
+}
+
 export interface OperationalNavigationContext {
   range: DateRange;
   aggregation: HistoryAggregation;

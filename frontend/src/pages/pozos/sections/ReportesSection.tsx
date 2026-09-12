@@ -16,6 +16,7 @@ import StatusBadge from '../components/StatusBadge';
 import { useNotifications } from '../components/NotificationCenter';
 import ScheduledReportEmailPanel from '../components/ScheduledReportEmailPanel';
 import { downloadFullHistoricalExcel, downloadFullHistoricalPdf } from '../../../services/waterHistoricalExportService';
+import { operationalVolumeLabel } from '../operationalTerminology';
 
 type ReportMode = 'day' | 'range';
 type ReportSectionKey = 'wells' | 'production_lines' | 'washers' | 'jarabes';
@@ -104,6 +105,12 @@ function ReportSkeleton() {
   );
 }
 
+function reportSectionVolumeLabel(sectionKey: ReportSectionKey): string {
+  if (sectionKey === 'wells') return operationalVolumeLabel('well');
+  if (sectionKey === 'production_lines') return operationalVolumeLabel('line');
+  return operationalVolumeLabel('flow');
+}
+
 function ReportPreviewTable({ rows, sectionKey }: { rows: any[]; sectionKey: ReportSectionKey }) {
   if (!rows.length) {
     return <div className="report-preview-empty">Sin elementos disponibles para este grupo.</div>;
@@ -118,7 +125,7 @@ function ReportPreviewTable({ rows, sectionKey }: { rows: any[]; sectionKey: Rep
             <th>Flujo actual</th>
             <th>Apertura</th>
             <th>Cierre</th>
-            <th>Volumen</th>
+            <th>{reportSectionVolumeLabel(sectionKey)}</th>
             <th>Actividad</th>
             <th>Validación</th>
             <th>Comunicación</th>
@@ -314,10 +321,10 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
 
   const summary = report?.summary || {};
   const summaryCards = [
-    { label: 'Volumen validado de pozos', value: summary.well_validated_volume_m3 ?? summary.well_volume_m3 },
-    { label: 'Volumen validado de líneas', value: summary.line_validated_volume_m3 ?? summary.line_volume_m3 },
-    { label: 'Volumen validado de lavadoras', value: summary.washer_validated_volume_m3 },
-    { label: 'Volumen validado de Jarabes', value: summary.jarabes_validated_volume_m3 },
+    { label: `${operationalVolumeLabel('well', { validated: true })} de pozos`, value: summary.well_validated_volume_m3 ?? summary.well_volume_m3 },
+    { label: `${operationalVolumeLabel('line', { validated: true })} de líneas`, value: summary.line_validated_volume_m3 ?? summary.line_volume_m3 },
+    { label: `${operationalVolumeLabel('flow', { validated: true })} de lavadoras`, value: summary.washer_validated_volume_m3 },
+    { label: `${operationalVolumeLabel('flow', { validated: true })} de Jarabes`, value: summary.jarabes_validated_volume_m3 },
     { label: 'Total validado operativo', value: summary.total_validated_operational_m3 ?? summary.total_operational_m3 },
   ];
   const isBusy = exportAction !== null;

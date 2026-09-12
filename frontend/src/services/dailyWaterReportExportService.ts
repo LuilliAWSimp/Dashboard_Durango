@@ -170,10 +170,10 @@ export function buildDailyWaterReportHtml(report: any): string {
   </style></head><body>
     <main class="report"><header><div class="brand">ARCA CONTINENTAL · PLANTA DURANGO</div><h1>Reporte Diario de Control Hídrico</h1><p class="meta">Periodo: ${escapeHtml(report.period_label)} · Generado: ${escapeHtml(fmtDate(report.generated_at))}</p></header>
     <div class="summary">
-      <div><span>Volumen validado de pozos</span><strong>${fmtVolume(summary.well_validated_volume_m3 ?? summary.well_volume_m3)}</strong></div>
-      <div><span>Volumen validado de líneas</span><strong>${fmtVolume(summary.line_validated_volume_m3 ?? summary.line_volume_m3)}</strong></div>
-      <div><span>Volumen validado de lavadoras</span><strong>${fmtVolume(summary.washer_validated_volume_m3)}</strong></div>
-      <div><span>Volumen validado de Jarabes</span><strong>${fmtVolume(summary.jarabes_validated_volume_m3)}</strong></div>
+      <div><span>Volumen bombeado validado de pozos</span><strong>${fmtVolume(summary.well_validated_volume_m3 ?? summary.well_volume_m3)}</strong></div>
+      <div><span>Volumen consumido validado de líneas</span><strong>${fmtVolume(summary.line_validated_volume_m3 ?? summary.line_volume_m3)}</strong></div>
+      <div><span>Volumen consumido validado de lavadoras</span><strong>${fmtVolume(summary.washer_validated_volume_m3)}</strong></div>
+      <div><span>Volumen consumido validado de Jarabes</span><strong>${fmtVolume(summary.jarabes_validated_volume_m3)}</strong></div>
       <div><span>${escapeHtml(summary.volume_basis_label || 'Total validado')} operativo</span><strong>${fmtVolume(summary.total_validated_operational_m3 ?? summary.total_operational_m3)}</strong></div>
       <div><span>Cobertura del reporte</span><strong>${escapeHtml(summary.coverage_label || 'Sin dato')}</strong></div>
       <div><span>Elementos validados</span><strong>${Number(summary.validated_items_count || 0)}/${Number(summary.monitored_items_count || 0)}</strong></div>

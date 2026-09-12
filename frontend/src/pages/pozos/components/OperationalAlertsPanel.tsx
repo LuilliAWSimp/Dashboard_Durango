@@ -1,6 +1,7 @@
 import { AlertTriangle, CheckCircle2, RadioTower } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import StatusBadge from './StatusBadge';
+import { buildOperationalReturnState } from '../operationalNavigation';
 import {
   buildWaterAlertRoute,
   type WaterAlertRouteContext,
@@ -34,9 +35,12 @@ export default function OperationalAlertsPanel({
   historicalNote,
 }: OperationalAlertsPanelProps) {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const openAlert = (alert: WaterOperationalAlert) => {
-    navigate(buildWaterAlertRoute(alert, { range, aggregation }));
+    navigate(buildWaterAlertRoute(alert, { range, aggregation }), {
+      state: buildOperationalReturnState(location.pathname, location.search, location.state),
+    });
   };
 
   return (

@@ -22,6 +22,7 @@ from app.services.durango_capabilities import (
     normalize_flow_lps,
 )
 from app.services.durango_lavadoras_service import get_lavadora_period_items
+from app.services.durango_terminology import operational_volume_label
 from app.services.durango_jarabes_service import get_jarabes_period_items
 from app.services.durango_well_history_fallback import query_bos_well_rows
 from app.services.operation_semantics import expected_minute_samples, interval_operation_metrics, period_activity_label
@@ -387,7 +388,7 @@ def build_period_item(
         'discarded_totalizer_events': analysis.discarded_totalizer_events,
         'has_discontinuities': analysis.has_discontinuities,
         'volume_reliable': analysis.volume_reliable,
-        'volume_display_label': 'Volumen validado parcial' if analysis.has_discontinuities else 'Volumen del periodo',
+        'volume_display_label': operational_volume_label(contract.get('group'), validated=analysis.has_discontinuities, scope='period'),
         'today_accumulated_m3': today_accumulated,
         'today_accumulated_reliable': today_reliable,
         'activity': activity,

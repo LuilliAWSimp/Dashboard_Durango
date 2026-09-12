@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { formatSqlDate } from '../dateUtils';
 import {
   buildOperationalNavigationSearch,
+  resolveOperationalReturnTarget,
   configuredOperationalIdentity,
   configuredOperationalItems,
   readOperationalNavigationContext,
@@ -13,6 +14,7 @@ import type { OperationalIdentity, OperationalModule } from '../operationalNavig
 import type { DashboardData, DateRange, FlexibleRecord, HistoryAggregation } from '../types';
 import type { OperationalSectionConfig, OperationalSectionItem } from '../operationalSectionConfig';
 import { displayOperationalState, isNormalCommunication } from '../operationalDisplay';
+import { operationalVolumeLabel } from '../operationalTerminology';
 import DateRangeControls from './DateRangeControls';
 import FiveMinuteExcelExportButton from './FiveMinuteExcelExportButton';
 import MetricPair from './MetricPair';
@@ -180,7 +182,9 @@ export default function OperationalDetailSection({ module, sensorId, backPath, s
     });
   };
   const goBack = () => {
-    navigate(`${backPath}${activeSearch}`);
+    const fallback = `${backPath}${activeSearch}`;
+    const target = resolveOperationalReturnTarget(location.state, fallback);
+    navigate(target, { state: location.state });
   };
 
   return (
@@ -213,7 +217,7 @@ export default function OperationalDetailSection({ module, sensorId, backPath, s
         <div className="well-detail-hero-metrics">
           <article><span>Flujo actual</span><strong>{fmt(item?.current_flow ?? item?.flow_lps)} <small>{flowUnit}</small></strong></article>
           <article><span>Totalizador actual</span><strong>{fmt(item?.current_totalizer_m3 ?? item?.totalizador_m3)} <small>m³</small></strong></article>
-          <article><span>Volumen del periodo</span><strong>{detailVolumeReliable && num(detailVolume) !== null ? fmt(detailVolume) : qualityLabel} <small>{detailVolumeReliable && num(detailVolume) !== null ? 'm³' : ''}</small></strong>{!detailVolumeReliable && qualityReason ? <small className="quality-reason-inline">{qualityReason}</small> : null}</article>
+          <article><span>{operationalVolumeLabel(module, { scope: 'period' })}</span><strong>{detailVolumeReliable && num(detailVolume) !== null ? fmt(detailVolume) : qualityLabel} <small>{detailVolumeReliable && num(detailVolume) !== null ? 'm³' : ''}</small></strong>{!detailVolumeReliable && qualityReason ? <small className="quality-reason-inline">{qualityReason}</small> : null}</article>
           <article><span>Estado actual</span><strong>{currentState}</strong></article>
           <article><span>Última lectura</span><strong>{formatSqlDate(item?.last_update || item?.ultima_lectura)}</strong></article>
           {communicationNeedsAttention ? <article className="attention"><span>Comunicación</span><strong>{communication}</strong></article> : null}
