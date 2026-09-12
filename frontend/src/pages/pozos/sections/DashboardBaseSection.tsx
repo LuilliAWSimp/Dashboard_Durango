@@ -222,7 +222,7 @@ export default function DashboardBaseSection() {
   ];
 
   return (
-    <>
+    <div className="dashboard-resumen-page">
       <section className="panel fade-up compact-hero">
         <PanelHeader title="Resumen hídrico de Durango" subtitle="Snapshot actual + volumen conciliado del día; histórico, comparativos y alertas usan el día operativo actual." />
         {dailyLoading ? <div className="status-pill auto-refresh-status">Actualizando conciliación y comparativos diarios…</div> : null}
@@ -328,6 +328,6 @@ export default function DashboardBaseSection() {
 
       {controller.error ? <div className="status-pill alert">{controller.error}</div> : null}
       {!dashboard && !controller.loading ? <ChartEmptyState message="No fue posible consultar la información de planta." /> : null}
-    </>
+    </div>
   );
 }

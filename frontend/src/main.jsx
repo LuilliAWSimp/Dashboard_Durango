@@ -4,6 +4,8 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App.jsx';
 import './styles/tokens.css';
 import './styles/global.css';
+import './styles/pages/resumen.css';
+import './styles/pages/operational-modules.css';
 import './styles/pages/operational-cards-details.css';
 import './styles/shared.css';
 

@@ -270,7 +270,7 @@ export default function OperationalModuleSection({
   const labels = sectionConfig?.labels;
 
   return (
-    <>
+    <div className={`operational-module-page operational-module-${module}-page`}>
       <section className="operational-module-heading fade-up">
         <PanelHeader title={title} subtitle={subtitle} />
       </section>
@@ -411,6 +411,6 @@ export default function OperationalModuleSection({
         </div>
         {!rows.length ? <ChartEmptyState message={labels?.emptyState || 'Sin registros para el periodo seleccionado.'} /> : null}
       </section>
-    </>
+    </div>
   );
 }
