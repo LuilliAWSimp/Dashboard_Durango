@@ -30,9 +30,9 @@ test('Reportes separa Lavadoras y Jarabes y no muestra Flujos como sección visi
   assert.match(reports, /label: 'Jarabes'/);
   assert.doesNotMatch(reports, /label: 'Flujos'/);
   assert.match(reports, /Pozos, Líneas, Lavadoras y Jarabes/);
-  assert.match(reports, /Volumen validado de lavadoras/);
-  assert.match(reports, /Volumen validado de Jarabes/);
-  assert.doesNotMatch(reports, /Volumen validado de flujos/);
+  assert.match(reports, /operationalVolumeLabel\('flow', \{ validated: true \}\)\} de lavadoras/);
+  assert.match(reports, /operationalVolumeLabel\('flow', \{ validated: true \}\)\} de Jarabes/);
+  assert.doesNotMatch(reports, /de flujos/);
 });
 
 test('Balance de Agua permite que el tooltip escape del panel', () => {
@@ -47,11 +47,11 @@ test('Balance de Agua permite que el tooltip escape del panel', () => {
 
 test('Resumen separa Lavadoras y Jarabes en KPI visibles', () => {
   const resumen = readFileSync(new URL('../src/pages/pozos/sections/DashboardBaseSection.tsx', import.meta.url), 'utf8');
-  assert.match(resumen, /Volumen validado de lavadoras/);
-  assert.match(resumen, /Volumen validado de Jarabes/);
+  assert.match(resumen, /operationalVolumeLabel\('flow', \{ validated: true \}\)\} de lavadoras/);
+  assert.match(resumen, /operationalVolumeLabel\('flow', \{ validated: true \}\)\} de Jarabes/);
   assert.match(resumen, /Lavadoras con flujo actual/);
   assert.match(resumen, /Jarabes con flujo actual/);
-  assert.doesNotMatch(resumen, /Volumen validado de flujos/);
+  assert.doesNotMatch(resumen, /de flujos/);
   assert.doesNotMatch(resumen, /Flujos con flujo actual/);
   assert.doesNotMatch(resumen, /label="Validación parcial"/);
 });
