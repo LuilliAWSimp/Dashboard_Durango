@@ -9,6 +9,8 @@ import './styles/pages/operational-modules.css';
 import './styles/pages/detalles.css';
 import './styles/pages/historicos.css';
 import './styles/pages/turnos.css';
+import './styles/pages/revision-diaria.css';
+import './styles/pages/reportes.css';
 import './styles/pages/operational-cards-details.css';
 import './styles/shared.css';
 

@@ -14,6 +14,8 @@ test('main carga tokens, legado y capas modulares en orden estable', () => {
     "import './styles/pages/detalles.css';",
     "import './styles/pages/historicos.css';",
     "import './styles/pages/turnos.css';",
+    "import './styles/pages/revision-diaria.css';",
+    "import './styles/pages/reportes.css';",
     "import './styles/pages/operational-cards-details.css';",
     "import './styles/shared.css';",
   ];
@@ -39,6 +41,10 @@ test('global.css queda marcado como base heredada congelada', () => {
   assert.doesNotMatch(globalCss, /Historical aggregation control/);
   assert.doesNotMatch(globalCss, /Operational cuts by shift/);
   assert.doesNotMatch(globalCss, /Durango homologacion 04: historico modular completo/);
+  assert.doesNotMatch(globalCss, /\/\* Daily Review \*\//);
+  assert.doesNotMatch(globalCss, /\.reportes-page \{/);
+  assert.doesNotMatch(globalCss, /Homologacion Durango 11D:/);
+  assert.doesNotMatch(globalCss, /Homologacion Durango 11E:/);
 });
 
 test('tokens concentra variables heredadas y aliases semanticos', () => {
@@ -57,6 +63,8 @@ test('responsabilidades migradas viven fuera de global.css', () => {
   const detailBase = read('src/styles/pages/detalles.css');
   const history = read('src/styles/pages/historicos.css');
   const shifts = read('src/styles/pages/turnos.css');
+  const review = read('src/styles/pages/revision-diaria.css');
+  const reports = read('src/styles/pages/reportes.css');
   const shared = read('src/styles/shared.css');
 
   assert.match(resumen, /\.dashboard-resumen-page/);
@@ -72,6 +80,10 @@ test('responsabilidades migradas viven fuera de global.css', () => {
   assert.match(history, /\.module-history-export-actions/);
   assert.match(shifts, /\.shift-summary-card/);
   assert.match(shifts, /\.shift-detail-disclosure/);
+  assert.match(review, /\.daily-review-page/);
+  assert.match(review, /\.daily-review-header-panel/);
+  assert.match(reports, /\.durango-report-page/);
+  assert.match(reports, /\.scheduled-email-panel/);
   assert.match(details, /\.operational-card-footer/);
   assert.match(shared, /\.export-excel-button/);
   assert.match(shared, /\.export-pdf-button/);
@@ -101,4 +113,17 @@ test('Detalles, historicos y turnos exponen scopes semanticos', () => {
   assert.match(history, /operational-history-panel operational-history-\$\{module\}/);
   assert.match(shifts, /operational-shifts-panel operational-shifts-\$\{group\}/);
   assert.match(elementHistory, /operational-element-history operational-history-\$\{module\}/);
+});
+
+
+test('Revision diaria y Reportes tienen frontera modular real', () => {
+  const reviewSection = read('src/pages/pozos/sections/RevisionDiariaSection.tsx');
+  const reportSection = read('src/pages/pozos/sections/ReportesSection.tsx');
+  const reviewCss = read('src/styles/pages/revision-diaria.css');
+  const reportCss = read('src/styles/pages/reportes.css');
+
+  assert.match(reviewSection, /className="daily-review-page"/);
+  assert.match(reportSection, /className="reportes-page durango-report-page"/);
+  assert.match(reviewCss, /display:\s*contents/);
+  assert.match(reportCss, /report-summary-card/);
 });
