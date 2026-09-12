@@ -122,6 +122,6 @@ test('modo Ambos diferencia flujo como linea y volumen como barras', () => {
   assert.match(historyPanel, /<Line key=\{`flow-/);
   assert.match(historyPanel, /<Bar key=\{`totalizer-bar-/);
   assert.match(historyPanel, /dataKey=\{`volume_\$\{identity\}`\}/);
-  assert.match(historyPanel, /Volumen del periodo \(m³\)/);
+  assert.match(historyPanel, /operationalVolumeLabel\(module, \{ scope: 'period' \}\)/);
   assert.match(historyPanel, /TOTALIZER_COLORS/);
 });
