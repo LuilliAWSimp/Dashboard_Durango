@@ -8,6 +8,13 @@ import PanelHeader from './PanelHeader';
 import StatusBadge from './StatusBadge';
 import { JARABES_SECTION_CONFIG, LAVADORAS_SECTION_CONFIG } from '../operationalSectionConfig';
 import { operationalVolumeLabel } from '../operationalTerminology';
+import {
+  aggregateShiftDataState,
+  explicitShiftSchedule,
+  shiftDataStateBadgeType,
+  shiftDataStateLabel,
+  shiftElementDataState,
+} from '../shiftPresentation';
 
 type GroupMode = 'well' | 'line' | 'flow' | 'all';
 
@@ -119,13 +126,9 @@ const JARABES_SHIFT_ITEMS: AllowedItem[] = JARABES_SECTION_CONFIG.items.map((ite
   name: item.name,
 }));
 
-function filteredFlowSummary(shift: WaterShift, allowedItems: AllowedItem[]) {
-  return summarizeRows(rows(shift, 'flow', undefined, allowedItems));
-}
-
 function shiftTotal(shift: WaterShift, group: GroupMode, selectedIdentity?: number | string, allowedItems?: AllowedItem[]): number | null {
   if (shift.cut_status === 'Pendiente') return null;
-  if (group === 'all') return shift.summary.total_operational_m3;
+  if (group === 'all') return null;
   if (selectedIdentity !== undefined) return rows(shift, group, selectedIdentity, allowedItems)[0]?.period_m3 ?? null;
   return summary(shift, group, allowedItems).total_m3;
 }
@@ -137,26 +140,40 @@ function statusType(value: string): string {
   return 'normal';
 }
 
+function allRows(shift: WaterShift, group: GroupMode, selectedIdentity?: number | string, allowedItems?: AllowedItem[]): ShiftElement[] {
+  if (group === 'all') return [...shift.wells, ...shift.lines, ...shift.flows];
+  return rows(shift, group, selectedIdentity, allowedItems);
+}
+
+function dateLabel(value: string): string {
+  const [year, month, day] = value.split('-');
+  return year && month && day ? `${day}/${month}/${year}` : value;
+}
+
 function DetailTable({ shift, group, selectedIdentity, allowedItems, emptyMessage }: { shift: WaterShift; group: Exclude<GroupMode, 'all'>; selectedIdentity?: number | string; allowedItems?: AllowedItem[]; emptyMessage?: string }) {
   const detailRows = rows(shift, group, selectedIdentity, allowedItems);
   return (
     <div className="pozos-table-scroll shift-detail-table-wrap">
       <table className="pozos-operacion-table shift-detail-table">
-        <thead><tr><th>Elemento</th><th>Apertura</th><th>Cierre</th><th>{operationalVolumeLabel(group, { scope: 'period' }).replace('del periodo', 'del turno')}</th><th>Flujo promedio</th><th>Mínimo / máximo</th><th>Muestras</th><th>Actividad</th><th>Comunicación</th></tr></thead>
+        <thead><tr><th>Elemento</th><th>Totalizador inicial</th><th>Totalizador final</th><th>{operationalVolumeLabel(group, { scope: 'period' }).replace('del periodo', 'del turno')}</th><th>Flujo promedio</th><th>Mínimo / máximo</th><th>Muestras</th><th>Actividad</th><th>Estado de datos</th><th>Comunicación</th></tr></thead>
         <tbody>
-          {detailRows.map((item) => (
+          {detailRows.map((item) => {
+            const dataState = shiftElementDataState(item);
+            return (
             <tr key={`${shift.id}-${group}-${item.sensor_id || item.operational_key}`}>
               <td>{item.name}</td>
               <td>{item.period_open_m3 == null ? '—' : `${fmt(item.period_open_m3)} m³`}</td>
               <td>{item.period_close_m3 == null ? '—' : `${fmt(item.period_close_m3)} m³`}</td>
-              <td>{item.period_m3 == null ? item.activity : item.has_discontinuities ? `${operationalVolumeLabel(group, { validated: true })} parcial: ${fmt(item.period_m3)} m³` : `${fmt(item.period_m3)} m³`}</td>
+              <td>{item.period_m3 == null ? dataState === 'no_data' ? 'Sin datos' : 'Sin volumen disponible' : `${fmt(item.period_m3)} m³`}</td>
               <td>{item.flow_avg == null ? '—' : `${fmt(item.flow_avg)} ${item.flow_unit || 'L/s'}`}</td>
               <td>{item.flow_min == null || item.flow_max == null ? '—' : `${fmt(item.flow_min)} / ${fmt(item.flow_max)} ${item.flow_unit || 'L/s'}`}</td>
               <td>{Number(item.samples || 0).toLocaleString('es-MX')}</td>
               <td><StatusBadge type={statusType(String(item.activity || ''))}>{String(item.activity || 'Sin registros')}</StatusBadge></td>
+              <td><StatusBadge type={shiftDataStateBadgeType(dataState)}>{shiftDataStateLabel(dataState)}</StatusBadge></td>
               <td>{String(item.communication || 'Sin lectura')}</td>
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
       {!detailRows.length ? <ChartEmptyState message={shift.cut_status === 'Pendiente' ? 'Turno pendiente.' : emptyMessage || 'Sin registros para este turno.'} /> : null}
@@ -164,7 +181,7 @@ function DetailTable({ shift, group, selectedIdentity, allowedItems, emptyMessag
   );
 }
 
-export default function ShiftConsumptionPanel({ group = 'all', itemIdentity: selectedIdentity, date, showDateControls = true, reviewMode = false, title = 'Consumo por turno', subtitle, items, emptyMessage, dataOverride }: Props) {
+export default function ShiftConsumptionPanel({ group = 'all', itemIdentity: selectedIdentity, date, showDateControls = true, reviewMode = false, title = 'Cortes por turno', subtitle, items, emptyMessage, dataOverride }: Props) {
   const [draftDate, setDraftDate] = useState(date || today());
   const [selectedDate, setSelectedDate] = useState(date || today());
   const [selectedShift, setSelectedShift] = useState('all');
@@ -220,7 +237,7 @@ export default function ShiftConsumptionPanel({ group = 'all', itemIdentity: sel
   }, [selectedDate, selectedShift, dataOverride]);
 
   useEffect(() => { if (!dataOverride) void load(false, false); }, [load, dataOverride]);
-  useAutoRefresh(!dataOverride && selectedDate === today(), () => { void load(true, true); });
+  useAutoRefresh(!dataOverride && selectedDate === today(), () => { void load(false, true); });
 
   const effectiveData = dataOverride || data;
   const visible = useMemo(() => {
@@ -230,11 +247,11 @@ export default function ShiftConsumptionPanel({ group = 'all', itemIdentity: sel
 
   return (
     <section className={`panel fade-up shift-consumption-panel operational-shifts-panel operational-shifts-${group} ${reviewMode ? 'operational-shifts-review' : itemIdentity !== undefined ? 'operational-shifts-detail' : 'operational-shifts-module'}`.trim()}>
-      <PanelHeader title={title} subtitle={subtitle ?? (itemIdentity !== undefined ? undefined : "Turnos sin traslape; apertura y cierre se calculan con totalizadores válidos.")} />
+      <PanelHeader title={title} subtitle={subtitle ?? `Turnos del ${dateLabel(selectedDate)}`} />
       <div className="date-range-panel shift-controls-panel">
         <div className="date-range-fields">
           {showDateControls ? <label><span>Día</span><div className="date-input-with-icon"><CalendarDays size={16} /><input type="date" value={draftDate} onChange={(event) => setDraftDate(event.target.value)} /></div></label> : null}
-          <label className="shift-selector-field"><span>Turno operativo</span><select aria-label="Turno operativo" value={selectedShift} onChange={(event) => setSelectedShift(event.target.value)}><option value="all">Todos los turnos</option><option value="shift_1">Turno 1 · 00:00–07:00</option><option value="shift_2">Turno 2 · 07:00–15:00</option><option value="shift_3">Turno 3 · 15:00–24:00</option></select></label>
+          <label className="shift-selector-field"><span>Turno operativo</span><select aria-label="Turno operativo" value={selectedShift} onChange={(event) => setSelectedShift(event.target.value)}><option value="all">Todos los turnos</option><option value="shift_1">Turno 1 · 00:00–07:00</option><option value="shift_2">Turno 2 · 07:00–15:00</option><option value="shift_3">Turno 3 · 15:00–00:00 (+1 día)</option></select></label>
           {showDateControls ? <button type="button" className="date-range-apply" onClick={() => { if (draftDate === selectedDate) void load(true, true); else setSelectedDate(draftDate); }}>Actualizar</button> : dataOverride ? null : <button type="button" className="date-range-apply" onClick={() => void load(true, true)}>Actualizar turnos</button>}
           {showDateControls ? <button type="button" className="date-range-reset" onClick={() => { const value = today(); setDraftDate(value); setSelectedDate(value); setSelectedShift('all'); }}>Restablecer</button> : null}
         </div>
@@ -245,17 +262,39 @@ export default function ShiftConsumptionPanel({ group = 'all', itemIdentity: sel
       {effectiveData ? <>
         <div className="shift-summary-cards">
           {effectiveData.shifts.map((shift) => {
+            const relevantRows = allRows(shift, group, selectedIdentity, items);
+            const dataState = aggregateShiftDataState(relevantRows, shift.cut_status);
             const value = shiftTotal(shift, group, selectedIdentity, items);
             const groupSummary = group === 'all' ? null : summary(shift, group, items);
             const selectedRow = group === 'all' || selectedIdentity === undefined ? null : rows(shift, group, selectedIdentity, items)[0];
             const summaryText = selectedIdentity !== undefined
-              ? selectedRow ? `${selectedRow.activity} · ${selectedRow.communication}` : 'Sin registros para este elemento'
-              : groupSummary ? `Con actividad ${groupSummary.active_count} · Sin actividad ${groupSummary.inactive_count} · En revisión ${groupSummary.review_count}` : 'Pozos, Líneas, Lavadoras y Jarabes';
-            return <article key={shift.id} className={`shift-summary-card ${shift.cut_status === 'Corte parcial' ? 'partial' : shift.cut_status === 'Pendiente' ? 'pending' : 'completed'}`}><span>{shift.name}</span><small>{shift.schedule}</small><strong>{shift.cut_status === 'Pendiente' ? 'Pendiente' : `${shift.cut_status === 'Corte parcial' ? 'Corte parcial: ' : ''}${value == null ? 'Sin volumen validado' : `${fmt(value)} m³`}`}</strong><p>{summaryText}</p><em>{shift.cut_status}</em></article>;
+              ? selectedRow ? `${selectedRow.activity} · ${selectedRow.communication}` : 'Sin datos para este elemento'
+              : groupSummary ? `Con actividad ${groupSummary.active_count} · Sin actividad ${groupSummary.inactive_count}` : 'Pozos, Líneas, Lavadoras y Jarabes';
+            const primaryText = shift.cut_status === 'Pendiente'
+              ? 'Pendiente'
+              : group === 'all'
+                ? shiftDataStateLabel(dataState)
+                : value == null ? shiftDataStateLabel(dataState) : `${fmt(value)} m³`;
+            return <article key={shift.id} className={`shift-summary-card ${shift.cut_status === 'Corte parcial' ? 'partial' : shift.cut_status === 'Pendiente' ? 'pending' : 'completed'} data-state-${dataState}`}><span>{shift.name}</span><small>{explicitShiftSchedule(shift.id, shift.schedule)}</small><strong>{primaryText}</strong><p>{summaryText}</p><em>{shift.cut_status} · {shiftDataStateLabel(dataState)}</em></article>;
           })}
         </div>
-        {reviewMode ? <div className="pozos-table-scroll shift-overview-table-wrap"><table className="pozos-operacion-table shift-overview-table"><thead><tr><th>Turno</th><th>Horario</th><th>Pozos</th><th>Líneas</th><th>Lavadoras</th><th>Jarabes</th><th>Total operativo</th><th>Estado</th></tr></thead><tbody>{visible.map((shift) => { const lavadoras = filteredFlowSummary(shift, LAVADORA_SHIFT_ITEMS); const jarabes = filteredFlowSummary(shift, JARABES_SHIFT_ITEMS); return <tr key={shift.id}><td>{shift.name}</td><td>{shift.schedule}</td><td>{shift.cut_status === 'Pendiente' ? 'Pendiente' : `${fmt(shift.summary.wells.total_m3)} m³`}</td><td>{shift.cut_status === 'Pendiente' ? 'Pendiente' : `${fmt(shift.summary.lines.total_m3)} m³`}</td><td>{shift.cut_status === 'Pendiente' ? 'Pendiente' : `${fmt(lavadoras.total_m3)} m³`}</td><td>{shift.cut_status === 'Pendiente' ? 'Pendiente' : `${fmt(jarabes.total_m3)} m³`}</td><td>{shift.cut_status === 'Pendiente' ? 'Pendiente' : `${fmt(shift.summary.total_operational_m3)} m³`}</td><td><StatusBadge type={statusType(shift.cut_status)}>{shift.cut_status}</StatusBadge></td></tr>; })}</tbody></table></div> : null}
-        <div className="shift-detail-list">{visible.map((shift) => <details key={`${shift.id}-${group}`} className={`shift-detail-disclosure ${shift.cut_status === 'Corte parcial' ? 'partial' : shift.cut_status === 'Pendiente' ? 'pending' : 'completed'}`}><summary><span><strong>{shift.name}</strong><small>{shift.schedule}</small></span><StatusBadge type={statusType(shift.cut_status)}>{shift.cut_status}</StatusBadge></summary>{group === 'all' ? <div className="shift-detail-groups"><section><h4>Pozos</h4><DetailTable shift={shift} group="well" /></section><section><h4>Líneas</h4><DetailTable shift={shift} group="line" /></section><section><h4>Lavadoras</h4><DetailTable shift={shift} group="flow" allowedItems={LAVADORA_SHIFT_ITEMS} emptyMessage="Sin registros de lavadoras para este turno." /></section><section><h4>Jarabes</h4><DetailTable shift={shift} group="flow" allowedItems={JARABES_SHIFT_ITEMS} emptyMessage="Sin registros de Jarabes para este turno." /></section></div> : <DetailTable shift={shift} group={group} selectedIdentity={selectedIdentity} allowedItems={items} emptyMessage={emptyMessage} />}</details>)}</div>
+        {reviewMode ? <div className="pozos-table-scroll shift-overview-table-wrap"><table className="pozos-operacion-table shift-overview-table"><thead><tr><th>Turno</th><th>Horario</th><th>Pozos</th><th>Líneas</th><th>Lavadoras</th><th>Jarabes</th><th>Estado de datos</th><th>Corte</th></tr></thead><tbody>{visible.map((shift) => {
+          const lavadoraRows = rows(shift, 'flow', undefined, LAVADORA_SHIFT_ITEMS);
+          const jarabesRows = rows(shift, 'flow', undefined, JARABES_SHIFT_ITEMS);
+          const lavadoras = summarizeRows(lavadoraRows);
+          const jarabes = summarizeRows(jarabesRows);
+          const dataState = aggregateShiftDataState(allRows(shift, 'all'), shift.cut_status);
+          const moduleVolumeCell = (value: number | null, moduleRows: ShiftElement[]) => {
+            if (shift.cut_status === 'Pendiente') return 'Pendiente';
+            if (value != null) return `${fmt(value)} m³`;
+            return aggregateShiftDataState(moduleRows, shift.cut_status) === 'no_data' ? 'Sin datos' : 'Sin volumen disponible';
+          };
+          return <tr key={shift.id}><td>{shift.name}</td><td>{explicitShiftSchedule(shift.id, shift.schedule)}</td><td>{moduleVolumeCell(shift.summary.wells.total_m3, shift.wells)}</td><td>{moduleVolumeCell(shift.summary.lines.total_m3, shift.lines)}</td><td>{moduleVolumeCell(lavadoras.total_m3, lavadoraRows)}</td><td>{moduleVolumeCell(jarabes.total_m3, jarabesRows)}</td><td><StatusBadge type={shiftDataStateBadgeType(dataState)}>{shiftDataStateLabel(dataState)}</StatusBadge></td><td><StatusBadge type={statusType(shift.cut_status)}>{shift.cut_status}</StatusBadge></td></tr>;
+        })}</tbody></table></div> : null}
+        <div className="shift-detail-list">{visible.map((shift) => {
+          const dataState = aggregateShiftDataState(allRows(shift, group, selectedIdentity, items), shift.cut_status);
+          return <details key={`${shift.id}-${group}`} className={`shift-detail-disclosure ${shift.cut_status === 'Corte parcial' ? 'partial' : shift.cut_status === 'Pendiente' ? 'pending' : 'completed'} data-state-${dataState}`}><summary><span><strong>{shift.name}</strong><small>{explicitShiftSchedule(shift.id, shift.schedule)}</small></span><div className="shift-disclosure-statuses"><StatusBadge type={shiftDataStateBadgeType(dataState)}>{shiftDataStateLabel(dataState)}</StatusBadge><StatusBadge type={statusType(shift.cut_status)}>{shift.cut_status}</StatusBadge></div></summary>{group === 'all' ? <div className="shift-detail-groups"><section><h4>Pozos</h4><DetailTable shift={shift} group="well" /></section><section><h4>Líneas</h4><DetailTable shift={shift} group="line" /></section><section><h4>Lavadoras</h4><DetailTable shift={shift} group="flow" allowedItems={LAVADORA_SHIFT_ITEMS} emptyMessage="Sin registros de lavadoras para este turno." /></section><section><h4>Jarabes</h4><DetailTable shift={shift} group="flow" allowedItems={JARABES_SHIFT_ITEMS} emptyMessage="Sin registros de Jarabes para este turno." /></section></div> : <DetailTable shift={shift} group={group} selectedIdentity={selectedIdentity} allowedItems={items} emptyMessage={emptyMessage} />}</details>;
+        })}</div>
       </> : null}
     </section>
   );

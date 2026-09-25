@@ -56,7 +56,7 @@ test('Revision diaria 34 limpia encabezados de la tabla operativa', () => {
 
 test('Revision diaria 34 permite subtitulo claro de turnos y conserva modo claro', () => {
   assert.match(shifts, /subtitle\?: string/);
-  assert.match(shifts, /subtitle \?\? \(itemIdentity !== undefined/);
+  assert.match(shifts, /subtitle \?\? `Turnos del \${dateLabel\(selectedDate\)}`/);
   assert.match(review, /subtitle=\{`Turnos del \$\{selectedDateText\}`\}/);
   assert.match(css, /daily-review-comparison-panel/);
 });

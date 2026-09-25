@@ -38,8 +38,9 @@ test('notas explicativas del motor historico no se muestran en una card individu
   assert.match(history, /aggregation === 'minute' && !singleElement/);
 });
 
-test('turnos oculta explicacion tecnica solo cuando se usa dentro del detalle', () => {
-  assert.match(shifts, /itemIdentity !== undefined \? undefined : "Turnos sin traslape/);
+test('turnos mantiene subtitulo temporal limpio sin explicacion tecnica heredada', () => {
+  assert.doesNotMatch(shifts, /Turnos sin traslape/);
+  assert.match(shifts, /Turnos del \${dateLabel\(selectedDate\)}/);
 });
 
 test('DateRangeControls no reserva espacio para subtitulo vacio y config elimina detailSubtitle muerto', () => {
