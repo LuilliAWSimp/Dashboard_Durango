@@ -9,7 +9,6 @@ import ModuleHistoryPanel from '../components/ModuleHistoryPanel';
 import PanelHeader from '../components/PanelHeader';
 import StatusBadge from '../components/StatusBadge';
 import OperationalAlertsPanel from '../components/OperationalAlertsPanel';
-import WellsMinuteFlowPanel from '../components/WellsMinuteFlowPanel';
 import { defaultTodayRange, formatSqlDate, recommendedHistoryAggregation } from '../dateUtils';
 import useSqlChartDashboard from '../hooks/useSqlChartDashboard';
 import type { DashboardData, FlexibleRecord } from '../types';
@@ -244,7 +243,6 @@ export default function DashboardBaseSection() {
       </section>
 
       <ModuleHistoryPanel range={controller.range} independentRange />
-      <WellsMinuteFlowPanel />
 
       <section className="panel fade-up">
         <PanelHeader

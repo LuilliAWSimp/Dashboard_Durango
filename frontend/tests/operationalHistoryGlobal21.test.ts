@@ -7,7 +7,6 @@ const read = (relativePath: string) => readFileSync(new URL(`../${relativePath}`
 test('Resumen usa el historico global V2 con rango independiente', () => {
   const summary = read('src/pages/pozos/sections/DashboardBaseSection.tsx');
   assert.match(summary, /<ModuleHistoryPanel range=\{controller\.range\} independentRange \/>/);
-  assert.match(summary, /<WellsMinuteFlowPanel \/>/);
 });
 
 test('historico global separa Pozos, Lineas, Lavadoras y Jarabes sin crear modulos backend ficticios', () => {
