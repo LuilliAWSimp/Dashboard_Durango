@@ -19,6 +19,7 @@ import { operationalVolumeLabel } from '../operationalTerminology';
 import ChartEmptyState from './ChartEmptyState';
 import MetricPair from './MetricPair';
 import ModuleHistoryPanel from './ModuleHistoryPanel';
+import type { OperationalHistoryView } from './ModuleHistoryPanel';
 import PanelHeader from './PanelHeader';
 import ShiftConsumptionPanel from './ShiftConsumptionPanel';
 import SqlChartDateControls from './SqlChartDateControls';
@@ -268,6 +269,15 @@ export default function OperationalModuleSection({
     });
   };
   const labels = sectionConfig?.labels;
+  const historyView: OperationalHistoryView = sectionConfig?.key === 'lavadoras'
+    ? 'washers'
+    : sectionConfig?.key === 'jarabes'
+      ? 'jarabes'
+      : module === 'well'
+        ? 'well'
+        : module === 'line'
+          ? 'line'
+          : 'washers';
 
   return (
     <div className={`operational-module-page operational-module-${module}-page`}>
@@ -364,10 +374,8 @@ export default function OperationalModuleSection({
 
       <ModuleHistoryPanel
         range={controller.range}
-        fixedModule={module}
-        aggregation={aggregation}
-        onAggregationChange={setAggregation}
-        items={configuredItems}
+        fixedView={historyView}
+        independentRange
         panelTitle={labels?.historyTitle}
         panelSubtitle={labels?.historySubtitle}
       />

@@ -11,7 +11,7 @@ test('Resumen usa el historico global V2 con rango independiente', () => {
 
 test('historico global separa Pozos, Lineas, Lavadoras y Jarabes sin crear modulos backend ficticios', () => {
   const history = read('src/pages/pozos/components/ModuleHistoryPanel.tsx');
-  assert.match(history, /type GlobalHistoryView = 'well' \| 'line' \| 'washers' \| 'jarabes'/);
+  assert.match(history, /type OperationalHistoryView = 'well' \| 'line' \| 'washers' \| 'jarabes'/);
   assert.match(history, /washers:\s*\{\s*module: 'flow'/s);
   assert.match(history, /jarabes:\s*\{\s*module: 'flow'/s);
   assert.match(history, /item\.operationalKey !== 'jarabes'/);
@@ -24,7 +24,7 @@ test('historico global separa Pozos, Lineas, Lavadoras y Jarabes sin crear modul
 
 test('historico global tiene fechas propias y conserva las cuatro agrupaciones homologadas', () => {
   const history = read('src/pages/pozos/components/ModuleHistoryPanel.tsx');
-  assert.match(history, /aria-label="Fechas del histórico global"/);
+  assert.match(history, /'Fechas del histórico global'/);
   assert.match(history, /type="date" value=\{draftRange\.startDate\}/);
   assert.match(history, /type="date" value=\{draftRange\.endDate\}/);
   assert.match(history, />Actualizar<\/button>/);

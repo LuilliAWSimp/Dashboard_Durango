@@ -20,5 +20,5 @@ test('el historico global conserva consulta a un minuto como reemplazo funcional
   const history = read('src/pages/pozos/components/ModuleHistoryPanel.tsx');
   assert.match(history, /value="minute">1 minuto/);
   assert.match(history, /label: 'Pozos'/);
-  assert.match(history, /aria-label="Fechas del histórico global"/);
+  assert.match(history, /'Fechas del histórico global'/);
 });

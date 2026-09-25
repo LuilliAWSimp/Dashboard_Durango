@@ -34,9 +34,9 @@ type HistoryItem = {
   flowUnit?: string;
 };
 
-type GlobalHistoryView = 'well' | 'line' | 'washers' | 'jarabes';
+export type OperationalHistoryView = 'well' | 'line' | 'washers' | 'jarabes';
 
-const GLOBAL_HISTORY_VIEWS: Record<GlobalHistoryView, { module: ComparisonModule; label: string; items: HistoryItem[] }> = {
+const GLOBAL_HISTORY_VIEWS: Record<OperationalHistoryView, { module: ComparisonModule; label: string; items: HistoryItem[] }> = {
   well: { module: 'well', label: 'Pozos', items: DURANGO_CAPABILITIES.wells.map((item) => ({ ...item })) },
   line: { module: 'line', label: 'Líneas', items: DURANGO_CAPABILITIES.lines.map((item) => ({ ...item })) },
   washers: {
@@ -63,6 +63,7 @@ type ExportSeries = { key: string; name: string; metric: 'flow' | 'totalizer'; u
 interface Props {
   range: DateRange;
   fixedModule?: ComparisonModule;
+  fixedView?: OperationalHistoryView;
   aggregation?: HistoryAggregation;
   onAggregationChange?: (value: HistoryAggregation) => void;
   colors?: string[];
@@ -283,20 +284,28 @@ function supportedAggregationForRange(current: HistoryAggregation, startDate: st
   return current;
 }
 
-export default function ModuleHistoryPanel({ range, fixedModule, aggregation: controlledAggregation, onAggregationChange, colors, items, panelTitle, panelSubtitle, className = '', independentRange = false }: Props) {
-  const [globalView, setGlobalView] = useState<GlobalHistoryView>('well');
+export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggregation: controlledAggregation, onAggregationChange, colors, items, panelTitle, panelSubtitle, className = '', independentRange = false }: Props) {
+  const [globalView, setGlobalView] = useState<OperationalHistoryView>('well');
   const viewConfig = GLOBAL_HISTORY_VIEWS[globalView];
-  const module = fixedModule || viewConfig.module;
-  const moduleDisplayLabel = fixedModule ? MODULE_LABELS[module] : viewConfig.label;
+  const lockedViewConfig = fixedView ? GLOBAL_HISTORY_VIEWS[fixedView] : null;
+  const module = lockedViewConfig?.module || fixedModule || viewConfig.module;
+  const moduleDisplayLabel = lockedViewConfig?.label || (fixedModule ? MODULE_LABELS[module] : viewConfig.label);
+  const lockedHistory = Boolean(fixedView || fixedModule);
   const initialLocalRange = normalizeDateRange(range.startDate, range.endDate);
   const [draftRange, setDraftRange] = useState(initialLocalRange);
   const [localRange, setLocalRange] = useState<DateRange>({ ...initialLocalRange, refreshKey: Number(range.refreshKey || 0) });
   const effectiveRange = independentRange ? localRange : range;
   const palette = colors?.length ? colors : COLORS;
   const activeItems = useMemo<HistoryItem[]>(() => {
-    const source = items?.length ? items : fixedModule ? comparisonModuleItems[module] : viewConfig.items;
+    const source = items?.length
+      ? items
+      : lockedViewConfig
+        ? lockedViewConfig.items
+        : fixedModule
+          ? comparisonModuleItems[module]
+          : viewConfig.items;
     return source.map((item) => ({ ...item }));
-  }, [items, fixedModule, module, viewConfig]);
+  }, [items, lockedViewConfig, fixedModule, module, viewConfig]);
   const activeIdentities = useMemo(() => activeItems.map(configuredComparisonIdentity), [activeItems]);
   const allowedTokens = useMemo(() => new Set(activeItems.flatMap((item) => [String(configuredComparisonIdentity(item)), item.operationalKey])), [activeItems]);
   const [internalAggregation, setInternalAggregation] = useState<HistoryAggregation>(() => controlledAggregation || recommendedHistoryAggregation(effectiveRange));
@@ -453,13 +462,13 @@ export default function ModuleHistoryPanel({ range, fixedModule, aggregation: co
   const totalizerAxisLabel = metric === 'both' ? operationalVolumeAxisLabel(module) : effectiveTotalizerDisplay === 'delta' ? 'Variación (m³)' : 'Totalizador (m³)';
 
   return (
-    <section className={`panel chart-panel fade-up module-history-panel operational-module-comparison operational-history-panel operational-history-${fixedModule ? module : globalView} ${className}`.trim()}>
+    <section className={`panel chart-panel fade-up module-history-panel operational-module-comparison operational-history-panel operational-history-${fixedView || (fixedModule ? module : globalView)} ${className}`.trim()}>
       <PanelHeader
-        title={panelTitle || (fixedModule ? `Comparativa de ${moduleDisplayLabel.toLowerCase()}` : 'Histórico operativo global')}
-        subtitle={panelSubtitle || (fixedModule ? 'Consulta el comportamiento histórico del módulo seleccionado.' : 'Consulta Pozos, Líneas, Lavadoras y Jarabes desde un único histórico.')}
+        title={panelTitle || (lockedHistory ? `Histórico operativo · ${moduleDisplayLabel}` : 'Histórico operativo global')}
+        subtitle={panelSubtitle || (lockedHistory ? `Consulta ${moduleDisplayLabel.toLowerCase()} con el mismo motor histórico del Resumen.` : 'Consulta Pozos, Líneas, Lavadoras y Jarabes desde un único histórico.')}
       />
       {independentRange ? (
-        <div className="module-history-range-panel" aria-label="Fechas del histórico global">
+        <div className="module-history-range-panel" aria-label={lockedHistory ? `Fechas del histórico de ${moduleDisplayLabel}` : 'Fechas del histórico global'}>
           <div className="module-history-range-fields">
             <label><span>Desde</span><input type="date" value={draftRange.startDate} onChange={(event) => setDraftRange((current) => ({ ...current, startDate: event.target.value }))} /></label>
             <label><span>Hasta</span><input type="date" value={draftRange.endDate} onChange={(event) => setDraftRange((current) => ({ ...current, endDate: event.target.value }))} /></label>
@@ -472,8 +481,8 @@ export default function ModuleHistoryPanel({ range, fixedModule, aggregation: co
         </div>
       ) : null}
       <div className="module-history-toolbar">
-        {!fixedModule ? <div className="module-history-tabs" role="tablist">
-          {(Object.keys(GLOBAL_HISTORY_VIEWS) as GlobalHistoryView[]).map((value) => {
+        {!lockedHistory ? <div className="module-history-tabs" role="tablist">
+          {(Object.keys(GLOBAL_HISTORY_VIEWS) as OperationalHistoryView[]).map((value) => {
             const option = GLOBAL_HISTORY_VIEWS[value];
             return <button type="button" role="tab" aria-selected={globalView === value} className={`module-history-tab ${globalView === value ? 'active' : ''}`} key={value} onClick={() => setGlobalView(value)}>{option.label}</button>;
           })}
