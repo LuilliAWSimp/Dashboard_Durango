@@ -36,7 +36,7 @@ export default function ElementHistoryPanel({
       onAggregationChange={onAggregationChange}
       items={[item]}
       panelTitle={`Histórico operativo · ${item.name}`}
-      panelSubtitle="Flujo, totalizador y exportaciones del elemento para el rango seleccionado."
+      panelSubtitle="Flujo, volumen, totalizador y exportaciones del elemento para el rango seleccionado."
       className={`operational-detail-history operational-element-history operational-history-${module}`}
       singleElement
     />

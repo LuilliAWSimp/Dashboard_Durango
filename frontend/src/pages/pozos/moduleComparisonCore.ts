@@ -17,6 +17,7 @@ interface ComparisonPoint {
   flow_min_lps?: number | null;
   flow_max_lps?: number | null;
   totalizer_close_m3?: number | null;
+  volume_m3?: number | null;
   active_minutes?: number;
   samples?: number;
   samples_expected?: number;
