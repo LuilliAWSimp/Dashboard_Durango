@@ -5,9 +5,11 @@ import test from 'node:test';
 const reports = readFileSync(new URL('../src/pages/pozos/sections/ReportesSection.tsx', import.meta.url), 'utf8');
 const service = readFileSync(new URL('../src/services/waterReportService.ts', import.meta.url), 'utf8');
 const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+const capabilities = readFileSync(new URL('../src/config/plantCapabilities.ts', import.meta.url), 'utf8');
 
-test('la navegación visible utiliza Balance de Agua', () => {
-  assert.match(app, /label: 'Balance de Agua'/);
+test('la navegación visible utiliza Balance de Agua desde capabilities', () => {
+  assert.match(capabilities, /label: 'Balance de Agua'/);
+  assert.match(app, /buildDurangoNavigation/);
   assert.doesNotMatch(app, /Comparativo Operativo/);
 });
 

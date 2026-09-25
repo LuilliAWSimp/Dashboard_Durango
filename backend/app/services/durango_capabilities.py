@@ -48,10 +48,14 @@ CAPABILITIES: dict[str, str | bool] = {
     'washers': True,
     'jarabes': True,
     'tanks': False,
+    'cip': False,
+    'uv': False,
+    'consumptions': False,
     'concession': 'pending_validation',
     'energy': False,
     'reports': True,
     'shifts': True,
+    'daily_review': True,
     'balance': 'pending_physical_validation',
 }
 
@@ -231,9 +235,9 @@ SENSORS_BY_MODULE = {
     'flow': [item['sensor_id'] if item.get('sensor_id') is not None else str(item['operational_key']) for item in FLOWS],
 }
 
-ACTIVE_MODULES = ['Resumen', 'Pozos', 'Líneas', 'Flujos', 'Balance de Agua', 'Revisión diaria', 'Reportes']
-PENDING_MODULES = ['Concesión']
-DISABLED_MODULES = ['Energía']
+ACTIVE_MODULES = ['Resumen', 'Pozos', 'Líneas', 'Lavadoras', 'Jarabes', 'Revisión diaria', 'Reportes']
+PENDING_MODULES = ['Balance de Agua', 'Concesión']
+DISABLED_MODULES = ['Tanques', 'CIP', 'Lámparas UV', 'Consumos heredados', 'Energía']
 
 DEFAULT_CURRENT_FLOW_ACTIVE_THRESHOLD = 0.01
 CURRENT_FLOW_ACTIVE_THRESHOLD_BY_KEY: dict[str, float] = {}

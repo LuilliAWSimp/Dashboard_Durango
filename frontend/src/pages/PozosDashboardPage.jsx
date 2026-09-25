@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { Navigate } from 'react-router-dom';
 import { downloadWaterReport } from '../services/waterExportService';
+import { isDurangoSectionAccessible } from '../config/plantCapabilities';
 import RevisionDiariaSection from './pozos/sections/RevisionDiariaSection';
 import BalanceSection from './pozos/sections/BalanceSection';
 import DashboardBaseSection from './pozos/sections/DashboardBaseSection';
@@ -69,8 +70,11 @@ const sectionMap = {
   },
 };
 
-export default function PozosDashboardPage({ section = 'dashboard', itemId, setHeaderMeta, user }) {
-  const current = sectionMap[section] || sectionMap.dashboard;
+export default function PozosDashboardPage({ section = 'dashboard', itemId, setHeaderMeta, user, runtimeCapabilities = {} }) {
+  const sectionExists = Boolean(sectionMap[section]);
+  const sectionAllowed = sectionExists && isDurangoSectionAccessible(section, runtimeCapabilities, user?.role);
+  const effectiveSection = sectionAllowed ? section : 'dashboard';
+  const current = sectionMap[effectiveSection];
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -83,9 +87,9 @@ export default function PozosDashboardPage({ section = 'dashboard', itemId, setH
     setHeaderMeta({
       title: current.title,
       subtitle: '',
-      onExport: section === 'reportes' || section === 'usuarios' ? null : async (format) => {
+      onExport: effectiveSection === 'reportes' || effectiveSection === 'usuarios' ? null : async (format) => {
         try {
-          await downloadWaterReport(section, format, { itemId, title: current.title });
+          await downloadWaterReport(effectiveSection, format, { itemId, title: current.title });
         } catch (error) {
           console.error('No fue posible exportar el reporte de Pozos', error);
           window.alert('No fue posible exportar el reporte de Pozos. Intenta nuevamente.');
@@ -93,9 +97,11 @@ export default function PozosDashboardPage({ section = 'dashboard', itemId, setH
       },
       onEmail: null,
     });
-  }, [current, section, itemId, setHeaderMeta]);
+  }, [current, effectiveSection, itemId, setHeaderMeta]);
 
   const content = useMemo(() => current.render({ itemId, user }), [current, itemId, user]);
+
+  if (!sectionAllowed) return <Navigate to="/pozos/dashboard" replace />;
 
   return (
     <div className="page-grid pozos-page" data-export-root data-section={section}>

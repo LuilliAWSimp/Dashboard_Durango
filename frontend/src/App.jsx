@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useParams } from 'react-router-dom';
 import Header from './components/Header';
 import BrandLogo from './components/BrandLogo';
 import { DASHBOARD_TITLE, PLANT_NAME } from './config/plant';
+import { buildDurangoNavigation, extractDurangoRuntimeCapabilities } from './config/plantCapabilities';
 import Sidebar from './components/Sidebar';
 import LoginPage from './pages/LoginPage';
 import PozosDashboardPage from './pages/PozosDashboardPage';
@@ -38,18 +39,6 @@ function getStoredDurangoTheme() {
     return 'dark';
   }
 }
-
-const POZOS_MENU_ITEMS = [
-  { key: 'dashboard', label: 'Resumen', iconKey: 'pozos-dashboard' },
-  { key: 'pozos', label: 'Pozos', iconKey: 'pozos-pozos' },
-  { key: 'lineas', label: 'Líneas', iconKey: 'pozos-lineas' },
-  { key: 'flujos', label: 'Lavadoras', iconKey: 'pozos-flujos' },
-  { key: 'jarabes', label: 'Jarabes', iconKey: 'jarabes' },
-  { key: 'balance', label: 'Balance de Agua', iconKey: 'pozos-balance' },
-  { key: 'concesion', label: 'Concesión · Pendiente', iconKey: 'pozos-concesion' },
-  { key: 'revision', label: 'Revisión Diaria', iconKey: 'pozos-revision' },
-  { key: 'reportes', label: 'Reportes', iconKey: 'pozos-reportes' },
-];
 
 function nowText() {
   return new Date().toLocaleTimeString('es-MX', {
@@ -127,19 +116,21 @@ function PozosShell({ user, onLogout }) {
   const [collapsed, setCollapsed] = useState(true);
   const [theme, setTheme] = useState(getStoredDurangoTheme);
   const [preloadState, setPreloadState] = useState({ status: 'loading', error: '' });
+  const [runtimeCapabilities, setRuntimeCapabilities] = useState({});
   const [headerMeta, setHeaderMeta] = useState({ title: 'Resumen hídrico', subtitle: '', onExport: () => {}, onEmail: () => {} });
 
   const menu = useMemo(() => [{
     group: 'Operación de agua',
-    items: user?.role === 'admin'
-      ? [...POZOS_MENU_ITEMS, { key: 'usuarios', label: 'Usuarios', iconKey: 'usuarios' }]
-      : POZOS_MENU_ITEMS,
-  }], [user?.role]);
+    items: buildDurangoNavigation(runtimeCapabilities, user?.role),
+  }], [runtimeCapabilities, user?.role]);
 
   const runPreload = () => {
     setPreloadState({ status: 'loading', error: '' });
     preloadWithTimeout()
-      .then(() => setPreloadState({ status: 'ready', error: '' }))
+      .then((data) => {
+        setRuntimeCapabilities(extractDurangoRuntimeCapabilities(data));
+        setPreloadState({ status: 'ready', error: '' });
+      })
       .catch((error) => setPreloadState({ status: 'error', error: error?.message || 'No se pudo preparar la información de planta.' }));
   };
 
@@ -184,7 +175,7 @@ function PozosShell({ user, onLogout }) {
           brandSubtitle: 'Monitoreo hídrico operativo',
         }}
       >
-        <PozosDashboardPage section={section} itemId={itemId} setHeaderMeta={setHeaderMeta} user={user} />
+        <PozosDashboardPage section={section} itemId={itemId} setHeaderMeta={setHeaderMeta} user={user} runtimeCapabilities={runtimeCapabilities} />
       </Shell>
     </NotificationProvider>
   );
