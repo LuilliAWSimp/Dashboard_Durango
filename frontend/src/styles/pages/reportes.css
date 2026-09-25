@@ -1187,3 +1187,17 @@
   border-left-color: #38bdf8;
   box-shadow: 0 8px 20px rgba(8, 67, 103, .12);
 }
+
+/* Durango 42 · modal de correo manual migrado desde global.css. */
+.modal-backdrop { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 20px; background: rgba(0,8,18,.72); backdrop-filter: blur(5px); }
+.email-report-modal { width: min(620px, 100%); display: grid; gap: 12px; padding: 22px; border-radius: 18px; border: 1px solid rgba(56,189,248,.28); background: #061827; box-shadow: 0 24px 70px rgba(0,0,0,.45); }
+.email-report-modal h3 { margin: 0 0 4px; color: #fff; }
+.email-report-modal label { display: grid; gap: 6px; color: #b9e7ff; font-weight: 750; }
+.email-report-modal input,
+.email-report-modal textarea { width: 100%; border: 1px solid rgba(56,189,248,.24); border-radius: 11px; background: #03111d; color: #fff; padding: 10px 12px; }
+.email-report-modal textarea { min-height: 100px; resize: vertical; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
+
+@media (max-width: 700px) {
+  .modal-actions { flex-direction: column-reverse; }
+}

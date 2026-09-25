@@ -301,3 +301,25 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Durango 42 · navegación contextual del detalle migrada desde global.css. */
+.operational-sibling-navigation {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.operational-sibling-navigation button { display: inline-flex; align-items: center; gap: 5px; width: fit-content; border: 0; background: transparent; color: #8fd8f2; font: inherit; font-size: 12px; font-weight: 750; cursor: pointer; }
+.operational-sibling-navigation button:last-child { justify-self: end; }
+.operational-sibling-navigation button:hover,
+.operational-sibling-navigation button:focus-visible { color: #fff; outline: none; text-decoration: underline; text-underline-offset: 3px; }
+.operational-sibling-navigation strong { color: #dff7ff; font-size: 12px; text-align: center; white-space: nowrap; }
+
+.well-detail-hero-metrics article:nth-child(4) strong,
+.well-detail-hero-metrics article:nth-child(5) strong { font-size: 16px; line-height: 1.35; }
+
+@media (max-width: 640px) {
+  .operational-sibling-navigation { grid-template-columns: 1fr 1fr; }
+  .operational-sibling-navigation strong { grid-column: 1 / -1; grid-row: 1; }
+}

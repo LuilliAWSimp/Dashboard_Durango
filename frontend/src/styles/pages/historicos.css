@@ -446,3 +446,101 @@
     flex: 1;
   }
 }
+
+/* Durango 42 · base viva del histórico operativo migrada desde global.css. */
+.chart-period-note { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 10px; color: #b9e7ff; font-size: 11px; font-weight: 800; }
+.chart-period-note span { display: inline-flex; align-items: center; min-height: 24px; padding: 0 10px; border: 1px solid rgba(125,211,252,.16); border-radius: 999px; background: rgba(8,47,73,.28); }
+.date-range-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.date-range-meta span { display: inline-flex; align-items: center; min-height: 20px; padding: 0 8px; border: 1px solid rgba(125,211,252,.14); border-radius: 999px; background: rgba(8,47,73,.22); color: #9ed1e6; font-size: 10px; font-weight: 800; letter-spacing: .02em; }
+
+.operational-module-comparison { overflow: visible; }
+.module-comparison-controls { display: flex; align-items: end; justify-content: flex-end; flex-wrap: wrap; gap: 12px; }
+.module-metric-selector { display: inline-flex; align-items: center; gap: 4px; min-height: 40px; padding: 4px; border: 1px solid rgba(56,189,248,.25); border-radius: 13px; background: rgba(3,15,28,.82); }
+.module-metric-selector button,
+.module-selection-heading button { border: 1px solid transparent; border-radius: 9px; background: transparent; color: #a9d7e9; min-height: 30px; padding: 0 11px; font: inherit; font-size: 12px; font-weight: 800; cursor: pointer; }
+.module-metric-selector button:hover,
+.module-metric-selector button:focus-visible,
+.module-selection-heading button:hover,
+.module-selection-heading button:focus-visible { border-color: rgba(125,211,252,.42); color: #fff; outline: none; }
+.module-metric-selector button.active { border-color: rgba(125,211,252,.55); background: linear-gradient(135deg, rgba(14,116,144,.95), rgba(2,132,199,.9)); color: #fff; }
+.module-selection-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; color: #8dd7f1; font-size: 11px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
+.module-selection-heading > div { display: flex; flex-wrap: wrap; gap: 4px; }
+.module-selection-heading button { color: #8edcff; letter-spacing: normal; text-transform: none; }
+.module-history-sensors .sensor-chip { display: inline-flex; align-items: center; gap: 7px; }
+.module-metric-note { margin: 4px 0 12px; }
+
+.module-history-panel,
+.minute-flow-panel { overflow: visible; }
+.module-history-toolbar,
+.minute-flow-controls,
+.minute-flow-selection,
+.module-history-sensors { display: flex; align-items: end; flex-wrap: wrap; gap: 10px; margin: 14px 0; }
+.module-history-toolbar { justify-content: space-between; }
+.module-history-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+.module-history-tab,
+.sensor-chip { border: 1px solid rgba(56,189,248,.26); border-radius: 999px; background: rgba(3,21,34,.84); color: #bfe8f8; min-height: 36px; padding: 8px 14px; font: inherit; font-weight: 750; cursor: pointer; transition: border-color .18s ease, background .18s ease, color .18s ease, transform .18s ease; }
+.module-history-tab:hover,
+.module-history-tab:focus-visible,
+.sensor-chip:hover,
+.sensor-chip:focus-visible { border-color: rgba(56,189,248,.72); color: #fff; outline: none; transform: translateY(-1px); }
+.module-history-tab.active,
+.sensor-chip.active { background: linear-gradient(135deg, rgba(14,116,144,.92), rgba(2,132,199,.9)); border-color: rgba(125,211,252,.78); color: #fff; box-shadow: 0 10px 24px rgba(2,132,199,.18); }
+.module-history-tab small { display: inline-flex; margin-left: 8px; padding: 2px 7px; border-radius: 999px; background: rgba(245,158,11,.18); color: #fde68a; font-size: 10px; text-transform: uppercase; letter-spacing: .06em; }
+.module-history-aggregation,
+.minute-flow-controls label { display: grid; gap: 5px; color: #8dd7f1; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.module-history-aggregation select,
+.minute-flow-controls input { min-width: 150px; height: 38px; border: 1px solid rgba(56,189,248,.35); border-radius: 11px; background: #061827; color: #effbff; padding: 0 12px; }
+.module-history-aggregation option { background: #071827; color: #effbff; }
+.module-history-tooltip { min-width: 310px; max-width: min(380px, calc(100vw - 32px)); background: rgba(3,18,30,.97); border: 1px solid rgba(125,211,252,.24); box-shadow: 0 20px 50px rgba(0,0,0,.38); }
+.module-history-tooltip-group + .module-history-tooltip-group { margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(125,211,252,.13); }
+.module-history-tooltip-title { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; color: #fff; font-size: 13px; font-weight: 850; }
+.module-history-tooltip-grid { display: grid; grid-template-columns: minmax(120px,1fr) auto; gap: 5px 14px; font-size: 12px; }
+.module-history-tooltip-grid span { color: #a9d7e9; }
+.module-history-tooltip-grid strong { color: #fff; text-align: right; }
+.minute-well-tooltip { min-width: 250px; background: rgba(3,18,30,.97); border: 1px solid rgba(125,211,252,.24); box-shadow: 0 20px 50px rgba(0,0,0,.38); }
+
+.module-history-panel.operational-module-comparison { position: relative; overflow: visible; z-index: 30; }
+.module-history-panel.operational-module-comparison .recharts-responsive-container,
+.module-history-panel.operational-module-comparison .recharts-wrapper,
+.module-history-panel.operational-module-comparison .recharts-surface { overflow: visible !important; }
+.module-history-panel.operational-module-comparison .recharts-tooltip-wrapper { z-index: 120 !important; pointer-events: none; }
+
+.five-minute-export-action { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.five-minute-excel-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 0 14px; border: 1px solid rgba(34,197,94,.45); border-radius: 10px; background: rgba(22,163,74,.16); color: #bbf7d0; font: inherit; font-weight: 800; cursor: pointer; white-space: nowrap; }
+.five-minute-excel-button:hover:not(:disabled) { background: rgba(22,163,74,.24); border-color: rgba(74,222,128,.72); }
+.five-minute-excel-button:disabled { opacity: .55; cursor: not-allowed; }
+.five-minute-export-message { max-width: 260px; color: #86efac; font-size: .76rem; line-height: 1.25; }
+.five-minute-export-message.is-error { color: #fda4af; }
+.five-minute-excel-button .spin { animation: five-minute-export-spin .8s linear infinite; }
+@keyframes five-minute-export-spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 720px) {
+  .module-history-toolbar,
+  .module-comparison-controls,
+  .module-metric-selector,
+  .module-selection-heading { width: 100%; }
+  .module-comparison-controls,
+  .module-selection-heading { align-items: stretch; flex-direction: column; }
+  .module-metric-selector button { flex: 1 1 0; }
+  .module-selection-heading > div,
+  .module-selection-heading button { width: 100%; min-width: 0; }
+}
+
+@media (max-width: 640px) {
+  .module-history-toolbar { align-items: stretch; }
+  .module-history-aggregation { width: 100%; }
+  .module-history-aggregation select { width: 100%; }
+  .minute-flow-controls { align-items: stretch; }
+  .minute-flow-controls label,
+  .minute-flow-controls input { width: 100%; }
+  .module-history-tooltip { min-width: 230px; }
+  .module-history-tooltip-grid { grid-template-columns: 1fr; gap: 2px; }
+  .module-history-tooltip-grid strong { text-align: left; margin-bottom: 4px; }
+}
+
+@media (max-width: 760px) {
+  .five-minute-export-action,
+  .five-minute-excel-button { width: 100%; }
+  .five-minute-export-action { flex-direction: column; align-items: stretch; }
+  .five-minute-export-message { max-width: none; }
+}

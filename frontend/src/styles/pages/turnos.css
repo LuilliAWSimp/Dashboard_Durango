@@ -316,3 +316,36 @@
     justify-content: flex-start;
   }
 }
+
+/* Durango 42 · selector y capa de turnos migrados desde global.css. */
+.shift-selector-field select {
+  width: 100%;
+  min-width: 240px;
+  min-height: 42px;
+  appearance: none;
+  border: 1px solid rgba(56,189,248,.46);
+  border-radius: 11px;
+  padding: 0 42px 0 13px;
+  background-color: #061827;
+  background-image: linear-gradient(45deg, transparent 50%, #7dd3fc 50%), linear-gradient(135deg, #7dd3fc 50%, transparent 50%);
+  background-position: calc(100% - 18px) 17px, calc(100% - 12px) 17px;
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+  color: #effbff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 750;
+  cursor: pointer;
+  transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease;
+}
+.shift-selector-field select:hover { border-color: rgba(125,211,252,.76); background-color: #092239; }
+.shift-selector-field select:focus-visible { border-color: #38bdf8; outline: none; box-shadow: 0 0 0 3px rgba(56,189,248,.18); }
+.shift-selector-field select option { background: #071827; color: #effbff; }
+.shift-controls-panel .date-range-fields { align-items: end; }
+.shift-controls-panel .date-range-apply,
+.shift-controls-panel .date-range-reset { min-height: 42px; }
+.shift-consumption-panel { position: relative; z-index: 1; }
+
+@media (max-width: 720px) {
+  .shift-selector-field select { width: 100%; min-width: 0; }
+}

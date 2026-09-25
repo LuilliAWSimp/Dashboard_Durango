@@ -189,3 +189,165 @@
     grid-column: auto;
   }
 }
+
+/* Durango 42 · base viva de las metricas de cards; migrada desde el bloque SCADA heredado. */
+.metric-pair {
+  padding: 10px;
+  border-radius: 14px;
+  background: rgba(3,15,28,.34);
+  border: 1px solid rgba(125,211,252,.10);
+}
+
+.metric-pair.emphasis {
+  border-color: rgba(56,189,248,.22);
+  background: rgba(14,165,233,.09);
+}
+
+.metric-pair span {
+  display: block;
+  color: #8bcce2;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .11em;
+  margin-bottom: 5px;
+}
+
+.metric-pair strong {
+  display: flex;
+  gap: 5px;
+  align-items: baseline;
+  color: #f4fcff;
+  font-size: 17px;
+  line-height: 1.1;
+}
+
+.metric-pair small {
+  color: #9ed1e6;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+/* Durango 42 · estructura base de cards operativas migrada desde global.css. */
+.operational-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+  gap: 16px;
+}
+
+.operational-well-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.operational-element-card {
+  min-width: 0;
+  min-height: 300px;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(56,189,248,.18);
+  border-radius: 20px;
+  background: linear-gradient(145deg, rgba(4,22,36,.98), rgba(4,14,29,.98));
+  overflow: hidden;
+  transition: border-color .18s ease, transform .18s ease, box-shadow .18s ease;
+}
+
+.operational-element-card:hover,
+.operational-element-card.selected {
+  border-color: rgba(56,189,248,.55);
+  transform: translateY(-2px);
+  box-shadow: 0 18px 36px rgba(0,0,0,.22);
+}
+
+.operational-card-main {
+  appearance: none;
+  width: 100%;
+  flex: 1;
+  display: block;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 18px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.operational-card-head {
+  display: grid;
+  grid-template-columns: minmax(130px, 1fr) minmax(120px, auto);
+  align-items: start;
+  gap: 14px;
+  min-height: 62px;
+}
+
+.operational-card-head > div { min-width: 0; }
+.operational-card-head span { display: block; color: #8fd8f2; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+.operational-card-head strong { display: block; margin-top: 4px; color: #fff; font-size: 18px; line-height: 1.2; overflow-wrap: normal; word-break: normal; }
+.operational-card-head .status-badge { justify-self: end; max-width: 190px; white-space: normal; text-align: center; }
+.operational-metric-grid { margin-top: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+.operational-card-footer {
+  display: grid;
+  grid-template-columns: minmax(110px, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  border-top: 1px solid rgba(56,189,248,.12);
+  background: rgba(1,12,24,.54);
+  color: #a9d7e9;
+  font-size: 12px;
+}
+
+.operational-card-footer > span { display: inline-flex; align-items: center; gap: 7px; }
+.operational-card-footer > span i { width: 8px; height: 8px; border-radius: 50%; background: #f59e0b; box-shadow: 0 0 12px rgba(245,158,11,.55); }
+.operational-card-footer > span.online i { background: #22c55e; box-shadow: 0 0 12px rgba(34,197,94,.55); }
+.operational-card-footer strong { font-weight: 650; white-space: nowrap; }
+.open-detail-link { border: 0; background: transparent; color: #7dd3fc; font: inherit; font-weight: 800; cursor: pointer; white-space: nowrap; }
+
+.operational-card-action {
+  appearance: none;
+  width: 100%;
+  min-height: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.operational-card-action .operational-card-main { flex: 1; }
+.operational-card-action:focus-visible { outline: 3px solid rgba(125, 211, 252, .9); outline-offset: -3px; border-radius: 20px; }
+.operational-card-action:hover .open-detail-link,
+.operational-card-action:focus-visible .open-detail-link { color: #e0f7ff; text-decoration: underline; text-underline-offset: 3px; }
+
+.operational-module-heading {
+  margin: 4px 0 22px;
+  padding: 6px 0 2px;
+  border-bottom: 1px solid rgba(56, 189, 248, .16);
+}
+.operational-module-heading .panel-header.compact { margin: 0; padding: 0 4px 20px; }
+.operational-module-heading .panel-title { color: #f3fbff; font-size: clamp(30px, 4vw, 48px); font-weight: 900; line-height: 1.02; letter-spacing: -.035em; }
+.operational-module-heading .panel-subtitle { max-width: 760px; margin-top: 9px; color: #9ecfe1; font-size: clamp(13px, 1.4vw, 16px); line-height: 1.5; }
+.operational-module-heading + .chart-date-range-panel { margin: 0 0 22px; padding: 16px 18px; border-color: rgba(56,189,248,.24); background: linear-gradient(135deg, rgba(8, 47, 73, .46), rgba(3, 15, 28, .78)); box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 16px 34px rgba(0,0,0,.12); }
+
+.metric-pair strong { min-width: 0; overflow-wrap: anywhere; }
+
+@media (max-width: 900px) {
+  .operational-well-grid { grid-template-columns: 1fr; }
+  .operational-card-footer { grid-template-columns: 1fr auto; }
+  .open-detail-link { grid-column: 1 / -1; justify-self: start; }
+}
+
+@media (max-width: 720px) {
+  .operational-module-heading { margin-bottom: 16px; }
+}
+
+@media (max-width: 640px) {
+  .operational-card-head { grid-template-columns: 1fr; }
+  .operational-card-head .status-badge { justify-self: start; max-width: 100%; }
+  .operational-metric-grid { grid-template-columns: 1fr; }
+  .operational-card-footer { grid-template-columns: 1fr; }
+}

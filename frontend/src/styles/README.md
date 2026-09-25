@@ -54,3 +54,9 @@ La fase CSS se considera **estructuralmente cerrada**, no porque `global.css` es
 ## Durango 19 — Balance de Agua
 
 Al intervenir funcionalmente el Balance se creó `pages/balance.css`. Desde este punto cualquier corrección visual nueva del Balance debe ir a esa hoja. Las reglas antiguas que todavía permanezcan en `global.css` se consideran legado y sólo deben migrarse mediante un cambio dirigido y verificado.
+
+## Durango 42 — cierre CSS V2
+
+El cierre V2 retira de `global.css` familias completas que ya no pertenecen al runtime navegable de Durango: Resumen/Pozos antiguos, Tanques, UV y Concesión. El Balance migra su base visual viva a `pages/balance.css`; las tablas y estados reutilizados pasan a `shared.css`; y la base de `metric-pair` de las cards vive en `pages/operational-modules.css`.
+
+`global.css` continúa existiendo como base heredada para primitivas y contratos compartidos cuya migración no debe hacerse a ciegas. Desde este punto no debe contener estilos de módulos deshabilitados por capabilities ni recuperar reglas específicas de Balance. La eliminación física de componentes legacy queda separada para el incremental de limpieza de legado.

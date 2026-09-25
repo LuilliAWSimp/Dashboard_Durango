@@ -171,3 +171,16 @@ test('Shell, Login y Usuarios tienen frontera modular y tema transversal', () =>
   assert.match(usersCss, /users-table/);
   assert.match(themeCss, /theme-light/);
 });
+
+test('cierre CSS V2 mantiene fuera del global los modulos deshabilitados y responsabilidades migradas', () => {
+  const globalCss = read('src/styles/global.css');
+  assert.doesNotMatch(globalCss, /\.concession-|\.concesion-/);
+  assert.doesNotMatch(globalCss, /\.tanque-|\.tanques-/);
+  assert.doesNotMatch(globalCss, /\.uv-/);
+  assert.doesNotMatch(globalCss, /\.water-balance-hero/);
+  assert.doesNotMatch(globalCss, /\.operational-element-card/);
+  assert.doesNotMatch(globalCss, /\.operational-sibling-navigation/);
+  assert.doesNotMatch(globalCss, /\.five-minute-export-action/);
+  assert.doesNotMatch(globalCss, /\.email-report-modal/);
+  assert.doesNotMatch(globalCss, /\.toast-viewport/);
+});

@@ -178,3 +178,131 @@
     padding: 13px;
   }
 }
+
+/* Durango 42 · base visual viva del Balance migrada desde global.css. */
+.water-balance-hero {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 22px;
+  padding: 24px;
+  border-color: rgba(56,189,248,.2);
+  background: radial-gradient(circle at top left, rgba(14,165,233,.18), transparent 34%), linear-gradient(135deg, rgba(7,23,38,.96), rgba(3,14,24,.96));
+}
+
+.water-balance-hero .eyebrow {
+  color: #7dd3fc;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.water-balance-hero h2 {
+  margin: 0 0 8px;
+  color: #f0fbff;
+  font-size: clamp(24px, 3vw, 34px);
+  letter-spacing: -.04em;
+}
+
+.water-balance-hero p {
+  margin: 0;
+  max-width: 760px;
+  color: #9fc8da;
+  line-height: 1.55;
+}
+
+.water-balance-hero-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(140px, 1fr));
+  gap: 12px;
+  min-width: 420px;
+}
+
+.water-balance-hero-grid article {
+  padding: 14px 16px;
+  border: 1px solid rgba(125,211,252,.16);
+  border-radius: 18px;
+  background: rgba(2,17,28,.58);
+}
+
+.water-balance-hero-grid article.warning {
+  border-color: rgba(245,158,11,.28);
+  background: rgba(245,158,11,.08);
+}
+
+.water-balance-hero-grid span {
+  display: block;
+  color: #8bb8ca;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.water-balance-hero-grid strong {
+  display: block;
+  color: #eefbff;
+  font-size: 25px;
+  letter-spacing: -.04em;
+}
+
+.water-balance-hero-grid small {
+  color: #9fc8da;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.water-balance-kpi-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.operational-comparison-difference {
+  display: grid;
+  gap: 4px;
+  margin: 14px 0;
+  padding: 14px 16px;
+  border: 1px solid rgba(56,189,248,.18);
+  border-radius: 14px;
+  background: rgba(4,17,31,.72);
+}
+
+.operational-comparison-difference span {
+  color: #8edcff;
+  font-size: 12px;
+  font-weight: 850;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.operational-comparison-difference strong { color: #f4fbff; }
+.operational-comparison-difference small { color: #a9c9dc; }
+
+.balance-chart-panel {
+  position: relative;
+  overflow: visible;
+  z-index: 20;
+}
+
+.balance-chart-panel .recharts-responsive-container,
+.balance-chart-panel .recharts-wrapper,
+.balance-chart-panel .recharts-surface {
+  overflow: visible !important;
+}
+
+.balance-chart-panel .recharts-tooltip-wrapper {
+  z-index: 140 !important;
+  pointer-events: none;
+}
+
+@media (max-width: 1180px) {
+  .water-balance-hero { flex-direction: column; }
+  .water-balance-hero-grid { min-width: 0; }
+  .water-balance-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 720px) {
+  .water-balance-hero-grid,
+  .water-balance-kpi-grid { grid-template-columns: 1fr; }
+}
