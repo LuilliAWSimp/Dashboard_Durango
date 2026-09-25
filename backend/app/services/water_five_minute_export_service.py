@@ -423,3 +423,175 @@ def build_five_minute_excel(payload: dict[str, Any]) -> tuple[bytes, str]:
     workbook.save(output)
     filename = f"ARCA_Durango_{_safe_token(name)}_5min_{payload.get('start_date')}_{payload.get('end_date')}.xlsx"
     return output.getvalue(), filename
+
+
+
+def _unique_sheet_title(workbook: Workbook, value: str) -> str:
+    base = re.sub(r'[:\\/?*\[\]]+', '_', str(value or 'Elemento')).strip()[:31] or 'Elemento'
+    candidate = base
+    suffix = 2
+    existing = {sheet.title for sheet in workbook.worksheets}
+    while candidate in existing:
+        tail = f'_{suffix}'
+        candidate = f'{base[:31-len(tail)]}{tail}'
+        suffix += 1
+    return candidate
+
+
+def _write_five_minute_payload_sheet(sheet, payload: dict[str, Any]) -> None:
+    name = str(payload.get('name') or 'Elemento')
+    element_id = str(payload.get('element_id') or payload.get('operational_key') or '')
+    sheet['A1'] = f'ARCA Durango - {name} - Historico conciliado cada 5 minutos'
+    sheet['A1'].font = Font(bold=True, size=14)
+    sheet.merge_cells('A1:P1')
+    metadata = [
+        ('Elemento', name),
+        ('Identidad', element_id),
+        ('Modulo', str(payload.get('module') or '')),
+        ('Rango solicitado', f"{payload.get('start_date')} a {payload.get('end_date')}"),
+        ('Ventana efectiva', f"{payload.get('effective_start_local')} a {payload.get('effective_end_local')}"),
+        ('Zona horaria', str(payload.get('time_zone') or LOCAL_TIMEZONE)),
+        ('Fuente', str(payload.get('source_status') or '')),
+        ('Regla', '[T0,T1) con apertura previa; la apertura no cuenta como muestra'),
+    ]
+    for row_index, (label, value) in enumerate(metadata, start=2):
+        sheet.cell(row=row_index, column=1, value=label).font = Font(bold=True)
+        sheet.cell(row=row_index, column=2, value=value)
+
+    headers = [
+        'Elemento', 'Identidad', 'Inicio local', 'Fin local', 'Flujo promedio', 'Flujo minimo', 'Flujo maximo',
+        'Apertura totalizador (m3)', 'Cierre totalizador (m3)', 'Volumen conciliado (m3)',
+        'Volumen reportable (m3)', 'Muestras', 'Esperadas', 'Cobertura (%)', 'Calidad', 'Fuente apertura',
+    ]
+    header_row = 11
+    for column, header in enumerate(headers, start=1):
+        cell = sheet.cell(row=header_row, column=column, value=header)
+        cell.font = Font(bold=True, color='FFFFFF')
+        cell.fill = PatternFill(fill_type='solid', fgColor='1F4E78')
+        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+
+    rows = list(payload.get('rows') or [])
+    for row_index, item in enumerate(rows, start=header_row + 1):
+        values = [
+            item.get('element'), item.get('element_id'), item.get('start_local'), item.get('end_local'),
+            _round_or_none(item.get('flow_avg')), _round_or_none(item.get('flow_min')), _round_or_none(item.get('flow_max')),
+            _round_or_none(item.get('totalizer_open_m3')), _round_or_none(item.get('totalizer_close_m3')),
+            _round_or_none(item.get('validated_volume_m3')), _round_or_none(item.get('reported_volume_m3')),
+            item.get('samples'), item.get('samples_expected'), _round_or_none(item.get('coverage_pct'), 2),
+            item.get('quality_label'), item.get('opening_source'),
+        ]
+        for column, value in enumerate(values, start=1):
+            sheet.cell(row=row_index, column=column, value=value)
+        for column in (3, 4):
+            sheet.cell(row=row_index, column=column).number_format = 'yyyy-mm-dd hh:mm'
+
+    sheet.freeze_panes = f'A{header_row + 1}'
+    sheet.auto_filter.ref = f'A{header_row}:P{header_row + max(len(rows), 1)}'
+    widths = [24, 18, 19, 19, 16, 14, 14, 22, 22, 22, 22, 12, 12, 14, 24, 20]
+    for index, width in enumerate(widths, start=1):
+        sheet.column_dimensions[get_column_letter(index)].width = width
+    sheet.sheet_view.showGridLines = False
+
+
+def build_five_minute_module_excel(
+    *,
+    module: Module,
+    payloads: list[dict[str, Any]],
+    start_date: str,
+    end_date: str,
+    view_label: str | None = None,
+) -> tuple[bytes, str]:
+    if not payloads:
+        raise ValueError('Selecciona al menos un elemento para exportar.')
+
+    workbook = Workbook()
+    summary = workbook.active
+    summary.title = 'Resumen'
+    label = str(view_label or {'well': 'Pozos', 'line': 'Lineas', 'flow': 'Flujos'}.get(module, module)).strip() or module
+    summary['A1'] = f'ARCA Durango - {label} - Excel 5 minutos'
+    summary['A1'].font = Font(bold=True, size=14)
+    summary.merge_cells('A1:G1')
+    summary['A2'] = 'Rango local'
+    summary['B2'] = f'{start_date} a {end_date}'
+    summary['D2'] = 'Intervalo'
+    summary['E2'] = '5 minutos'
+    summary['F2'] = 'Elementos'
+    summary['G2'] = len(payloads)
+
+    headers = ['Elemento', 'Identidad', 'Intervalos', 'Reportables', 'Sin datos', 'Volumen reportable (m3)', 'Fuente']
+    for column, header in enumerate(headers, start=1):
+        cell = summary.cell(row=4, column=column, value=header)
+        cell.font = Font(bold=True, color='FFFFFF')
+        cell.fill = PatternFill(fill_type='solid', fgColor='1F4E78')
+        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+
+    for row_index, payload in enumerate(payloads, start=5):
+        rows = list(payload.get('rows') or [])
+        reportable = [row for row in rows if row.get('volume_reliable') and _num(row.get('reported_volume_m3')) is not None]
+        no_data = [row for row in rows if not row.get('samples')]
+        values = [
+            payload.get('name'),
+            payload.get('element_id') or payload.get('operational_key'),
+            len(rows),
+            len(reportable),
+            len(no_data),
+            round(sum(float(row.get('reported_volume_m3') or 0.0) for row in reportable), 4),
+            payload.get('source_status'),
+        ]
+        for column, value in enumerate(values, start=1):
+            summary.cell(row=row_index, column=column, value=value)
+        summary.cell(row=row_index, column=6).number_format = '0.0000'
+
+        detail = workbook.create_sheet(_unique_sheet_title(workbook, str(payload.get('name') or payload.get('element_id') or 'Elemento')))
+        _write_five_minute_payload_sheet(detail, payload)
+
+    for column, width in enumerate([28, 22, 14, 14, 14, 24, 28], start=1):
+        summary.column_dimensions[get_column_letter(column)].width = width
+    summary.freeze_panes = 'A5'
+    summary.sheet_view.showGridLines = False
+
+    output = BytesIO()
+    workbook.save(output)
+    filename = f"ARCA_Durango_{_safe_token(label)}_5min_{start_date}_{end_date}.xlsx"
+    return output.getvalue(), filename
+
+
+def export_five_minute_module_excel(
+    *,
+    module: str,
+    element_ids: list[Any],
+    start_date: Any,
+    end_date: Any,
+    view_label: str | None = None,
+) -> tuple[bytes, str]:
+    normalized_module = str(module or '').strip().lower()
+    if normalized_module not in SENSORS_BY_MODULE:
+        raise ValueError('El modulo de exportacion debe ser well, line o flow.')
+
+    unique_ids: list[str] = []
+    for raw in element_ids:
+        token = identity_key(raw)
+        if token and token not in unique_ids:
+            unique_ids.append(token)
+    if not unique_ids:
+        raise ValueError('Selecciona al menos un elemento para exportar.')
+    if len(unique_ids) > 24:
+        raise ValueError('La exportacion por modulo permite un maximo de 24 elementos por archivo.')
+
+    export_range = _export_range(start_date, end_date)
+    payloads = [
+        get_five_minute_export_data(
+            module=normalized_module,
+            element_id=element_id,
+            start_date=export_range.start_day,
+            end_date=export_range.end_day,
+        )
+        for element_id in unique_ids
+    ]
+    return build_five_minute_module_excel(
+        module=normalized_module,  # type: ignore[arg-type]
+        payloads=payloads,
+        start_date=export_range.start_day.isoformat(),
+        end_date=export_range.end_day.isoformat(),
+        view_label=view_label,
+    )

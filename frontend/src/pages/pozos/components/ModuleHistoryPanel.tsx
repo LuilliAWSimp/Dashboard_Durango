@@ -4,6 +4,7 @@ import { Bar, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, T
 import { DURANGO_CAPABILITIES } from '../../../config/plantCapabilities';
 import useAutoRefresh from '../../../hooks/useAutoRefresh';
 import { downloadWaterModuleHistoryPdf } from '../../../services/waterModuleHistoryExportService';
+import { downloadFiveMinuteModuleHistoryExcel, validateFiveMinuteExportRange } from '../../../services/waterFiveMinuteExportService';
 import { fetchWaterModuleHistory } from '../../../services/waterService';
 import { formatOperationalDateRange, rangeIncludesToday, recommendedHistoryAggregation } from '../dateUtils';
 import { operationalVolumeAxisLabel, operationalVolumeLabel } from '../operationalTerminology';
@@ -313,6 +314,7 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
   const [metric, setMetric] = useState<ComparisonMetric>('flow');
   const [totalizerDisplay, setTotalizerDisplay] = useState<TotalizerDisplay>('delta');
   const [pdfExporting, setPdfExporting] = useState(false);
+  const [fiveMinuteExporting, setFiveMinuteExporting] = useState(false);
   const [data, setData] = useState<WaterModuleHistoryResponse | null>(null);
   const [selected, setSelected] = useState<OperationalIdentity[]>(() => activeIdentities);
   const [loading, setLoading] = useState(false);
@@ -416,7 +418,9 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
     exportSeries.forEach((series) => { output[series.key] = row[series.key]; });
     return output;
   }), [rows, exportSeries, aggregation]);
-  const selectedNames = activeItems.filter((item) => visible.includes(configuredComparisonIdentity(item))).map((item) => item.name);
+  const selectedItems = activeItems.filter((item) => visible.includes(configuredComparisonIdentity(item)));
+  const selectedNames = selectedItems.map((item) => item.name);
+  const selectedElementIds = selectedItems.map((item) => item.sensorId ?? item.operationalKey);
   const exportDisabled = !exportRows.length || !exportSeries.length || !selectedNames.length;
   const metricLabel = metric === 'flow' ? 'Flujo' : metric === 'totalizer' ? `Totalizador · ${effectiveTotalizerDisplay === 'delta' ? 'Variación del periodo' : 'Valor absoluto'}` : 'Ambos';
 
@@ -459,6 +463,36 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
     }
   };
 
+  const exportFiveMinuteExcel = async () => {
+    if (fiveMinuteExporting) return;
+    const startDate = String(filteredData?.start_date || effectiveRange.startDate || '');
+    const endDate = String(filteredData?.end_date || effectiveRange.endDate || '');
+    const validation = validateFiveMinuteExportRange(startDate, endDate);
+    if (validation) {
+      setError(validation);
+      return;
+    }
+    if (!selectedElementIds.length) {
+      setError('Selecciona al menos un elemento para exportar.');
+      return;
+    }
+    setFiveMinuteExporting(true);
+    setError('');
+    try {
+      await downloadFiveMinuteModuleHistoryExcel({
+        module,
+        elementIds: selectedElementIds,
+        startDate,
+        endDate,
+        viewLabel: moduleDisplayLabel,
+      });
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : 'No fue posible generar el Excel de 5 minutos.');
+    } finally {
+      setFiveMinuteExporting(false);
+    }
+  };
+
   const totalizerAxisLabel = metric === 'both' ? operationalVolumeAxisLabel(module) : effectiveTotalizerDisplay === 'delta' ? 'Variación (m³)' : 'Totalizador (m³)';
 
   return (
@@ -495,6 +529,7 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
           </div>
           <div className="module-history-export-actions">
             <button type="button" className="report-action-button module-history-excel-button" disabled={exportDisabled} onClick={exportExcel} title="Exporta exactamente los datos visibles de la gráfica."><FileSpreadsheet size={16} aria-hidden="true" /> Excel</button>
+            <button type="button" className="report-action-button module-history-excel-button module-history-five-minute-button" disabled={!selectedElementIds.length || fiveMinuteExporting} onClick={() => void exportFiveMinuteExcel()} title="Exportación técnica independiente cada 5 minutos; máximo 3 días calendario."><FileSpreadsheet size={16} aria-hidden="true" /> {fiveMinuteExporting ? 'Generando...' : 'Excel 5 min'}</button>
             <button type="button" className="ghost-action report-action-button module-history-pdf-button" disabled={exportDisabled || pdfExporting} onClick={() => void exportPdf()} title="Genera un PDF con la misma serie visible."><FileText size={16} aria-hidden="true" /> {pdfExporting ? 'Generando...' : 'PDF'}</button>
           </div>
           <label className="module-history-aggregation"><span>Agrupación</span><select value={aggregation} onChange={(event) => setAggregation(event.target.value as HistoryAggregation)}><option value="minute">1 minuto</option><option value="quarter_hour">15 minutos</option><option value="hourly">Por hora</option><option value="daily">Por día</option></select></label>

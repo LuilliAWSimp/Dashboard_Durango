@@ -91,3 +91,47 @@ export async function downloadFiveMinuteHistoryExcel(options: FiveMinuteExportRe
     throw new Error(await detailFromBlobError(error));
   }
 }
+
+
+export interface FiveMinuteModuleExportRequest {
+  module: FiveMinuteExportModule;
+  elementIds: Array<number | string>;
+  startDate: string;
+  endDate: string;
+  viewLabel?: string;
+}
+
+export async function downloadFiveMinuteModuleHistoryExcel(options: FiveMinuteModuleExportRequest): Promise<string> {
+  const validation = validateFiveMinuteExportRange(options.startDate, options.endDate);
+  if (validation) throw new Error(validation);
+  const elementIds = Array.from(new Set((options.elementIds || []).map((value) => String(value).trim()).filter(Boolean)));
+  if (!elementIds.length) throw new Error('Selecciona al menos un elemento para exportar.');
+
+  try {
+    const response = await api.get<Blob>('/water/history/five-minute/module/excel', {
+      params: {
+        module: options.module,
+        element_ids: elementIds.join(','),
+        start_date: options.startDate,
+        end_date: options.endDate,
+        view_label: options.viewLabel || undefined,
+      },
+      responseType: 'blob',
+      timeout: 120_000,
+    });
+    const safeLabel = String(options.viewLabel || options.module).replace(/[^A-Za-z0-9_-]+/g, '_');
+    const fallback = `ARCA_Durango_${safeLabel}_5min_${options.startDate}_${options.endDate}.xlsx`;
+    const filename = filenameFromDisposition(response.headers['content-disposition'], fallback);
+    const url = window.URL.createObjectURL(response.data);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.URL.revokeObjectURL(url);
+    return filename;
+  } catch (error) {
+    throw new Error(await detailFromBlobError(error));
+  }
+}
