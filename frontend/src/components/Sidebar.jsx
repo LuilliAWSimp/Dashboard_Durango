@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import BrandLogo from './BrandLogo';
+import SessionCard from './SessionCard.jsx';
 
 const iconMap = {
   dashboard: Home,
@@ -76,6 +77,8 @@ export default function Sidebar({
   domainSwitchLabel = 'Cambiar dominio',
   theme = 'dark',
   onThemeToggle,
+  user,
+  onLogout,
 }) {
   return (
     <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
@@ -124,6 +127,8 @@ export default function Sidebar({
           </div>
         ))}
       </nav>
+
+      <SessionCard user={user} collapsed={collapsed} onLogout={onLogout} />
 
       {domainSwitchPath ? (
         <div className="sidebar-footer">

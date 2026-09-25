@@ -14,6 +14,7 @@ import { defaultTodayRange, formatSqlDate, recommendedHistoryAggregation } from 
 import useSqlChartDashboard from '../hooks/useSqlChartDashboard';
 import type { DashboardData, FlexibleRecord } from '../types';
 import { evaluateDurangoWaterAlerts } from '../waterOperationalAlerts';
+import { operationalVolumeLabel } from '../operationalTerminology';
 
 
 function rows(value: unknown): FlexibleRecord[] {
@@ -221,7 +222,7 @@ export default function DashboardBaseSection() {
   ];
 
   return (
-    <>
+    <div className="dashboard-resumen-page">
       <section className="panel fade-up compact-hero">
         <PanelHeader title="Resumen hídrico de Durango" subtitle="Snapshot actual + volumen conciliado del día; histórico, comparativos y alertas usan el día operativo actual." />
         {dailyLoading ? <div className="status-pill auto-refresh-status">Actualizando conciliación y comparativos diarios…</div> : null}
@@ -229,10 +230,10 @@ export default function DashboardBaseSection() {
       </section>
 
       <section className="cards-grid stagger-grid summary-operational-kpis">
-        <KpiCard label={`Volumen validado de pozos · ${volumeScope}`} value={fmt(groupVolume(wells))} unit={groupVolume(wells) === null ? '' : 'm³'} trend={dailyMode ? dailyVolumeTrend(wells, wellCount, previousDay.wells) : volumeTrend(wells, wellCount)} accent="blue" />
-        <KpiCard label={`Volumen validado de líneas · ${volumeScope}`} value={fmt(groupVolume(lines))} unit={groupVolume(lines) === null ? '' : 'm³'} trend={dailyMode ? dailyVolumeTrend(lines, lineCount, previousDay.lines) : volumeTrend(lines, lineCount)} accent="cyan" />
-        <KpiCard label={`Volumen validado de lavadoras · ${volumeScope}`} value={fmt(groupVolume(lavadoras))} unit={groupVolume(lavadoras) === null ? '' : 'm³'} trend={dailyMode ? dailyVolumeTrend(lavadoras, lavadoraCount, previousDay.lavadoras) : volumeTrend(lavadoras, lavadoraCount)} accent="indigo" />
-        <KpiCard label={`Volumen validado de Jarabes · ${volumeScope}`} value={fmt(groupVolume(jarabes))} unit={groupVolume(jarabes) === null ? '' : 'm³'} trend={dailyMode ? dailyVolumeTrend(jarabes, jarabesCount, previousDay.jarabes) : volumeTrend(jarabes, jarabesCount)} accent="purple" />
+        <KpiCard label={`${operationalVolumeLabel('well', { validated: true })} de pozos · ${volumeScope}`} value={fmt(groupVolume(wells))} unit={groupVolume(wells) === null ? '' : 'm³'} trend={dailyMode ? dailyVolumeTrend(wells, wellCount, previousDay.wells) : volumeTrend(wells, wellCount)} accent="blue" />
+        <KpiCard label={`${operationalVolumeLabel('line', { validated: true })} de líneas · ${volumeScope}`} value={fmt(groupVolume(lines))} unit={groupVolume(lines) === null ? '' : 'm³'} trend={dailyMode ? dailyVolumeTrend(lines, lineCount, previousDay.lines) : volumeTrend(lines, lineCount)} accent="cyan" />
+        <KpiCard label={`${operationalVolumeLabel('flow', { validated: true })} de lavadoras · ${volumeScope}`} value={fmt(groupVolume(lavadoras))} unit={groupVolume(lavadoras) === null ? '' : 'm³'} trend={dailyMode ? dailyVolumeTrend(lavadoras, lavadoraCount, previousDay.lavadoras) : volumeTrend(lavadoras, lavadoraCount)} accent="indigo" />
+        <KpiCard label={`${operationalVolumeLabel('flow', { validated: true })} de Jarabes · ${volumeScope}`} value={fmt(groupVolume(jarabes))} unit={groupVolume(jarabes) === null ? '' : 'm³'} trend={dailyMode ? dailyVolumeTrend(jarabes, jarabesCount, previousDay.jarabes) : volumeTrend(jarabes, jarabesCount)} accent="purple" />
         <KpiCard label={`Subtotal validado · ${volumeScope}`} value={fmt(totalValidated)} unit={totalValidated === null ? '' : 'm³'} trend={dailyMode ? 'Suma de grupos con volumen confiable; no convierte faltantes en cero.' : 'Suma de grupos disponibles del periodo.'} accent="cyan" />
         <KpiCard label="Pozos con flujo actual" value={`${Number(snapshotWells.current_flow_count || 0)}/${wellCount}`} unit="pozos" trend="Snapshot actual; independiente del día consultado" accent="teal" />
         <KpiCard label="Líneas con flujo actual" value={`${Number(snapshotLines.current_flow_count || 0)}/${lineCount}`} unit="líneas" trend="Snapshot actual; independiente del día consultado" accent="teal" />
@@ -327,6 +328,6 @@ export default function DashboardBaseSection() {
 
       {controller.error ? <div className="status-pill alert">{controller.error}</div> : null}
       {!dashboard && !controller.loading ? <ChartEmptyState message="No fue posible consultar la información de planta." /> : null}
-    </>
+    </div>
   );
 }

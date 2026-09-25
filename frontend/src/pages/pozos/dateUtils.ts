@@ -36,10 +36,50 @@ export function isHistoryPointVisible(timestampValue: unknown, dataStatus?: unkn
   return Number.isFinite(timestamp) && timestamp <= now && String(dataStatus || '') !== 'future_interval';
 }
 
+function dateParts(value: unknown): { year: number; month: number; day: number } | null {
+  const match = String(value || '').trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  const [, year, month, day] = match.map(Number);
+  if (!year || !month || !day) return null;
+  return { year, month, day };
+}
+
+function displayDate(value: unknown): string {
+  const parts = dateParts(value);
+  if (!parts) return String(value || '');
+  return `${String(parts.day).padStart(2, '0')}/${String(parts.month).padStart(2, '0')}/${parts.year}`;
+}
+
+function localYmd(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function localHm(date: Date): string {
+  return date.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+export function formatOperationalDateRange(
+  range?: DateRange | null,
+  fallback = 'Datos actuales de planta',
+  now = new Date(),
+): string {
+  const start = String(range?.startDate || range?.endDate || '');
+  const end = String(range?.endDate || range?.startDate || '');
+  if (!start && !end) return fallback;
+  if (!dateParts(start) || !dateParts(end)) return `${start || 'inicio'} → ${end || 'último'}`;
+  const today = localYmd(now);
+  const startText = displayDate(start);
+  const endText = displayDate(end);
+  if (start === end && end === today) return `Hoy · ${startText} 00:00 → ahora ${localHm(now)}`;
+  if (end === today) return `Del ${startText} 00:00 al ${endText} ${localHm(now)} · hasta ahora`;
+  return `Del ${startText} 00:00 al ${endText} 23:59`;
+}
+
 export function formatDateRangeStatus(range?: DateRange | null, fallback = 'Datos actuales de planta'): string {
-  if (!range?.startDate && !range?.endDate) return fallback;
-  if (range.startDate && range.endDate && range.startDate === range.endDate) return range.startDate;
-  return `${range?.startDate || 'inicio'} → ${range?.endDate || 'último'}`;
+  return formatOperationalDateRange(range, fallback);
 }
 
 export function periodLabel(period: string): string {

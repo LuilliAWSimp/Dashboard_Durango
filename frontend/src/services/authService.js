@@ -16,7 +16,11 @@ export async function login(username, password) {
 
 export async function getCurrentSession() {
   const { data } = await api.get('/auth/me');
-  setCsrfToken(data.csrf_token);
+  if (data.browser_session) {
+    setAuthSession(data.browser_session, data.csrf_token, { broadcast: false });
+  } else {
+    setCsrfToken(data.csrf_token);
+  }
   return data;
 }
 
@@ -26,6 +30,14 @@ export async function logout() {
   } finally {
     clearAuthSession({ broadcast: true, notify: true });
   }
+}
+
+export async function changeOwnPassword(currentPassword, newPassword) {
+  const { data } = await api.post('/auth/change-password', {
+    current_password: currentPassword,
+    new_password: newPassword,
+  });
+  return data;
 }
 
 export async function listUsers() {

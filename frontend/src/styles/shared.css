@@ -1,0 +1,190 @@
+/*
+ * Patrones realmente compartidos entre pantallas.
+ * No usar este archivo como reemplazo de global.css: cada regla nueva debe ser
+ * transversal de verdad.
+ */
+
+/* Homologacion Durango 11J: codigo visual unico para exportaciones.
+   Excel = verde. PDF = rojo vino sobrio, distinto a alarmas/criticos. */
+.pozos-shell .export-excel-button,
+.pozos-shell .module-history-excel-button,
+.pozos-shell .five-minute-excel-button,
+.pozos-shell .historical-excel-button,
+.pozos-shell .header-export-excel {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #16853f, #126b34) !important;
+  border-color: #2ea85a !important;
+  box-shadow: 0 8px 18px rgba(18, 107, 52, .18) !important;
+}
+
+.pozos-shell .export-excel-button:hover:not(:disabled),
+.pozos-shell .module-history-excel-button:hover:not(:disabled),
+.pozos-shell .five-minute-excel-button:hover:not(:disabled),
+.pozos-shell .historical-excel-button:hover:not(:disabled),
+.pozos-shell .header-export-excel:hover:not(:disabled),
+.pozos-shell .export-excel-button:focus-visible,
+.pozos-shell .module-history-excel-button:focus-visible,
+.pozos-shell .five-minute-excel-button:focus-visible,
+.pozos-shell .historical-excel-button:focus-visible,
+.pozos-shell .header-export-excel:focus-visible {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #126b34, #0f582b) !important;
+  border-color: #43ba69 !important;
+}
+
+.pozos-shell .export-pdf-button,
+.pozos-shell .module-history-pdf-button,
+.pozos-shell .historical-pdf-button,
+.pozos-shell .header-export-pdf {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #8b4a54, #6f3b44) !important;
+  border-color: #ad727a !important;
+  box-shadow: 0 8px 18px rgba(111, 59, 68, .16) !important;
+}
+
+.pozos-shell .export-pdf-button:hover:not(:disabled),
+.pozos-shell .module-history-pdf-button:hover:not(:disabled),
+.pozos-shell .historical-pdf-button:hover:not(:disabled),
+.pozos-shell .header-export-pdf:hover:not(:disabled),
+.pozos-shell .export-pdf-button:focus-visible,
+.pozos-shell .module-history-pdf-button:focus-visible,
+.pozos-shell .historical-pdf-button:focus-visible,
+.pozos-shell .header-export-pdf:focus-visible {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #78414a, #60343c) !important;
+  border-color: #bd858c !important;
+}
+
+/* En modo claro se mantiene exactamente el mismo codigo visual para que el formato
+   se reconozca por color independientemente del tema. */
+.pozos-shell.theme-light .export-excel-button,
+.pozos-shell.theme-light .module-history-excel-button,
+.pozos-shell.theme-light .five-minute-excel-button,
+.pozos-shell.theme-light .historical-excel-button,
+.pozos-shell.theme-light .header-export-excel {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #16853f, #126b34) !important;
+  border-color: #2ea85a !important;
+}
+
+.pozos-shell.theme-light .export-pdf-button,
+.pozos-shell.theme-light .module-history-pdf-button,
+.pozos-shell.theme-light .historical-pdf-button,
+.pozos-shell.theme-light .header-export-pdf {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #8b4a54, #6f3b44) !important;
+  border-color: #ad727a !important;
+}
+
+/* Durango 18D — contrato compartido de controles claros (antes 11E en global.css). */
+/* Homologacion Durango 11E: controles, selectores de fecha y graficas en modo claro.
+   Regla visual: las superficies de control usan blanco/azules ARCA; el gris no se usa como fondo funcional. */
+.pozos-shell.theme-light .date-range-panel,
+.pozos-shell.theme-light .chart-date-range-panel,
+.pozos-shell.theme-light .report-date-range-panel,
+.pozos-shell.theme-light .shift-controls-panel {
+  background: #ffffff !important;
+  border-color: #b8d8ea !important;
+  box-shadow: 0 8px 22px rgba(20, 74, 108, .08) !important;
+}
+
+.pozos-shell.theme-light .date-range-panel .panel-title,
+.pozos-shell.theme-light .date-range-panel .panel-subtitle {
+  color: #163a5f;
+}
+
+.pozos-shell.theme-light .date-range-fields label,
+.pozos-shell.theme-light .date-range-fields label > span,
+.pozos-shell.theme-light .module-history-aggregation,
+.pozos-shell.theme-light .module-history-aggregation > span,
+.pozos-shell.theme-light .minute-flow-controls label,
+.pozos-shell.theme-light .shift-selector-field > span,
+.pozos-shell.theme-light .report-field-label {
+  color: #234a70 !important;
+}
+
+.pozos-shell.theme-light .date-range-fields input,
+.pozos-shell.theme-light .date-range-fields select,
+.pozos-shell.theme-light .minute-flow-controls input,
+.pozos-shell.theme-light .module-history-aggregation select,
+.pozos-shell.theme-light .shift-selector-field select,
+.pozos-shell.theme-light .report-date-input input,
+.pozos-shell.theme-light .history-aggregation-trigger {
+  color: #0b1f3a !important;
+  background: #ffffff !important;
+  border-color: #8ebed8 !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.7) !important;
+  color-scheme: light !important;
+}
+
+.pozos-shell.theme-light .date-range-fields input:hover,
+.pozos-shell.theme-light .date-range-fields select:hover,
+.pozos-shell.theme-light .minute-flow-controls input:hover,
+.pozos-shell.theme-light .module-history-aggregation select:hover,
+.pozos-shell.theme-light .shift-selector-field select:hover,
+.pozos-shell.theme-light .report-date-input input:hover,
+.pozos-shell.theme-light .history-aggregation-trigger:hover {
+  border-color: #3f91bc !important;
+  background: #f8fcff !important;
+}
+
+.pozos-shell.theme-light .date-range-fields input:focus,
+.pozos-shell.theme-light .date-range-fields select:focus,
+.pozos-shell.theme-light .minute-flow-controls input:focus,
+.pozos-shell.theme-light .module-history-aggregation select:focus,
+.pozos-shell.theme-light .shift-selector-field select:focus-visible,
+.pozos-shell.theme-light .report-date-input input:focus,
+.pozos-shell.theme-light .history-aggregation-trigger:focus-visible {
+  outline: none !important;
+  border-color: #0284c7 !important;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, .14) !important;
+}
+
+.pozos-shell.theme-light .date-input-with-icon svg {
+  color: #0369a1 !important;
+  filter: none !important;
+}
+
+.pozos-shell.theme-light .date-input-with-icon input {
+  background: #ffffff !important;
+  color: #0b1f3a !important;
+}
+
+.pozos-shell.theme-light .date-range-apply {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #0b4f7a, #0d6a9f) !important;
+  border-color: #0b4f7a !important;
+}
+
+.pozos-shell.theme-light .date-range-apply:hover {
+  background: linear-gradient(135deg, #083f65, #0b5d8d) !important;
+}
+
+.pozos-shell.theme-light .date-range-reset {
+  color: #163a5f !important;
+  background: #e6f4fb !important;
+  border-color: #9fc5da !important;
+}
+
+.pozos-shell.theme-light .date-range-reset:hover {
+  color: #0b1f3a !important;
+  background: #d7edf8 !important;
+  border-color: #6faac9 !important;
+}
+
+.pozos-shell.theme-light .date-range-status,
+.pozos-shell.theme-light .module-metric-note,
+.pozos-shell.theme-light .auto-refresh-status {
+  color: #164e70 !important;
+  background: #eaf6fd !important;
+  border-color: #9fc5da !important;
+}
+
+.pozos-shell.theme-light .shift-selector-field select option,
+.pozos-shell.theme-light .module-history-aggregation select option,
+.pozos-shell.theme-light .date-range-fields select option,
+.pozos-shell.theme-light .date-range-fields select optgroup {
+  color: #0b1f3a !important;
+  background: #ffffff !important;
+}
+

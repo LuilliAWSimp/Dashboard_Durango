@@ -51,6 +51,10 @@ class UserNotFoundError(AuthError):
     pass
 
 
+class CurrentPasswordMismatchError(AuthError):
+    pass
+
+
 @dataclass(frozen=True)
 class AuthPolicy:
     idle_hours: int = 8
@@ -279,6 +283,80 @@ class AuthService:
             row = connection.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
         return self._serialize_user(row)
 
+
+    def change_password(
+        self,
+        user_id: int,
+        *,
+        current_session_id: int,
+        current_password: str,
+        new_password: str,
+        ip_address: str | None = None,
+    ) -> int:
+        """Cambia la contraseña propia y conserva únicamente la sesión actual.
+
+        La nueva contraseña se valida con la misma política usada al crear/resetear
+        usuarios. Las demás sesiones del usuario se revocan en la misma transacción.
+        Devuelve cuántas sesiones adicionales fueron revocadas.
+        """
+        now = iso(utc_now())
+        with self.database.connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                "SELECT id, password_hash, is_active FROM users WHERE id = ?",
+                (user_id,),
+            ).fetchone()
+            if not row or not row["is_active"]:
+                connection.rollback()
+                raise UserNotFoundError("Usuario no encontrado o inactivo.")
+            if not verify_password(row["password_hash"], current_password):
+                self._audit(
+                    connection,
+                    action="password_change_rejected",
+                    actor_user_id=user_id,
+                    target_user_id=user_id,
+                    ip_address=ip_address,
+                    details={"reason": "current_password_mismatch"},
+                )
+                connection.commit()
+                raise CurrentPasswordMismatchError("La contraseña actual no es correcta.")
+            if verify_password(row["password_hash"], new_password):
+                connection.rollback()
+                raise ValueError("La nueva contraseña debe ser diferente de la contraseña actual.")
+            try:
+                new_password_hash = hash_password(new_password)
+            except ValueError:
+                connection.rollback()
+                raise
+
+            connection.execute(
+                """
+                UPDATE users
+                SET password_hash = ?, failed_login_attempts = 0, locked_until = NULL, updated_at = ?
+                WHERE id = ?
+                """,
+                (new_password_hash, now, user_id),
+            )
+            revoked = connection.execute(
+                """
+                UPDATE sessions
+                SET revoked_at = ?
+                WHERE user_id = ? AND id <> ? AND revoked_at IS NULL
+                """,
+                (now, user_id, current_session_id),
+            )
+            revoked_count = int(revoked.rowcount or 0)
+            self._audit(
+                connection,
+                action="password_changed",
+                actor_user_id=user_id,
+                target_user_id=user_id,
+                ip_address=ip_address,
+                details={"other_sessions_revoked": revoked_count},
+            )
+            connection.commit()
+        return revoked_count
+
     def reset_password(
         self,
         user_id: int,
@@ -445,15 +523,15 @@ class AuthService:
             expires_at=iso(absolute_expiry) or "",
         )
 
-    def get_session(
+    def get_session_with_reason(
         self,
         token: str | None,
         browser_session: str | None = None,
         *,
         require_browser_session: bool | None = None,
-    ) -> dict[str, Any] | None:
+    ) -> tuple[dict[str, Any] | None, str | None]:
         if not token:
-            return None
+            return None, "session_cookie_missing"
         token_hash = hash_token(token)
         now = utc_now()
         with self.database.connect() as connection:
@@ -469,10 +547,15 @@ class AuthService:
                 """,
                 (token_hash,),
             ).fetchone()
-            if not row or row["revoked_at"] or not row["is_active"]:
-                return None
+            if not row:
+                return None, "session_not_found"
+            if row["revoked_at"]:
+                return None, "session_revoked"
+            if not row["is_active"]:
+                return None, "user_inactive"
             if not constant_time_token_match(token, str(row["token_hash"])):
-                return None
+                return None, "session_token_mismatch"
+
             effective_require_browser_session = (
                 self.policy.require_browser_session
                 if require_browser_session is None
@@ -481,21 +564,28 @@ class AuthService:
             if effective_require_browser_session:
                 stored_browser_hash = row["browser_session_hash"]
                 if not browser_session or not stored_browser_hash:
-                    return None
+                    return None, "browser_session_missing"
                 if not constant_time_token_match(browser_session, str(stored_browser_hash)):
-                    return None
+                    return None, "browser_session_mismatch"
 
             expires_at = parse_datetime(row["expires_at"])
             created_at = parse_datetime(row["created_at"])
             last_activity = parse_datetime(row["last_activity_at"])
             policy_expiry = created_at + timedelta(hours=self.policy.absolute_hours) if created_at else now
             idle_expiry = last_activity + timedelta(hours=self.policy.idle_hours) if last_activity else now
-            if not expires_at or expires_at <= now or policy_expiry <= now or idle_expiry <= now:
+
+            if not expires_at or expires_at <= now or policy_expiry <= now:
                 connection.execute(
                     "UPDATE sessions SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL",
                     (iso(now), row["id"]),
                 )
-                return None
+                return None, "session_absolute_expired"
+            if idle_expiry <= now:
+                connection.execute(
+                    "UPDATE sessions SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL",
+                    (iso(now), row["id"]),
+                )
+                return None, "session_idle_expired"
 
             user = {
                 "id": int(row["user_id"]),
@@ -513,7 +603,21 @@ class AuthService:
                 "created_at": row["created_at"],
                 "last_activity_at": row["last_activity_at"],
                 "expires_at": row["expires_at"],
-            }
+            }, None
+
+    def get_session(
+        self,
+        token: str | None,
+        browser_session: str | None = None,
+        *,
+        require_browser_session: bool | None = None,
+    ) -> dict[str, Any] | None:
+        session, _ = self.get_session_with_reason(
+            token,
+            browser_session,
+            require_browser_session=require_browser_session,
+        )
+        return session
 
     def touch_session(self, session_id: int) -> None:
         now = utc_now()

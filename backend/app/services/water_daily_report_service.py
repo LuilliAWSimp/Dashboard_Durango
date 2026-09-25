@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from html import escape
 from io import BytesIO
 from pathlib import Path
@@ -19,6 +19,7 @@ from reportlab.lib.units import mm
 from reportlab.platypus import HRFlowable, Image, KeepTogether, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from app.services.durango_capabilities import FLOWS, JARABES, LOCAL_TIMEZONE
+from app.services.durango_terminology import operational_volume_label
 from app.services.water_daily_review_service import DailyReviewError, get_daily_water_review
 from app.services.water_history_service import WaterHistoryError, get_water_history_module
 from app.services.water_period_service import WaterPeriodError, get_period_data
@@ -168,7 +169,7 @@ def _report_row(item: dict[str, Any]) -> dict[str, Any]:
         'discarded_volume_m3': discarded,
         'discarded_totalizer_events': item.get('discarded_totalizer_events') or 0,
         'has_discontinuities': bool(item.get('has_discontinuities')),
-        'volume_display_label': item.get('volume_display_label') or 'Volumen del periodo',
+        'volume_display_label': item.get('volume_display_label') or operational_volume_label(item.get('module') or item.get('group'), scope='period'),
         'activity': item.get('activity') or _period_activity(item, validated),
         'validation': validation,
         'validation_status': validation_status,
@@ -344,7 +345,12 @@ def get_daily_water_report(
     coverage_complete = bool(monitored_items_count) and all(item['coverage_complete'] for item in (well_summary, line_summary, lavadora_summary, jarabes_summary))
     volume_basis_label = 'Total validado' if coverage_complete else 'Subtotal validado'
     latest = max((str(item.get('last_update') or '') for item in [*wells, *lines, *flows]), default='')
-    period_label = start_day.strftime('%d/%m/%Y') if start_day == end_day else f'{start_day:%d/%m/%Y} al {end_day:%d/%m/%Y}'
+    now_local = datetime.now(LOCAL_ZONE)
+    period_start_at = datetime.combine(start_day, datetime.min.time(), tzinfo=LOCAL_ZONE)
+    period_end_exclusive = datetime.combine(end_day + timedelta(days=1), datetime.min.time(), tzinfo=LOCAL_ZONE)
+    period_end_at = now_local if period_start_at <= now_local < period_end_exclusive else period_end_exclusive
+    visible_end = period_end_at if period_end_at < period_end_exclusive else period_end_exclusive - timedelta(minutes=1)
+    period_label = f'Del {period_start_at:%d/%m/%Y %H:%M} al {visible_end:%d/%m/%Y %H:%M}'
     aggregation = _history_aggregation(start_day, end_day)
     history = {'aggregation': aggregation, 'wells': {}, 'lines': {}, 'flows': {}, 'washers': {}, 'jarabes': {}}
     if include_history:
@@ -364,7 +370,9 @@ def get_daily_water_report(
         'start_date': start_day.isoformat(),
         'end_date': end_day.isoformat(),
         'period_label': period_label,
-        'generated_at': datetime.now(LOCAL_ZONE).isoformat(timespec='seconds'),
+        'period_start_at': period_start_at.isoformat(timespec='minutes'),
+        'period_end_at': period_end_at.isoformat(timespec='minutes'),
+        'generated_at': now_local.isoformat(timespec='seconds'),
         'source_status': period.get('source_status'),
         'report_source': period.get('report_source') or 'period_service',
         'summary': {
@@ -636,10 +644,10 @@ def build_daily_water_report_pdf(report: dict[str, Any]) -> tuple[bytes, str]:
     summary = report['summary']
     story.append(Paragraph('Resumen ejecutivo', heading))
     kpis = [
-        ('Volumen validado de pozos', _fmt_volume(summary.get('well_validated_volume_m3'))),
-        ('Volumen validado de líneas', _fmt_volume(summary.get('line_validated_volume_m3'))),
-        ('Volumen validado de lavadoras', _fmt_volume(summary.get('washer_validated_volume_m3'))),
-        ('Volumen validado de Jarabes', _fmt_volume(summary.get('jarabes_validated_volume_m3'))),
+        (f"{operational_volume_label('well', validated=True)} de pozos", _fmt_volume(summary.get('well_validated_volume_m3'))),
+        (f"{operational_volume_label('line', validated=True)} de líneas", _fmt_volume(summary.get('line_validated_volume_m3'))),
+        (f"{operational_volume_label('flow', validated=True)} de lavadoras", _fmt_volume(summary.get('washer_validated_volume_m3'))),
+        (f"{operational_volume_label('flow', validated=True)} de Jarabes", _fmt_volume(summary.get('jarabes_validated_volume_m3'))),
         (f"{summary.get('volume_basis_label') or 'Total validado'} operativo", _fmt_volume(summary.get('total_validated_operational_m3'))),
         ('Pozos con actividad', f"{int(summary.get('wells_active') or 0)}/{len(report.get('wells', {}).get('rows', []))}"),
         ('Líneas con actividad', f"{int(summary.get('lines_active') or 0)}/{len(report.get('production_lines', {}).get('rows', []))}"),
@@ -792,10 +800,10 @@ def build_daily_water_report_excel(report: dict[str, Any]) -> tuple[bytes, str]:
         ('Planta', report['plant']),
         ('Periodo', report['period_label']),
         ('Fecha de generación', datetime.fromisoformat(report['generated_at']).replace(tzinfo=None)),
-        ('Volumen validado de pozos (m³)', summary['well_validated_volume_m3']),
-        ('Volumen validado de líneas (m³)', summary['line_validated_volume_m3']),
-        ('Volumen validado de lavadoras (m³)', summary['washer_validated_volume_m3']),
-        ('Volumen validado de Jarabes (m³)', summary['jarabes_validated_volume_m3']),
+        (f"{operational_volume_label('well', validated=True)} de pozos (m³)", summary['well_validated_volume_m3']),
+        (f"{operational_volume_label('line', validated=True)} de líneas (m³)", summary['line_validated_volume_m3']),
+        (f"{operational_volume_label('flow', validated=True)} de lavadoras (m³)", summary['washer_validated_volume_m3']),
+        (f"{operational_volume_label('flow', validated=True)} de Jarabes (m³)", summary['jarabes_validated_volume_m3']),
         (f"{summary.get('volume_basis_label') or 'Total validado'} operativo (m³)", summary['total_validated_operational_m3']),
         ('Elementos validados', summary.get('validated_items_count', 0)),
         ('Elementos monitoreados', summary.get('monitored_items_count', 0)),

@@ -26,7 +26,7 @@ function SqlChartDateControls({ controller, title = 'Fechas de la gráfica', sub
   const status = controller.error || (controller.loading ? 'Cargando datos...' : controller.refreshing ? 'Actualizando información…' : `${meta.periodTitle} · ${meta.rangeLabel}`);
   return (
     <DateRangeControls
-      className="chart-date-range-panel"
+      className="chart-date-range-panel history-date-range-panel"
       title={title}
       subtitle={subtitle}
       draftRange={controller.draftRange}

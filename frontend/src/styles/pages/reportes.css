@@ -1,0 +1,1189 @@
+/* Durango 18D — responsabilidad visual de Reportes.
+   Migracion estructural: preservar apariencia, no redisenar durante el movimiento. */
+
+.reportes-page {
+  display: grid;
+  gap: 18px;
+}
+
+.report-hero-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 22px;
+}
+
+.report-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.report-action-button {
+  border: 0;
+  border-radius: 999px;
+  padding: 11px 16px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.primary-action.report-action-button {
+  background: linear-gradient(135deg, #0ea5e9, #38bdf8);
+  color: #03131f;
+}
+
+.ghost-action.report-action-button {
+  background: rgba(8, 47, 73, .48);
+  color: #e6fbff;
+  border: 1px solid rgba(56,189,248,.22);
+}
+
+.report-card-featured {
+  grid-column: span 2;
+}
+
+@media (max-width: 780px) {
+  .report-hero-panel {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .report-actions {
+    justify-content: flex-start;
+  }
+
+  .report-card-featured {
+    grid-column: span 1;
+  }
+}
+
+
+.daily-report-preview {
+  background: #ffffff;
+  color: #18202a;
+  border: 1px solid rgba(215, 25, 32, 0.2);
+}
+
+.daily-report-band {
+  min-height: 76px;
+  background: linear-gradient(135deg, #d71920, #811515);
+  border-radius: 18px 18px 8px 8px;
+  display: flex;
+  align-items: center;
+  padding: 16px 22px;
+  margin-bottom: 18px;
+}
+
+.daily-report-logo {
+  width: min(280px, 70%);
+  max-height: 58px;
+  object-fit: contain;
+  background: #ffffff;
+  border-radius: 10px;
+  padding: 7px 10px;
+}
+
+.daily-report-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 16px;
+}
+
+.daily-report-meta h2 {
+  margin: 0 0 4px;
+  color: #111827;
+  font-size: 24px;
+}
+
+.daily-report-meta p {
+  margin: 3px 0;
+  color: #475569;
+}
+
+.daily-report-code {
+  text-align: right;
+  display: grid;
+  gap: 4px;
+  align-content: start;
+}
+
+.daily-report-code strong {
+  color: #d71920;
+  font-size: 16px;
+}
+
+.daily-report-code small {
+  color: #64748b;
+}
+
+.daily-report-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.daily-report-kpis > div {
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 12px;
+  background: #f8fafc;
+}
+
+.daily-report-kpis span {
+  display: block;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.daily-report-kpis strong {
+  color: #111827;
+  font-size: 20px;
+}
+
+.daily-report-table-wrap {
+  margin-top: 18px;
+  overflow-x: auto;
+}
+
+.daily-report-table-wrap h3,
+.daily-report-pending h3 {
+  color: #111827;
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+
+.daily-report-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 720px;
+  font-size: 12px;
+}
+
+.daily-report-table th {
+  text-align: left;
+  color: #475569;
+  border-bottom: 2px solid #9ca3af;
+  padding: 8px;
+}
+
+.daily-report-table td {
+  color: #1f2937;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 8px;
+}
+
+.daily-report-pending {
+  border: 1px solid #fecaca;
+  background: #fff7f7;
+  border-radius: 14px;
+  padding: 12px;
+  margin-top: 18px;
+}
+
+.daily-report-pending p {
+  color: #7f1d1d;
+  margin: 6px 0;
+  font-size: 13px;
+}
+
+.durango-report-page {
+  display: grid;
+  gap: 14px;
+}
+
+.durango-report-page .report-hero-panel {
+  display: grid;
+  gap: 14px;
+  padding: 20px 22px 22px;
+}
+
+.report-center-heading {
+  display: grid;
+  gap: 6px;
+  padding: 0;
+}
+
+.report-center-heading .panel-header.compact {
+  margin: 0;
+  padding: 0;
+}
+
+.report-center-heading .panel-title {
+  color: #f4fbff;
+  font-size: clamp(24px, 2.2vw, 32px);
+  font-weight: 950;
+  line-height: 1.05;
+  letter-spacing: -.035em;
+}
+
+.report-center-heading .panel-subtitle {
+  margin-top: 4px;
+  color: #addbed;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.report-center-heading > span,
+.report-preview-heading > div > span {
+  color: #67d7f5;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+}
+
+.report-center-heading > p,
+.report-preview-heading p,
+.report-preview-section-heading p {
+  margin: 0;
+  color: #a9d5e8;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.report-workflow-panel {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid rgba(56, 189, 248, .2);
+  border-radius: 18px;
+  background:
+    linear-gradient(135deg, rgba(3, 17, 29, .84), rgba(6, 24, 40, .62)),
+    radial-gradient(circle at 100% 0%, rgba(14, 165, 233, .11), transparent 34%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .035), 0 16px 36px rgba(0, 0, 0, .14);
+}
+
+.report-workflow-intro {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(125, 211, 252, .12);
+}
+
+.report-workflow-intro strong {
+  color: #f4fbff;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.report-workflow-intro span {
+  color: #a9d5e8;
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: right;
+}
+
+.report-workflow-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(380px, .85fr);
+  align-items: end;
+  gap: 16px 22px;
+}
+
+.report-controls-block,
+.report-actions-block {
+  min-width: 0;
+}
+
+.report-controls-block {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.report-actions-block {
+  display: grid;
+  gap: 7px;
+}
+
+.report-field {
+  display: grid;
+  gap: 5px;
+  min-width: 160px;
+}
+
+.report-field-label {
+  color: #8bcce2;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .13em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.report-mode-field {
+  min-width: 200px;
+}
+
+.report-mode-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 42px;
+  padding: 4px;
+  border: 1px solid rgba(56, 189, 248, .26);
+  border-radius: 13px;
+  background: rgba(3, 15, 28, .86);
+}
+
+.report-mode-toggle button {
+  min-height: 32px;
+  min-width: 88px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: #a9d7e9;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 850;
+  cursor: pointer;
+  transition: background .18s ease, border-color .18s ease, color .18s ease, transform .18s ease;
+}
+
+.report-mode-toggle button:hover,
+.report-mode-toggle button:focus-visible {
+  border-color: rgba(125, 211, 252, .44);
+  color: #fff;
+  outline: none;
+}
+
+.report-mode-toggle button.active {
+  border-color: rgba(125, 211, 252, .58);
+  background: linear-gradient(135deg, rgba(14, 116, 144, .98), rgba(2, 132, 199, .94));
+  color: #fff;
+  box-shadow: 0 8px 18px rgba(2, 132, 199, .18);
+}
+
+.report-date-input {
+  min-width: 176px;
+}
+
+.report-date-input input {
+  min-height: 42px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.report-period-buttons {
+  display: flex;
+  align-items: end;
+  gap: 9px;
+}
+
+.report-period-buttons .date-range-apply,
+.report-period-buttons .date-range-reset {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 42px;
+  border-radius: 12px;
+}
+
+.durango-report-page .report-actions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(132px, 1fr));
+  gap: 9px;
+  margin: 0;
+}
+
+.durango-report-page .report-action-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 15px;
+  border: 1px solid rgba(56, 189, 248, .28);
+  border-radius: 12px;
+  background: #071827;
+  color: #effbff;
+  font-size: 13px;
+  font-weight: 850;
+  cursor: pointer;
+  transition: border-color .18s ease, background .18s ease, transform .18s ease;
+  white-space: nowrap;
+}
+
+.durango-report-page .report-action-button:hover:not(:disabled) {
+  border-color: rgba(56, 189, 248, .68);
+  background: #0a2235;
+  transform: translateY(-1px);
+}
+
+.durango-report-page .report-action-button:focus-visible {
+  outline: 2px solid rgba(56, 189, 248, .9);
+  outline-offset: 2px;
+}
+
+.durango-report-page .report-action-button.primary-action {
+  border-color: rgba(34, 211, 238, .62);
+  background: linear-gradient(135deg, #0891b2, #0284c7);
+  color: #fff;
+  box-shadow: 0 10px 24px rgba(2, 132, 199, .2);
+}
+
+.durango-report-page .report-action-button:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+}
+
+.report-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.report-summary-card {
+  position: relative;
+  min-height: 112px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(56, 189, 248, .18);
+  border-radius: 18px;
+  background: linear-gradient(145deg, rgba(14, 28, 54, .98), rgba(5, 15, 31, .98));
+  box-shadow: 0 12px 26px rgba(0, 0, 0, .18);
+}
+
+.report-summary-card::after {
+  content: '';
+  position: absolute;
+  right: -24px;
+  bottom: -34px;
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(56, 189, 248, .17), transparent 68%);
+  pointer-events: none;
+}
+
+.report-summary-card span {
+  position: relative;
+  z-index: 1;
+  color: #9fdcf4;
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: .13em;
+  line-height: 1.35;
+  text-transform: uppercase;
+}
+
+.report-summary-card strong {
+  position: relative;
+  z-index: 1;
+  color: #f4fbff;
+  font-size: clamp(23px, 1.85vw, 32px);
+  line-height: 1.05;
+  word-break: normal;
+}
+
+.report-summary-card small {
+  position: relative;
+  z-index: 1;
+  color: #b7d7e6;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.report-summary-card.review {
+  border-top: 3px solid rgba(245, 158, 11, .66);
+}
+
+.report-summary-card.review strong small {
+  display: inline;
+  font-size: .45em;
+  font-weight: 700;
+  color: #b7d7e6;
+}
+
+.report-summary-note {
+  margin: -2px 0 0;
+  padding: 10px 13px;
+  border: 1px solid rgba(56, 189, 248, .16);
+  border-left: 4px solid #0ea5e9;
+  border-radius: 12px;
+  background: rgba(3, 17, 29, .62);
+  color: #b9dfef;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.report-data-panel {
+  overflow: hidden;
+}
+
+.report-preview-panel {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+}
+
+.report-preview-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+  margin: 0;
+}
+
+.report-preview-heading h3 {
+  margin: 4px 0;
+  color: #f4fbff;
+  font-size: clamp(22px, 2.2vw, 30px);
+  line-height: 1.05;
+}
+
+.report-preview-sections {
+  display: grid;
+  gap: 18px;
+}
+
+.report-preview-section {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding-top: 16px;
+  border-top: 1px solid rgba(125, 211, 252, .12);
+}
+
+.report-preview-section:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.report-preview-section-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.report-preview-section-heading h4 {
+  margin: 0 0 3px;
+  color: #f4fbff;
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: -.015em;
+  text-transform: uppercase;
+}
+
+.report-preview-section-heading > span {
+  flex: 0 0 auto;
+  padding: 5px 10px;
+  border: 1px solid rgba(56, 189, 248, .18);
+  border-radius: 999px;
+  background: rgba(3, 17, 29, .55);
+  color: #9fdcf4;
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.report-preview-empty {
+  padding: 18px;
+  border: 1px dashed rgba(125, 211, 252, .2);
+  border-radius: 14px;
+  background: rgba(3, 17, 29, .42);
+  color: #a9d5e8;
+  font-size: 13px;
+}
+
+.report-preview-skeleton {
+  display: grid;
+  gap: 14px;
+}
+
+.report-skeleton-card,
+.report-skeleton-preview,
+.report-skeleton-section {
+  overflow: hidden;
+  position: relative;
+}
+
+.report-skeleton-card {
+  min-height: 112px;
+  padding: 18px;
+  border: 1px solid rgba(56, 189, 248, .14);
+  border-radius: 18px;
+  background: rgba(8, 23, 40, .86);
+}
+
+.report-skeleton-card i,
+.report-skeleton-card b,
+.report-skeleton-heading i,
+.report-skeleton-heading b,
+.report-skeleton-section i {
+  display: block;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(148, 213, 235, .08), rgba(148, 213, 235, .22), rgba(148, 213, 235, .08));
+  background-size: 220% 100%;
+  animation: report-skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+.report-skeleton-card i { width: 70%; height: 12px; }
+.report-skeleton-card b { width: 48%; height: 28px; margin-top: 28px; }
+.report-skeleton-preview { display: grid; gap: 16px; padding: 18px; }
+.report-skeleton-heading { display: grid; gap: 8px; }
+.report-skeleton-heading i { width: 150px; height: 11px; }
+.report-skeleton-heading b { width: min(360px, 70%); height: 28px; }
+.report-skeleton-section { display: grid; gap: 10px; padding-top: 14px; border-top: 1px solid rgba(125, 211, 252, .1); }
+.report-skeleton-section span { color: #8bcce2; font-size: 11px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
+.report-skeleton-section i { width: 100%; height: 32px; }
+
+@keyframes report-skeleton-pulse {
+  from { background-position: 100% 0; }
+  to { background-position: -120% 0; }
+}
+
+.report-data-table th,
+.report-data-table td {
+  vertical-align: middle;
+}
+
+.report-data-table td:nth-child(2),
+.report-data-table td:nth-child(3),
+.report-data-table td:nth-child(4),
+.report-data-table td:nth-child(5),
+.report-data-table td:nth-child(7),
+.report-data-table td:nth-child(8),
+.report-data-table td:nth-child(9) {
+  white-space: normal;
+}
+
+.report-data-table .status-pill {
+  min-height: 26px;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 9px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .03em;
+}
+
+.email-format-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 22px;
+  padding: 13px 15px;
+  border: 1px solid rgba(56, 189, 248, .2);
+  border-radius: 12px;
+  background: rgba(3, 17, 29, .58);
+}
+
+.email-format-selector legend {
+  padding: 0 7px;
+  color: #9fdcf4;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.email-format-selector label {
+  display: inline-flex;
+  grid-template-columns: none;
+  align-items: center;
+  gap: 8px;
+}
+
+.email-format-selector input {
+  width: 16px;
+  height: 16px;
+  accent-color: #0ea5e9;
+}
+
+@media (max-width: 1440px) {
+  .report-workflow-body {
+    grid-template-columns: 1fr;
+  }
+
+  .durango-report-page .report-actions {
+    grid-template-columns: repeat(4, minmax(128px, 1fr));
+  }
+}
+
+@media (max-width: 1280px) {
+  .report-summary-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .report-controls-block {
+    justify-content: flex-start;
+  }
+
+  .durango-report-page .report-actions {
+    grid-template-columns: repeat(2, minmax(150px, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .durango-report-page .report-hero-panel,
+  .report-preview-panel {
+    padding: 16px;
+  }
+
+  .report-workflow-intro,
+  .report-preview-section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .report-workflow-intro span {
+    text-align: left;
+  }
+
+  .report-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .report-controls-block,
+  .report-period-buttons,
+  .durango-report-page .report-actions,
+  .report-field,
+  .report-mode-toggle,
+  .report-date-input {
+    width: 100%;
+  }
+
+  .report-mode-toggle button,
+  .report-period-buttons > button,
+  .durango-report-page .report-action-button {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+
+  .report-period-buttons,
+  .durango-report-page .report-actions {
+    grid-template-columns: 1fr;
+    flex-direction: column;
+  }
+
+  .report-preview-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+
+/* Homologacion Durango 09: correo programado */
+.scheduled-email-panel {
+  padding: 22px;
+  display: grid;
+  gap: 18px;
+}
+
+.scheduled-email-heading {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.scheduled-email-heading h3 {
+  margin: 2px 0 5px;
+  font-size: 1.08rem;
+}
+
+.scheduled-email-heading p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.scheduled-email-form-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.9fr) minmax(220px, 0.75fr) minmax(320px, 1.35fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.scheduled-email-field,
+.scheduled-email-formats {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.scheduled-email-field > span,
+.scheduled-email-formats legend {
+  color: var(--muted-2);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.scheduled-email-field input,
+.scheduled-email-field select,
+.scheduled-email-field textarea {
+  width: 100%;
+  border: 1px solid rgba(75, 201, 255, 0.2);
+  background: rgba(4, 13, 28, 0.78);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 10px 12px;
+  outline: none;
+}
+
+.scheduled-email-field textarea {
+  resize: vertical;
+  min-height: 44px;
+}
+
+.scheduled-email-field input:focus,
+.scheduled-email-field select:focus,
+.scheduled-email-field textarea:focus {
+  border-color: rgba(56, 189, 248, 0.72);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.1);
+}
+
+.scheduled-email-formats {
+  border: 1px solid rgba(75, 201, 255, 0.16);
+  border-radius: 12px;
+  padding: 8px 11px 10px;
+  min-width: 190px;
+  grid-template-columns: 1fr 1fr;
+}
+
+.scheduled-email-formats legend {
+  padding: 0 5px;
+}
+
+.scheduled-email-formats label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.scheduled-email-helper {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border: 1px solid rgba(56, 189, 248, 0.14);
+  border-radius: 12px;
+  background: rgba(14, 165, 233, 0.06);
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.scheduled-email-helper svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: #38bdf8;
+}
+
+.scheduled-email-save-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.scheduled-email-save-row small {
+  color: var(--muted-2);
+}
+
+.scheduled-email-list-head {
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+  padding-top: 15px;
+}
+
+.scheduled-email-list-head > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.scheduled-email-list-head span {
+  color: var(--muted-2);
+  font-size: 0.78rem;
+}
+
+.scheduled-email-list {
+  display: grid;
+  gap: 10px;
+}
+
+.scheduled-email-empty {
+  padding: 16px;
+  border: 1px dashed rgba(148, 163, 184, 0.22);
+  border-radius: 14px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.scheduled-email-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 14px 15px;
+  border: 1px solid rgba(56, 189, 248, 0.14);
+  border-radius: 15px;
+  background: rgba(3, 12, 27, 0.48);
+}
+
+.scheduled-email-item.is-disabled {
+  opacity: 0.64;
+}
+
+.scheduled-email-item-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.scheduled-email-item-title {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.scheduled-email-item-title strong {
+  font-size: 0.94rem;
+}
+
+.scheduled-email-item p {
+  margin: 5px 0 8px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.scheduled-email-item-meta {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  color: var(--muted-2);
+  font-size: 0.75rem;
+}
+
+.scheduled-email-item-meta strong {
+  color: var(--text);
+}
+
+.scheduled-email-last-error {
+  color: #fca5a5;
+  width: 100%;
+}
+
+.scheduled-email-item-actions {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.scheduled-email-item-actions .ghost-action {
+  min-height: 36px;
+  padding: 7px 10px;
+  font-size: 0.78rem;
+}
+
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  font-size: 0.66rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.status-chip.success {
+  color: #86efac;
+  background: rgba(34, 197, 94, 0.1);
+  border-color: rgba(34, 197, 94, 0.24);
+}
+
+.status-chip.neutral {
+  color: var(--muted);
+  background: rgba(148, 163, 184, 0.08);
+}
+
+.danger-action {
+  color: #fca5a5 !important;
+}
+
+.scheduled-email-locked {
+  opacity: 0.9;
+}
+
+.pozos-shell.theme-light .scheduled-email-field input,
+.pozos-shell.theme-light .scheduled-email-field select,
+.pozos-shell.theme-light .scheduled-email-field textarea,
+.pozos-shell.theme-light .scheduled-email-item {
+  background: #ffffff;
+  color: #0f2747;
+  border-color: rgba(15, 74, 116, 0.17);
+}
+
+.pozos-shell.theme-light .scheduled-email-helper {
+  background: #eef8ff;
+  border-color: rgba(14, 116, 178, 0.17);
+}
+
+.pozos-shell.theme-light .scheduled-email-item-meta strong,
+.pozos-shell.theme-light .scheduled-email-formats label {
+  color: #0f2747;
+}
+
+@media (max-width: 1180px) {
+  .scheduled-email-form-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .scheduled-email-recipients {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 720px) {
+  .scheduled-email-panel {
+    padding: 16px;
+  }
+  .scheduled-email-form-grid {
+    grid-template-columns: 1fr;
+  }
+  .scheduled-email-recipients {
+    grid-column: auto;
+  }
+  .scheduled-email-save-row,
+  .scheduled-email-item {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .scheduled-email-save-row .report-action-button,
+  .scheduled-email-item-actions .ghost-action {
+    width: 100%;
+    justify-content: center;
+  }
+  .scheduled-email-item-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+}
+
+
+/* Durango homologación 10: histórico completo de planta */
+.historical-export-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  padding: 18px 20px;
+  border-color: rgba(56, 189, 248, .2);
+  background:
+    linear-gradient(135deg, rgba(4, 20, 35, .92), rgba(7, 27, 45, .78)),
+    radial-gradient(circle at 100% 0%, rgba(14, 165, 233, .11), transparent 36%);
+}
+
+.historical-export-copy {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.historical-export-copy h3 {
+  margin: 0;
+  color: #f4fbff;
+  font-size: 18px;
+}
+
+.historical-export-copy p,
+.historical-export-copy small {
+  margin: 0;
+  color: #a9d5e8;
+  line-height: 1.5;
+}
+
+.historical-export-copy p { font-size: 12px; }
+.historical-export-copy small { font-size: 11px; }
+
+.historical-export-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.durango-report-page .historical-excel-button {
+  border-color: rgba(34, 197, 94, .52);
+  background: rgba(22, 101, 52, .92);
+  color: #f0fdf4;
+}
+
+.durango-report-page .historical-excel-button:hover:not(:disabled),
+.durango-report-page .historical-excel-button:focus-visible:not(:disabled) {
+  border-color: rgba(134, 239, 172, .84);
+  background: rgba(21, 128, 61, .98);
+}
+
+@media (max-width: 900px) {
+  .historical-export-panel {
+    grid-template-columns: 1fr;
+  }
+  .historical-export-actions {
+    justify-content: stretch;
+  }
+  .historical-export-actions .report-action-button {
+    flex: 1 1 220px;
+  }
+}
+
+/* Homologacion Durango 11D: Reportes + Revision diaria + Turnos en modo claro.
+   Regla: KPI/report cards de alto contraste, sin superficies grises; estados de turno vivos. */
+.pozos-shell.theme-light .report-summary-card,
+.pozos-shell.theme-light .report-summary-card.review {
+  color: #ffffff;
+  background: linear-gradient(145deg, #0a4f7e 0%, #083c63 58%, #072f4e 100%);
+  border: 1px solid rgba(14, 165, 233, .36);
+  box-shadow: 0 12px 28px rgba(8, 67, 103, .16);
+}
+
+.pozos-shell.theme-light .report-summary-card.review {
+  border-top: 4px solid #f59e0b;
+}
+
+.pozos-shell.theme-light .report-summary-card::after {
+  background: radial-gradient(circle, rgba(125, 211, 252, .18), transparent 68%);
+}
+
+.pozos-shell.theme-light .report-summary-card span {
+  color: #d9efff;
+}
+
+.pozos-shell.theme-light .report-summary-card strong,
+.pozos-shell.theme-light .report-summary-card strong small {
+  color: #ffffff;
+}
+
+.pozos-shell.theme-light .report-summary-card small {
+  color: #d8e9f8;
+}
+
+.pozos-shell.theme-light .report-summary-note {
+  color: #ffffff;
+  background: linear-gradient(90deg, #0b4f7a 0%, #0d679d 100%);
+  border-color: #0b4f7a;
+  border-left-color: #38bdf8;
+  box-shadow: 0 8px 20px rgba(8, 67, 103, .12);
+}
