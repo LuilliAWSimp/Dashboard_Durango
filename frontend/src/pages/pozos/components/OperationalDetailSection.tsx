@@ -4,6 +4,9 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { formatSqlDate } from '../dateUtils';
 import {
   buildOperationalNavigationSearch,
+  buildOperationalSiblingPath,
+  clearOperationalReturnState,
+  operationalReturnLabel,
   resolveOperationalReturnTarget,
   configuredOperationalIdentity,
   configuredOperationalItems,
@@ -192,16 +195,20 @@ export default function OperationalDetailSection({ module, sensorId, backPath, s
   };
 
   const activeSearch = buildOperationalNavigationSearch(current.range, historyAggregation, module);
+  const fallbackReturnTarget = `${backPath}${activeSearch}`;
+  const returnTarget = resolveOperationalReturnTarget(location.state, fallbackReturnTarget);
+  const returnLabel = operationalReturnLabel(returnTarget);
   const navigateToSibling = (identity: OperationalIdentity) => {
-    navigate(`${backPath}/${encodeURIComponent(String(identity))}${activeSearch}`, {
+    navigate(buildOperationalSiblingPath(backPath, identity, activeSearch), {
       replace: true,
       state: location.state,
     });
   };
   const goBack = () => {
-    const fallback = `${backPath}${activeSearch}`;
-    const target = resolveOperationalReturnTarget(location.state, fallback);
-    navigate(target, { state: location.state });
+    navigate(returnTarget, {
+      replace: true,
+      state: clearOperationalReturnState(location.state),
+    });
   };
 
   return (
@@ -209,17 +216,17 @@ export default function OperationalDetailSection({ module, sensorId, backPath, s
       <section className={`well-detail-hero panel fade-up operational-detail-hero operational-detail-${module}`}>
         <div className="well-detail-main-head">
           <button type="button" className="back-inline-button" onClick={goBack}>
-            <ArrowLeft size={16} /> Volver
+            <ArrowLeft size={16} /> {returnLabel}
           </button>
           <nav className="operational-sibling-navigation" aria-label={`Navegación entre ${navigationLabel}`}>
             {previous ? (
-              <button type="button" onClick={() => navigateToSibling(previous.identity)}>
+              <button type="button" aria-label={`Anterior: ${previous.name}`} onClick={() => navigateToSibling(previous.identity)}>
                 <ChevronLeft size={15} /> {previous.name}
               </button>
             ) : <span />}
             <strong>{name}</strong>
             {next ? (
-              <button type="button" onClick={() => navigateToSibling(next.identity)}>
+              <button type="button" aria-label={`Siguiente: ${next.name}`} onClick={() => navigateToSibling(next.identity)}>
                 {next.name} <ChevronRight size={15} />
               </button>
             ) : <span />}
