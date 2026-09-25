@@ -20,7 +20,7 @@ test('Reportes usa preview ligero sin históricos ni turnos', () => {
 test('exportaciones completas se generan únicamente bajo demanda', () => {
   assert.match(reports, /downloadDailyWaterReportPdf\(filters\)/);
   assert.match(reports, /downloadDailyWaterReportExcel\(filters\)/);
-  assert.match(reports, /includeHistory: true, includeShifts: false/);
+  assert.match(reports, /includeHistory: true, includeShifts: true/);
   assert.match(reports, /formats: selectedFormats/);
 });
 
@@ -30,8 +30,8 @@ test('Reportes separa Lavadoras y Jarabes y no muestra Flujos como sección visi
   assert.match(reports, /label: 'Jarabes'/);
   assert.doesNotMatch(reports, /label: 'Flujos'/);
   assert.match(reports, /Pozos, Líneas, Lavadoras y Jarabes/);
-  assert.match(reports, /operationalVolumeLabel\('flow', \{ validated: true \}\)\} de lavadoras/);
-  assert.match(reports, /operationalVolumeLabel\('flow', \{ validated: true \}\)\} de Jarabes/);
+  assert.match(reports, /operationalVolumeLabel\('flow'\)\} de lavadoras/);
+  assert.match(reports, /operationalVolumeLabel\('flow'\)\} de Jarabes/);
   assert.doesNotMatch(reports, /de flujos/);
 });
 
@@ -45,13 +45,12 @@ test('Balance de Agua permite que el tooltip escape del panel', () => {
 });
 
 
-test('Resumen separa Lavadoras y Jarabes en KPI visibles', () => {
+test('Resumen ejecutivo conserva volúmenes separados de Lavadoras y Jarabes', () => {
   const resumen = readFileSync(new URL('../src/pages/pozos/sections/DashboardBaseSection.tsx', import.meta.url), 'utf8');
-  assert.match(resumen, /operationalVolumeLabel\('flow', \{ validated: true \}\)\} de lavadoras/);
-  assert.match(resumen, /operationalVolumeLabel\('flow', \{ validated: true \}\)\} de Jarabes/);
-  assert.match(resumen, /Lavadoras con flujo actual/);
-  assert.match(resumen, /Jarabes con flujo actual/);
+  assert.match(resumen, /operationalVolumeLabel\('flow'\)\} de lavadoras/);
+  assert.match(resumen, /operationalVolumeLabel\('flow'\)\} de Jarabes/);
+  assert.match(resumen, /Elementos con flujo actual/);
+  assert.match(resumen, /Alertas activas/);
   assert.doesNotMatch(resumen, /de flujos/);
-  assert.doesNotMatch(resumen, /Flujos con flujo actual/);
-  assert.doesNotMatch(resumen, /label="Validación parcial"/);
+  assert.doesNotMatch(resumen, /Subtotal validado/);
 });

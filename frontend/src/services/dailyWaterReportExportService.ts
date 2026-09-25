@@ -145,7 +145,7 @@ export function buildDailyWaterReportHtml(report: any): string {
       <h2>${escapeHtml(title)}</h2>
       <p class="section-meta">Periodo ${escapeHtml(report.period_label)} · Agrupación histórica: ${escapeHtml(aggregationLabel(history?.aggregation))}</p>
       <div class="table-wrap"><table>
-        <thead><tr><th>Elemento</th><th>Flujo actual</th><th>Apertura</th><th>Cierre</th><th>Volumen</th><th>Actividad</th><th>Validación</th><th>Comunicación</th><th>Última actualización</th></tr></thead>
+        <thead><tr><th>Elemento</th><th>Flujo actual</th><th>Totalizador inicial</th><th>Totalizador final</th><th>Volumen del periodo</th><th>Actividad</th><th>Estado de datos</th><th>Comunicación</th><th>Última lectura</th></tr></thead>
         <tbody>${rows.map((row) => `<tr>
           <td>${escapeHtml(row.name)}</td>
           <td>${row.flow == null ? 'No disponible' : `${fmt(row.flow)} ${escapeHtml(row.flow_unit || 'L/s')}`}</td>
@@ -165,28 +165,34 @@ export function buildDailyWaterReportHtml(report: any): string {
     </section>`;
 
   const summary = report.summary || {};
+  const monitoredItems = Number(summary.monitored_items_count || 0);
+  const summaryCards = report.presentation?.summary_cards?.length ? report.presentation.summary_cards : [
+    { key: 'wells_volume', label: 'Volumen bombeado de pozos', kind: 'volume', value: summary.well_validated_volume_m3 ?? summary.well_volume_m3 },
+    { key: 'lines_volume', label: 'Volumen consumido de líneas', kind: 'volume', value: summary.line_validated_volume_m3 ?? summary.line_volume_m3 },
+    { key: 'washers_volume', label: 'Volumen consumido de lavadoras', kind: 'volume', value: summary.washer_validated_volume_m3 },
+    { key: 'jarabes_volume', label: 'Volumen consumido de Jarabes', kind: 'volume', value: summary.jarabes_validated_volume_m3 },
+    { key: 'active_items', label: 'Con actividad', kind: 'ratio', value: Number(summary.wells_active || 0) + Number(summary.lines_active || 0) + Number(summary.washers_active || 0) + Number(summary.jarabes_active || 0), total: monitoredItems },
+    { key: 'attention_items', label: 'Con atención', kind: 'ratio', value: Number(summary.review_count || 0) + Number(summary.no_data_count || 0), total: monitoredItems, detail: `${Number(summary.review_count || 0)} parciales · ${Number(summary.no_data_count || 0)} sin datos` },
+  ];
+  const shiftRows = (report.shifts || []).map((shift: any) => {
+    const flows = shift.flows || [];
+    const washerKeys = new Set(['lavadora_linea_2', 'lavadora_vidrio', 'lavadora_ref_pet']);
+    const jarabesKeys = new Set(['jarabes']);
+    const sumVolume = (rows: any[]) => { const values = rows.map((item: any) => item.validated_volume_m3).filter((value: unknown) => value !== null && value !== undefined && Number.isFinite(Number(value))).map(Number); return values.length ? values.reduce((total: number, value: number) => total + value, 0) : null; };
+    return `<tr><td>${escapeHtml(shift.name || '')}</td><td>${escapeHtml(shift.schedule || '')}</td><td>${fmtVolume(shift.summary?.wells?.total_m3)}</td><td>${fmtVolume(shift.summary?.lines?.total_m3)}</td><td>${fmtVolume(sumVolume(flows.filter((item: any) => washerKeys.has(String(item.operational_key || '')))))}</td><td>${fmtVolume(sumVolume(flows.filter((item: any) => jarabesKeys.has(String(item.operational_key || '')))))}</td><td>${escapeHtml(shift.cut_status || '')}</td></tr>`;
+  }).join('');
+  const shiftsSection = shiftRows ? `<section class="module-section"><h2>Turnos</h2><div class="table-wrap"><table><thead><tr><th>Turno</th><th>Horario</th><th>Pozos</th><th>Líneas</th><th>Lavadoras</th><th>Jarabes</th><th>Estado</th></tr></thead><tbody>${shiftRows}</tbody></table></div></section>` : '';
   return `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${escapeHtml(report.title)}</title><style>
     *{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#1f2937;margin:0;background:#eef2f5}.report{width:min(1180px,calc(100% - 32px));margin:24px auto;background:#fff;padding:34px;border-radius:12px;box-shadow:0 8px 30px rgba(15,23,42,.08)}header{text-align:center;border-bottom:3px solid #c8102e;padding-bottom:18px}.brand{color:#c8102e;font-size:12px;font-weight:800;letter-spacing:.16em}h1{font-size:28px;margin:7px 0 6px;color:#1f2937}h2{font-size:22px;color:#1f2937;margin:0 0 8px}h3{font-size:15px;color:#334155;margin:22px 0 10px}.meta,.section-meta{color:#64748b;font-size:12px}.summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:26px 0 12px}.summary div{border:1px solid #cbd9e4;border-radius:8px;padding:13px;background:#f8fafc}.summary span{display:block;color:#64748b;font-size:10px;text-transform:uppercase;letter-spacing:.06em}.summary strong{display:block;color:#1f2937;font-size:19px;margin-top:7px}.note{margin:12px 0 26px;padding:12px 14px;border-left:4px solid #c8102e;background:#f1f6fa;color:#475569;font-size:12px;line-height:1.5}.module-section{margin-top:36px;padding-top:8px}.table-wrap{width:100%;overflow-x:auto;border:1px solid #c5d6e3;border-radius:8px}table{width:100%;min-width:900px;border-collapse:collapse;font-size:11px}th{background:#e8f1f8;color:#334155;text-align:center}th,td{border:1px solid #c5d6e3;padding:8px;vertical-align:middle}td:nth-child(n+2){text-align:center}tbody tr:nth-child(even){background:#f7fafc}.report-chart{display:block;width:100%;height:auto;border:1px solid #d7e4ed;border-radius:8px;background:#fbfdff}.chart-grid line{stroke:#e4edf3}.chart-grid text,.report-chart text{font:12px Arial;fill:#475569}.chart-frame{fill:none;stroke:#d7e4ed}.axis-title{font-weight:700}.bar-track{fill:#edf3f7}.chart-empty{border:1px solid #d7e4ed;border-radius:8px;padding:48px 20px;text-align:center;color:#64748b;background:#fbfdff}@media(max-width:900px){.report{width:calc(100% - 16px);margin:8px;padding:20px}.summary{grid-template-columns:repeat(2,1fr)}h1{font-size:22px}.module-section{margin-top:28px}}@media(max-width:540px){.summary{grid-template-columns:1fr}.report{padding:16px}.report-chart{min-width:680px}.module-section{overflow-x:auto}}@media print{body{background:#fff}.report{width:100%;margin:0;padding:0;box-shadow:none}.module-section{break-before:page;page-break-before:always}.table-wrap,.report-chart{break-inside:avoid;page-break-inside:avoid}}
   </style></head><body>
     <main class="report"><header><div class="brand">ARCA CONTINENTAL · PLANTA DURANGO</div><h1>Reporte Diario de Control Hídrico</h1><p class="meta">Periodo: ${escapeHtml(report.period_label)} · Generado: ${escapeHtml(fmtDate(report.generated_at))}</p></header>
-    <div class="summary">
-      <div><span>Volumen bombeado validado de pozos</span><strong>${fmtVolume(summary.well_validated_volume_m3 ?? summary.well_volume_m3)}</strong></div>
-      <div><span>Volumen consumido validado de líneas</span><strong>${fmtVolume(summary.line_validated_volume_m3 ?? summary.line_volume_m3)}</strong></div>
-      <div><span>Volumen consumido validado de lavadoras</span><strong>${fmtVolume(summary.washer_validated_volume_m3)}</strong></div>
-      <div><span>Volumen consumido validado de Jarabes</span><strong>${fmtVolume(summary.jarabes_validated_volume_m3)}</strong></div>
-      <div><span>${escapeHtml(summary.volume_basis_label || 'Total validado')} operativo</span><strong>${fmtVolume(summary.total_validated_operational_m3 ?? summary.total_operational_m3)}</strong></div>
-      <div><span>Cobertura del reporte</span><strong>${escapeHtml(summary.coverage_label || 'Sin dato')}</strong></div>
-      <div><span>Elementos validados</span><strong>${Number(summary.validated_items_count || 0)}/${Number(summary.monitored_items_count || 0)}</strong></div>
-      <div><span>Pozos con actividad</span><strong>${Number(summary.wells_active || 0)}/${report.wells?.rows?.length || 0}</strong></div>
-      <div><span>Líneas con actividad</span><strong>${Number(summary.lines_active || 0)}/${report.production_lines?.rows?.length || 0}</strong></div>
-      <div><span>Lavadoras con actividad</span><strong>${Number(summary.washers_active || 0)}/${report.washers?.rows?.length || 0}</strong></div>
-      <div><span>Jarabes con actividad</span><strong>${Number(summary.jarabes_active || 0)}/${report.jarabes?.rows?.length || 0}</strong></div>
-    </div>
+    <div class="summary">${summaryCards.map((card: any) => `<div><span>${escapeHtml(card.label)}</span><strong>${card.kind === 'volume' ? fmtVolume(card.value) : `${Number(card.value || 0)}/${Number(card.total || 0)}`}</strong>${card.detail ? `<small>${escapeHtml(card.detail)}</small>` : ''}</div>`).join('')}</div>
     <p class="note">${escapeHtml(summary.note || 'Los volúmenes mostrados consideran únicamente incrementos validados. Los eventos descartados no se incluyen en los totales.')}<br><strong>Fuente:</strong> ${report.report_source === 'daily_review' ? 'Revisión diaria conciliada' : 'Periodo conciliado'}. <strong>En revisión:</strong> ${Number(summary.review_count || 0)}. <strong>Sin datos:</strong> ${Number(summary.no_data_count || 0)}.<br><strong>Cero:</strong> lectura válida sin flujo. <strong>Hueco:</strong> intervalo sin registros suficientes. Los gráficos no generan intervalos futuros.</p>
     ${section('Pozos', report.wells?.rows || [], report.history?.wells)}
     ${section('Líneas', report.production_lines?.rows || [], report.history?.lines)}
     ${section('Lavadoras', report.washers?.rows || [], report.history?.washers)}
     ${section('Jarabes', report.jarabes?.rows || [], report.history?.jarabes)}
+    ${shiftsSection}
   </main></body></html>`;
 }
 

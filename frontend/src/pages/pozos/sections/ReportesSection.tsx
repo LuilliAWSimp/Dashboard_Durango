@@ -90,7 +90,7 @@ function ReportSkeleton() {
   return (
     <div className="report-preview-skeleton" aria-label="Cargando vista previa del reporte">
       <section className="report-summary-grid" aria-hidden="true">
-        {Array.from({ length: 5 }, (_, index) => <div className="report-skeleton-card" key={index}><i /><b /></div>)}
+        {Array.from({ length: 6 }, (_, index) => <div className="report-skeleton-card" key={index}><i /><b /></div>)}
       </section>
       <section className="panel report-data-panel report-skeleton-preview" aria-hidden="true">
         <div className="report-skeleton-heading"><i /><b /></div>
@@ -123,13 +123,13 @@ function ReportPreviewTable({ rows, sectionKey }: { rows: any[]; sectionKey: Rep
           <tr>
             <th>Elemento</th>
             <th>Flujo actual</th>
-            <th>Apertura</th>
-            <th>Cierre</th>
+            <th>Totalizador inicial</th>
+            <th>Totalizador final</th>
             <th>{reportSectionVolumeLabel(sectionKey)}</th>
             <th>Actividad</th>
-            <th>Validación</th>
+            <th>Estado de datos</th>
             <th>Comunicación</th>
-            <th>Última actualización</th>
+            <th>Última lectura</th>
           </tr>
         </thead>
         <tbody>
@@ -245,7 +245,7 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
       if (action === 'pdf') await downloadDailyWaterReportPdf(filters);
       if (action === 'xlsx') await downloadDailyWaterReportExcel(filters);
       if (action === 'html') {
-        const fullReport = await fetchDailyWaterReport(filters, { includeHistory: true, includeShifts: false });
+        const fullReport = await fetchDailyWaterReport(filters, { includeHistory: true, includeShifts: true });
         exportDailyWaterReportHtml(fullReport);
       }
     } catch (caught) {
@@ -320,13 +320,19 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
   };
 
   const summary = report?.summary || {};
-  const summaryCards = [
-    { label: `${operationalVolumeLabel('well', { validated: true })} de pozos`, value: summary.well_validated_volume_m3 ?? summary.well_volume_m3 },
-    { label: `${operationalVolumeLabel('line', { validated: true })} de líneas`, value: summary.line_validated_volume_m3 ?? summary.line_volume_m3 },
-    { label: `${operationalVolumeLabel('flow', { validated: true })} de lavadoras`, value: summary.washer_validated_volume_m3 },
-    { label: `${operationalVolumeLabel('flow', { validated: true })} de Jarabes`, value: summary.jarabes_validated_volume_m3 },
-    { label: 'Total validado operativo', value: summary.total_validated_operational_m3 ?? summary.total_operational_m3 },
+  const monitoredItems = Number(summary.monitored_items_count ?? 0);
+  const fallbackSummaryCards = [
+    { key: 'wells_volume', label: `${operationalVolumeLabel('well')} de pozos`, kind: 'volume', value: summary.well_validated_volume_m3 ?? summary.well_volume_m3 },
+    { key: 'lines_volume', label: `${operationalVolumeLabel('line')} de líneas`, kind: 'volume', value: summary.line_validated_volume_m3 ?? summary.line_volume_m3 },
+    { key: 'washers_volume', label: `${operationalVolumeLabel('flow')} de lavadoras`, kind: 'volume', value: summary.washer_validated_volume_m3 },
+    { key: 'jarabes_volume', label: `${operationalVolumeLabel('flow')} de Jarabes`, kind: 'volume', value: summary.jarabes_validated_volume_m3 },
+    { key: 'active_items', label: 'Con actividad', kind: 'ratio', value: Number(summary.wells_active ?? 0) + Number(summary.lines_active ?? 0) + Number(summary.washers_active ?? 0) + Number(summary.jarabes_active ?? 0), total: monitoredItems },
+    { key: 'attention_items', label: 'Con atención', kind: 'ratio', value: Number(summary.review_count ?? 0) + Number(summary.no_data_count ?? 0), total: monitoredItems, detail: `${Number(summary.review_count ?? 0)} parciales · ${Number(summary.no_data_count ?? 0)} sin datos` },
   ];
+  const summaryCards = report?.presentation?.summary_cards?.length ? report.presentation.summary_cards : fallbackSummaryCards;
+  const summaryCardValue = (card: any) => card.kind === 'volume'
+    ? fmtVolume(card.value)
+    : `${Number(card.value ?? 0).toLocaleString('es-MX')}/${Number(card.total ?? 0).toLocaleString('es-MX')}`;
   const isBusy = exportAction !== null;
 
   return (
@@ -415,9 +421,13 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
 
       {report ? <>
         <section className="report-summary-grid fade-up" aria-label="Resumen ejecutivo del reporte">
-          {summaryCards.map((card) => <article className="report-summary-card" key={card.label}><span>{card.label}</span><strong>{fmtVolume(card.value)}</strong></article>)}
-          <article className="report-summary-card review"><span>Volúmenes validados</span><strong>{Number(summary.validated_items_count ?? 0).toLocaleString('es-MX')} <small>de {Number(summary.monitored_items_count ?? 0).toLocaleString('es-MX')}</small></strong><small>Datos aceptados para operación.</small></article>
-          <article className={`report-summary-card ${summary.coverage_complete ? '' : 'review'}`}><span>Cobertura del reporte</span><strong>{summary.coverage_label || 'Sin dato'}</strong><small>{summary.coverage_complete ? 'Todos los elementos tienen volumen confiable.' : `${Number(summary.review_count ?? 0)} en revisión · ${Number(summary.no_data_count ?? 0)} sin datos.`}</small></article>
+          {summaryCards.map((card: any) => (
+            <article className={`report-summary-card ${card.key === 'attention_items' && Number(card.value ?? 0) > 0 ? 'review' : ''}`} key={card.key || card.label}>
+              <span>{card.label}</span>
+              <strong>{summaryCardValue(card)}</strong>
+              {card.detail ? <small>{card.detail}</small> : null}
+            </article>
+          ))}
         </section>
         <p className="report-summary-note">{summary.note}</p>
         {report.legacy_notice ? <div className="status-pill alert">{report.legacy_notice}</div> : null}
