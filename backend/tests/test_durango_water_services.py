@@ -167,8 +167,8 @@ def test_pdf_excel_and_email_attachment_use_same_report_structure(monkeypatch):
     pdf_bytes, pdf_name = report_service.build_daily_water_report_pdf(report)
     excel_bytes, excel_name = report_service.build_daily_water_report_excel(report)
     assert pdf_bytes.startswith(b'%PDF')
-    assert pdf_name == 'reporte-diario-control-hidrico-durango-2026-08-01.pdf'
-    assert excel_name == 'reporte-diario-control-hidrico-durango-2026-08-01.xlsx'
+    assert pdf_name.startswith('reporte-control-hidrico-durango-2026-08-01_generado-') and pdf_name.endswith('.pdf')
+    assert excel_name.startswith('reporte-control-hidrico-durango-2026-08-01_generado-') and excel_name.endswith('.xlsx')
     workbook = load_workbook(BytesIO(excel_bytes), data_only=True)
     assert workbook.sheetnames[:8] == ['Resumen', 'Pozos', 'Líneas', 'Lavadoras', 'Jarabes', 'Turnos', 'Histórico Pozos', 'Histórico Líneas']
     assert workbook['Pozos'].max_row == 3

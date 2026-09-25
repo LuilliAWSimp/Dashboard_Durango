@@ -141,9 +141,9 @@ class DurangoReportValidatedSummaryTests(unittest.TestCase):
         self.assertAlmostEqual(wells_sheet['E2'].value, 0.67, places=6)
         self.assertEqual(wells_sheet['F2'].value, 'Con actividad')
         self.assertEqual(wells_sheet['G2'].value, 'Validado')
-        self.assertEqual(wells_sheet['A1'].value, 'Elemento')
-        self.assertEqual(wells_sheet['C1'].value, 'Totalizador inicial (m³)')
-        self.assertEqual(wells_sheet['D1'].value, 'Totalizador final (m³)')
+        self.assertEqual(wells_sheet['A1'].value, 'Pozo')
+        self.assertEqual(wells_sheet['C1'].value, 'Totalizador apertura (m³)')
+        self.assertEqual(wells_sheet['D1'].value, 'Totalizador al cierre (m³)')
         self.assertEqual(wells_sheet['G1'].value, 'Estado de datos')
         self.assertEqual(wells_sheet['I1'].value, 'Última lectura')
         self.assertEqual(workbook.sheetnames[:6], ['Resumen', 'Pozos', 'Líneas', 'Lavadoras', 'Jarabes', 'Turnos'])
@@ -152,7 +152,7 @@ class DurangoReportValidatedSummaryTests(unittest.TestCase):
         report = self.build_report()
         content, filename = build_daily_water_report_pdf(report)
         self.assertTrue(content.startswith(b'%PDF'))
-        self.assertEqual(filename, 'reporte-diario-control-hidrico-durango-2026-08-04.pdf')
+        self.assertRegex(filename, r'^reporte-control-hidrico-durango-2026-08-04_generado-\d{2}-\d{2}-\d{2}\.pdf$')
 
     def test_preview_skips_histories_and_shifts(self) -> None:
         with patch('app.services.water_daily_report_service.get_daily_water_review', return_value=self.review_payload()) as review, patch(

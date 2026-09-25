@@ -63,7 +63,7 @@ def test_presentation_contract_has_canonical_summary_and_module_order() -> None:
     ]
     assert [section['label'] for section in presentation['sections']] == ['Pozos', 'Líneas', 'Lavadoras', 'Jarabes']
     assert [column['label'] for column in presentation['table_columns']] == [
-        'Elemento', 'Flujo actual', 'Totalizador inicial', 'Totalizador final', 'Volumen del periodo',
+        'Elemento', 'Flujo actual', 'Totalizador apertura', 'Totalizador al cierre', 'Volumen',
         'Actividad', 'Estado de datos', 'Comunicación', 'Última lectura',
     ]
     assert all('operativo' not in str(card['label']).lower() for card in presentation['summary_cards'])

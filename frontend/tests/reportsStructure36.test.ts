@@ -35,7 +35,7 @@ test('web usa el contrato presentation y no reconstruye subtotal operativo visib
 });
 
 test('las tablas visibles comparten nomenclatura estructural V2', () => {
-  for (const label of ['Totalizador inicial', 'Totalizador final', 'Estado de datos', 'Última lectura']) {
+  for (const label of ['Totalizador apertura', 'Totalizador al cierre', 'Estado de datos', 'Última lectura']) {
     assert.match(reports, new RegExp(label));
     assert.match(backend, new RegExp(label));
   }

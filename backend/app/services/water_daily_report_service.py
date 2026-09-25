@@ -43,9 +43,9 @@ REPORT_SECTION_SPECS = [
 REPORT_TABLE_COLUMNS = [
     {'key': 'name', 'label': 'Elemento'},
     {'key': 'flow', 'label': 'Flujo actual'},
-    {'key': 'opening_m3', 'label': 'Totalizador inicial'},
-    {'key': 'closing_m3', 'label': 'Totalizador final'},
-    {'key': 'volume', 'label': 'Volumen del periodo'},
+    {'key': 'opening_m3', 'label': 'Totalizador apertura'},
+    {'key': 'closing_m3', 'label': 'Totalizador al cierre'},
+    {'key': 'volume', 'label': 'Volumen'},
     {'key': 'activity', 'label': 'Actividad'},
     {'key': 'validation', 'label': 'Estado de datos'},
     {'key': 'communication', 'label': 'Comunicación'},
@@ -108,6 +108,67 @@ def _fmt_number(value: Any, decimals: int = 2) -> str:
 
 def _fmt_volume(value: Any) -> str:
     return 'No disponible' if value is None else f'{_fmt_number(value)} m³'
+
+
+def _explicit_date_label(value: date) -> str:
+    return value.strftime('%d/%m/%Y')
+
+
+def _explicit_range_label(start: date, end: date) -> str:
+    if start == end:
+        return _explicit_date_label(start)
+    return f'{_explicit_date_label(start)} → {_explicit_date_label(end)}'
+
+
+def _report_period_metric_header(report: dict[str, Any], metric: str) -> str:
+    try:
+        start = date.fromisoformat(str(report.get('start_date') or ''))
+        end = date.fromisoformat(str(report.get('end_date') or ''))
+    except (TypeError, ValueError):
+        label = str(report.get('period_label') or '').strip()
+        return f'{metric} · {label}' if label else metric
+    return f'{metric} · {_explicit_range_label(start, end)}'
+
+
+def _comparison_period_contract(start: date, end: date) -> dict[str, Any]:
+    ranges = {
+        'selected': (start, end),
+        'previous': (start - timedelta(days=1), end - timedelta(days=1)),
+        'previous_week': (start - timedelta(days=7), end - timedelta(days=7)),
+    }
+    titles = {
+        'selected': 'Seleccionado',
+        'previous': 'Anterior',
+        'previous_week': 'Semana anterior',
+    }
+    return {
+        'headers': {key: f"{titles[key]} · {_explicit_range_label(range_start, range_end)}" for key, (range_start, range_end) in ranges.items()},
+        'periods': {
+            key: {
+                'start_date': range_start.isoformat(),
+                'end_date': range_end.isoformat(),
+                'label': _explicit_range_label(range_start, range_end),
+            }
+            for key, (range_start, range_end) in ranges.items()
+        },
+    }
+
+
+def _report_filename_stem(report: dict[str, Any]) -> str:
+    if report.get('period_mode') == 'fixed_12h_blocks':
+        start_at = str(report.get('period_start_at') or '')
+        block = '00-12' if 'T00:00' in start_at else '12-24'
+        base = f"reporte-control-hidrico-durango-12h-{report.get('start_date')}-{block}"
+    else:
+        start = str(report.get('start_date') or 'periodo')
+        end = str(report.get('end_date') or start)
+        suffix = start if start == end else f'{start}_a_{end}'
+        base = f'reporte-control-hidrico-durango-{suffix}'
+    try:
+        generated = datetime.fromisoformat(str(report.get('generated_at') or '').replace('Z', ''))
+        return f'{base}_generado-{generated:%H-%M-%S}'
+    except ValueError:
+        return base
 
 
 def _fmt_date(value: Any) -> str:
@@ -248,6 +309,73 @@ def _module_validated_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _comparison_group_values_from_period(period: dict[str, Any]) -> dict[str, float | None]:
+    wells = [_report_row(item) for item in period.get('wells') or []]
+    lines = [_report_row(item) for item in period.get('lines') or []]
+    flows = [_report_row(item) for item in period.get('flows') or []]
+    washers, jarabes = _split_flow_rows(flows)
+    return {
+        'wells': _module_validated_summary(wells)['validated_volume_m3'],
+        'production_lines': _module_validated_summary(lines)['validated_volume_m3'],
+        'washers': _module_validated_summary(washers)['validated_volume_m3'],
+        'jarabes': _module_validated_summary(jarabes)['validated_volume_m3'],
+    }
+
+
+def _load_comparison_group_values(start_day: date, end_day: date) -> dict[str, float | None]:
+    try:
+        period = get_period_data(start_day.isoformat(), end_day.isoformat(), force_refresh=False)
+    except (WaterPeriodError, ValueError):
+        return {'wells': None, 'production_lines': None, 'washers': None, 'jarabes': None}
+    return _comparison_group_values_from_period(period)
+
+
+def _review_comparison_group_values(payload: dict[str, Any] | None) -> dict[str, float | None]:
+    groups = dict((payload or {}).get('operational_groups') or {})
+    def value(key: str) -> float | None:
+        summary = dict(groups.get(key) or {})
+        candidate = summary.get('subtotal_validated_m3', summary.get('validated_volume_m3', summary.get('total_m3')))
+        return _as_float(candidate)
+    return {
+        'wells': value('wells'),
+        'production_lines': value('lines'),
+        'washers': value('lavadoras'),
+        'jarabes': value('jarabes'),
+    }
+
+
+def _report_comparatives(period: dict[str, Any], start_day: date, end_day: date) -> dict[str, Any]:
+    contract = _comparison_period_contract(start_day, end_day)
+    selected = _comparison_group_values_from_period(period)
+    if start_day == end_day:
+        review_comparatives = dict(period.get('_review_comparatives') or {})
+        previous = _review_comparison_group_values(review_comparatives.get('previous_day'))
+        previous_week = _review_comparison_group_values(review_comparatives.get('previous_week'))
+    else:
+        previous = _load_comparison_group_values(start_day - timedelta(days=1), end_day - timedelta(days=1))
+        previous_week = _load_comparison_group_values(start_day - timedelta(days=7), end_day - timedelta(days=7))
+    specs = [
+        ('wells', 'Pozos', operational_volume_label('well')),
+        ('production_lines', 'Líneas', operational_volume_label('line')),
+        ('washers', 'Lavadoras', operational_volume_label('flow')),
+        ('jarabes', 'Jarabes', operational_volume_label('flow')),
+    ]
+    return {
+        **contract,
+        'rows': [
+            {
+                'key': key,
+                'label': label,
+                'metric_label': metric_label,
+                'selected_m3': selected.get(key),
+                'previous_m3': previous.get(key),
+                'previous_week_m3': previous_week.get(key),
+            }
+            for key, label, metric_label in specs
+        ],
+    }
+
+
 def _history_aggregation(start_day: date, end_day: date) -> str:
     days = (end_day - start_day).days + 1
     if days == 1:
@@ -283,7 +411,7 @@ def _daily_review_as_period(day: date, *, include_shifts: bool) -> tuple[dict[st
         review = get_daily_water_review(
             day.isoformat(),
             include_shifts=include_shifts,
-            include_comparatives=False,
+            include_comparatives=True,
             force_refresh=False,
         )
     except DailyReviewError as exc:
@@ -310,6 +438,7 @@ def _daily_review_as_period(day: date, *, include_shifts: bool) -> tuple[dict[st
         'legacy_notice': review.get('legacy_notice'),
         'has_future_intervals': bool(review.get('has_future_intervals')),
         'report_source': 'daily_review',
+        '_review_comparatives': dict(review.get('comparatives') or {}),
     }
     return period, shifts
 
@@ -405,13 +534,17 @@ def get_daily_water_report(
             'jarabes': _filter_history(flow_history, JARABES_KEYS),
         })
 
+    comparatives = _report_comparatives(period, start_day, end_day)
+
     report = {
-        'title': 'Reporte Diario de Control Hídrico Durango',
+        'title': 'Reporte de Control Hídrico Durango',
         'plant': 'Planta Durango',
         'date': end_day.isoformat(),
         'start_date': start_day.isoformat(),
         'end_date': end_day.isoformat(),
         'period_label': period_label,
+        'period_date_label': _explicit_range_label(start_day, end_day),
+        'comparatives': comparatives,
         'period_start_at': period_start_at.isoformat(timespec='minutes'),
         'period_end_at': period_end_at.isoformat(timespec='minutes'),
         'generated_at': now_local.isoformat(timespec='seconds'),
@@ -489,7 +622,21 @@ def _logo_path() -> Path | None:
 
 
 def _pdf_table(rows: list[list[Any]], widths: list[float], *, repeat_rows: int = 1) -> Table:
-    table = Table(rows, colWidths=widths, repeatRows=repeat_rows, hAlign='CENTER')
+    normalized_rows = [list(row) for row in rows]
+    if normalized_rows:
+        header_style = ParagraphStyle(
+            'PdfTableHeader',
+            fontName='Helvetica-Bold',
+            fontSize=6.1,
+            leading=7.0,
+            alignment=TA_CENTER,
+            textColor=colors.HexColor('#334155'),
+        )
+        normalized_rows[0] = [
+            Paragraph(escape(str(cell)), header_style) if isinstance(cell, str) else cell
+            for cell in normalized_rows[0]
+        ]
+    table = Table(normalized_rows, colWidths=widths, repeatRows=repeat_rows, hAlign='CENTER')
     table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#E8F1F8')),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor('#334155')),
@@ -667,7 +814,7 @@ def build_daily_water_report_pdf(report: dict[str, Any]) -> tuple[bytes, str]:
         rightMargin=12 * mm,
         topMargin=11 * mm,
         bottomMargin=16 * mm,
-        title=str(report.get('title') or 'Reporte Diario de Control Hídrico Durango'),
+        title=str(report.get('title') or 'Reporte de Control Hídrico Durango'),
         author='Dashboard ARCA',
     )
     styles = getSampleStyleSheet()
@@ -688,7 +835,7 @@ def build_daily_water_report_pdf(report: dict[str, Any]) -> tuple[bytes, str]:
         story.append(logo_image)
         story.append(Spacer(1, 1.5 * mm))
     story.append(Paragraph('DASHBOARD ARCA · PLANTA DURANGO', eyebrow))
-    report_title = 'Reporte de Control Hídrico · Bloque 12 h' if report.get('period_mode') == 'fixed_12h_blocks' else 'Reporte Diario de Control Hídrico'
+    report_title = 'Reporte de Control Hídrico · Bloque 12 h' if report.get('period_mode') == 'fixed_12h_blocks' else 'Reporte de Control Hídrico'
     story.append(Paragraph(report_title, title_style))
     story.append(Paragraph(f"Periodo: {escape(str(report.get('period_label') or ''))} &nbsp;&nbsp;·&nbsp;&nbsp; Generado: {escape(_fmt_date(report.get('generated_at')))}", center))
     story.append(Spacer(1, 2.5 * mm))
@@ -731,11 +878,34 @@ def build_daily_water_report_pdf(report: dict[str, Any]) -> tuple[bytes, str]:
     note.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#F1F6FA')), ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#C7D8E4')), ('LEFTPADDING', (0, 0), (-1, -1), 8), ('RIGHTPADDING', (0, 0), (-1, -1), 8), ('TOPPADDING', (0, 0), (-1, -1), 7), ('BOTTOMPADDING', (0, 0), (-1, -1), 7)]))
     story.append(note)
 
+    comparatives = report.get('comparatives') or {}
+    comparative_rows = list(comparatives.get('rows') or [])
+    comparative_headers = comparatives.get('headers') or {}
+    if comparative_rows:
+        story.append(Spacer(1, 3 * mm))
+        story.append(Paragraph('Comparativo de volumen por módulo', chart_heading))
+        comparison_data: list[list[Any]] = [[
+            'Proceso',
+            str(comparative_headers.get('selected') or 'Seleccionado'),
+            str(comparative_headers.get('previous') or 'Anterior'),
+            str(comparative_headers.get('previous_week') or 'Semana anterior'),
+        ]]
+        for row in comparative_rows:
+            comparison_data.append([
+                Paragraph(escape(str(row.get('label') or '')), left),
+                Paragraph(_fmt_volume(row.get('selected_m3')), right),
+                Paragraph(_fmt_volume(row.get('previous_m3')), right),
+                Paragraph(_fmt_volume(row.get('previous_week_m3')), right),
+            ])
+        comparison_table = _pdf_table(comparison_data, [42 * mm, 48 * mm, 48 * mm, 48 * mm])
+        comparison_table.setStyle(TableStyle([('ALIGN', (1, 1), (-1, -1), 'RIGHT')]))
+        story.append(comparison_table)
+
     aggregation_label = {'quarter_hour': '15 minutos', 'hourly': '1 hora', 'daily': '1 día'}.get(str(report.get('history', {}).get('aggregation')), 'periodo')
 
-    def section_block(title: str, section: dict[str, Any], history: dict[str, Any], first_name: str) -> list[Any]:
+    def section_block(title: str, section: dict[str, Any], history: dict[str, Any], first_name: str, volume_label: str) -> list[Any]:
         flow_heading = 'Flujo promedio' if report.get('period_mode') == 'fixed_12h_blocks' else 'Flujo actual'
-        data: list[list[Any]] = [[first_name, flow_heading, 'Totalizador inicial', 'Totalizador final', 'Volumen del periodo', 'Actividad', 'Estado de datos', 'Comunicación', 'Última lectura']]
+        data: list[list[Any]] = [[first_name, flow_heading, 'Totalizador apertura', 'Totalizador al cierre', _report_period_metric_header(report, volume_label), 'Actividad', 'Estado de datos', 'Comunicación', 'Última lectura']]
         for item in section.get('rows', []):
             data.append([
                 Paragraph(escape(str(item['name'])), left),
@@ -748,7 +918,7 @@ def build_daily_water_report_pdf(report: dict[str, Any]) -> tuple[bytes, str]:
                 Paragraph(escape(str(item['communication'])), center),
                 Paragraph(escape(_fmt_date(item['last_update'])), center),
             ])
-        table = _pdf_table(data, [18 * mm, 16 * mm, 19 * mm, 19 * mm, 22 * mm, 19 * mm, 20 * mm, 20 * mm, 33 * mm])
+        table = _pdf_table(data, [17 * mm, 15 * mm, 19 * mm, 19 * mm, 30 * mm, 17 * mm, 19 * mm, 19 * mm, 31 * mm])
         table.setStyle(TableStyle([
             ('ALIGN', (1, 1), (4, -1), 'RIGHT'),
             ('ALIGN', (5, 1), (-1, -1), 'CENTER'),
@@ -772,6 +942,7 @@ def build_daily_water_report_pdf(report: dict[str, Any]) -> tuple[bytes, str]:
             report[str(spec['key'])],
             report_history.get(str(spec['history_key'])) or {},
             str(spec['item_label']),
+            str(spec['volume_label']),
         )))
 
     if report.get('shifts'):
@@ -794,13 +965,7 @@ def build_daily_water_report_pdf(report: dict[str, Any]) -> tuple[bytes, str]:
         story.append(_pdf_table(shift_rows, [22 * mm, 29 * mm, 25 * mm, 25 * mm, 27 * mm, 25 * mm, 33 * mm]))
 
     doc.build(story, onFirstPage=_report_footer, onLaterPages=_report_footer)
-    if report.get('period_mode') == 'fixed_12h_blocks':
-        start_at = str(report.get('period_start_at') or '')
-        block = '00-12' if 'T00:00' in start_at else '12-24'
-        filename = f"reporte-control-hidrico-durango-12h-{report.get('start_date')}-{block}.pdf"
-    else:
-        filename = f"reporte-diario-control-hidrico-durango-{report.get('start_date')}.pdf"
-    return buffer.getvalue(), filename
+    return buffer.getvalue(), f'{_report_filename_stem(report)}.pdf'
 
 
 def _style_sheet(ws) -> None:
@@ -860,6 +1025,22 @@ def build_daily_water_report_excel(report: dict[str, Any]) -> tuple[bytes, str]:
     ])
     for label, value in summary_rows:
         ws.append([label, value])
+
+    comparatives = report.get('comparatives') or {}
+    comparative_rows = list(comparatives.get('rows') or [])
+    comparative_headers = comparatives.get('headers') or {}
+    if comparative_rows:
+        ws.append([])
+        ws.append(['Comparativo de volumen por módulo', None])
+        ws.append([
+            'Proceso',
+            str(comparative_headers.get('selected') or 'Seleccionado'),
+            str(comparative_headers.get('previous') or 'Anterior'),
+            str(comparative_headers.get('previous_week') or 'Semana anterior'),
+        ])
+        for row in comparative_rows:
+            ws.append([row.get('label'), row.get('selected_m3'), row.get('previous_m3'), row.get('previous_week_m3')])
+
     ws['B4'].number_format = 'dd/mm/yyyy hh:mm'
     for row in range(5, 9):
         if isinstance(ws.cell(row, 2).value, (int, float)):
@@ -869,15 +1050,15 @@ def build_daily_water_report_excel(report: dict[str, Any]) -> tuple[bytes, str]:
     ws.column_dimensions['B'].width = 72
     ws.row_dimensions[ws.max_row].height = 48
 
-    def add_items_sheet(name: str, rows: list[dict[str, Any]]) -> None:
+    def add_items_sheet(name: str, rows: list[dict[str, Any]], item_label: str, volume_label: str) -> None:
         sheet = wb.create_sheet(name)
         flow_heading = 'Flujo promedio (L/s)' if report.get('period_mode') == 'fixed_12h_blocks' else 'Flujo actual (L/s)'
         sheet.append([
-            'Elemento',
+            item_label,
             flow_heading,
-            'Totalizador inicial (m³)',
-            'Totalizador final (m³)',
-            'Volumen del periodo (m³)',
+            'Totalizador apertura (m³)',
+            'Totalizador al cierre (m³)',
+            f"{_report_period_metric_header(report, volume_label)} (m³)",
             'Actividad',
             'Estado de datos',
             'Comunicación',
@@ -903,10 +1084,10 @@ def build_daily_water_report_excel(report: dict[str, Any]) -> tuple[bytes, str]:
                 sheet.cell(row, 9).number_format = 'dd/mm/yyyy hh:mm'
         _style_sheet(sheet)
 
-    add_items_sheet('Pozos', report['wells']['rows'])
-    add_items_sheet('Líneas', report['production_lines']['rows'])
-    add_items_sheet('Lavadoras', report['washers']['rows'])
-    add_items_sheet('Jarabes', report['jarabes']['rows'])
+    add_items_sheet('Pozos', report['wells']['rows'], 'Pozo', operational_volume_label('well'))
+    add_items_sheet('Líneas', report['production_lines']['rows'], 'Línea', operational_volume_label('line'))
+    add_items_sheet('Lavadoras', report['washers']['rows'], 'Lavadora', operational_volume_label('flow'))
+    add_items_sheet('Jarabes', report['jarabes']['rows'], 'Jarabes', operational_volume_label('flow'))
 
     shifts = wb.create_sheet('Turnos')
     shifts.append(['Turno', 'Horario', 'Pozos (m³)', 'Líneas (m³)', 'Lavadoras (m³)', 'Jarabes (m³)', 'Estado'])
@@ -1035,10 +1216,4 @@ def build_daily_water_report_excel(report: dict[str, Any]) -> tuple[bytes, str]:
 
     output = BytesIO()
     wb.save(output)
-    if report.get('period_mode') == 'fixed_12h_blocks':
-        start_at = str(report.get('period_start_at') or '')
-        block = '00-12' if 'T00:00' in start_at else '12-24'
-        filename = f"reporte-control-hidrico-durango-12h-{report.get('start_date')}-{block}.xlsx"
-    else:
-        filename = f"reporte-diario-control-hidrico-durango-{report.get('start_date')}.xlsx"
-    return output.getvalue(), filename
+    return output.getvalue(), f'{_report_filename_stem(report)}.xlsx'

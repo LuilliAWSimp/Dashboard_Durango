@@ -111,7 +111,31 @@ function reportSectionVolumeLabel(sectionKey: ReportSectionKey): string {
   return operationalVolumeLabel('flow');
 }
 
-function ReportPreviewTable({ rows, sectionKey }: { rows: any[]; sectionKey: ReportSectionKey }) {
+function reportSectionItemLabel(sectionKey: ReportSectionKey): string {
+  if (sectionKey === 'wells') return 'Pozo';
+  if (sectionKey === 'production_lines') return 'Línea';
+  if (sectionKey === 'washers') return 'Lavadora';
+  return 'Jarabes';
+}
+
+function explicitDateLabel(value: string): string {
+  const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : value;
+}
+
+function explicitRangeLabel(start: string, end: string): string {
+  const [from, to] = start && end && start > end ? [end, start] : [start, end];
+  const startLabel = explicitDateLabel(from);
+  const endLabel = explicitDateLabel(to);
+  return from === to ? startLabel : `${startLabel} → ${endLabel}`;
+}
+
+function reportSubject(mode: ReportMode, date: string, startDate: string, endDate: string): string {
+  const period = mode === 'day' ? explicitDateLabel(date) : explicitRangeLabel(startDate, endDate);
+  return `Reporte de Control Hídrico Durango · ${period}`;
+}
+
+function ReportPreviewTable({ rows, sectionKey, periodDateLabel }: { rows: any[]; sectionKey: ReportSectionKey; periodDateLabel: string }) {
   if (!rows.length) {
     return <div className="report-preview-empty">Sin elementos disponibles para este grupo.</div>;
   }
@@ -121,11 +145,11 @@ function ReportPreviewTable({ rows, sectionKey }: { rows: any[]; sectionKey: Rep
       <table className="pozos-operacion-table report-data-table">
         <thead>
           <tr>
-            <th>Elemento</th>
+            <th>{reportSectionItemLabel(sectionKey)}</th>
             <th>Flujo actual</th>
-            <th>Totalizador inicial</th>
-            <th>Totalizador final</th>
-            <th>{reportSectionVolumeLabel(sectionKey)}</th>
+            <th>Totalizador apertura</th>
+            <th>Totalizador al cierre</th>
+            <th>{reportSectionVolumeLabel(sectionKey)} · {periodDateLabel}</th>
             <th>Actividad</th>
             <th>Estado de datos</th>
             <th>Comunicación</th>
@@ -165,7 +189,7 @@ function ReportPreviewSection({ report, section }: { report: any; section: { key
         </div>
         <span>{rows.length.toLocaleString('es-MX')} elementos</span>
       </div>
-      <ReportPreviewTable rows={rows} sectionKey={section.key} />
+      <ReportPreviewTable rows={rows} sectionKey={section.key} periodDateLabel={report.period_date_label || explicitRangeLabel(report.start_date, report.end_date)} />
     </section>
   );
 }
@@ -191,8 +215,8 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
   const [form, setForm] = useState({
     to: '',
     cc: '',
-    subject: `Reporte Diario de Control Hídrico Durango - ${today}`,
-    message: 'Se adjunta el Reporte Diario de Control Hídrico Durango.',
+    subject: reportSubject('day', today, today, today),
+    message: 'Se adjunta el Reporte de Control Hídrico Durango del periodo seleccionado.',
   });
 
   const filters = useMemo<ReportFilters>(
@@ -226,7 +250,7 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
     setDate(today);
     setStartDate(today);
     setEndDate(today);
-    setForm((current) => ({ ...current, subject: `Reporte Diario de Control Hídrico Durango - ${today}` }));
+    setForm((current) => ({ ...current, subject: reportSubject('day', today, today, today) }));
     void load(initial);
   };
 
@@ -330,6 +354,8 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
     { key: 'attention_items', label: 'Con atención', kind: 'ratio', value: Number(summary.review_count ?? 0) + Number(summary.no_data_count ?? 0), total: monitoredItems, detail: `${Number(summary.review_count ?? 0)} parciales · ${Number(summary.no_data_count ?? 0)} sin datos` },
   ];
   const summaryCards = report?.presentation?.summary_cards?.length ? report.presentation.summary_cards : fallbackSummaryCards;
+  const comparativeRows = report?.comparatives?.rows || [];
+  const comparativeHeaders = report?.comparatives?.headers || {};
   const summaryCardValue = (card: any) => card.kind === 'volume'
     ? fmtVolume(card.value)
     : `${Number(card.value ?? 0).toLocaleString('es-MX')}/${Number(card.total ?? 0).toLocaleString('es-MX')}`;
@@ -355,14 +381,14 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
               <div className="report-field report-mode-field">
                 <span className="report-field-label">Tipo</span>
                 <div className="report-mode-toggle" role="group" aria-label="Tipo de periodo">
-                  <button type="button" className={mode === 'day' ? 'active' : ''} aria-pressed={mode === 'day'} onClick={() => setMode('day')}>Fecha</button>
-                  <button type="button" className={mode === 'range' ? 'active' : ''} aria-pressed={mode === 'range'} onClick={() => setMode('range')}>Periodo</button>
+                  <button type="button" className={mode === 'day' ? 'active' : ''} aria-pressed={mode === 'day'} onClick={() => { setMode('day'); setForm((current) => ({ ...current, subject: reportSubject('day', date, startDate, endDate) })); }}>Fecha</button>
+                  <button type="button" className={mode === 'range' ? 'active' : ''} aria-pressed={mode === 'range'} onClick={() => { setMode('range'); setForm((current) => ({ ...current, subject: reportSubject('range', date, startDate, endDate) })); }}>Periodo</button>
                 </div>
               </div>
 
               {mode === 'day' ? (
-                <label className="report-field"><span className="report-field-label">Fecha</span><div className="date-input-with-icon report-date-input"><CalendarDays size={16} /><input type="date" value={date} onChange={(event) => { setDate(event.target.value); setForm((current) => ({ ...current, subject: `Reporte Diario de Control Hídrico Durango - ${event.target.value}` })); }} /></div></label>
-              ) : <><label className="report-field"><span className="report-field-label">Desde</span><div className="date-input-with-icon report-date-input"><CalendarDays size={16} /><input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} /></div></label><label className="report-field"><span className="report-field-label">Hasta</span><div className="date-input-with-icon report-date-input"><CalendarDays size={16} /><input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} /></div></label></>}
+                <label className="report-field"><span className="report-field-label">Fecha</span><div className="date-input-with-icon report-date-input"><CalendarDays size={16} /><input type="date" value={date} onChange={(event) => { const next = event.target.value; setDate(next); setForm((current) => ({ ...current, subject: reportSubject('day', next, startDate, endDate) })); }} /></div></label>
+              ) : <><label className="report-field"><span className="report-field-label">Desde</span><div className="date-input-with-icon report-date-input"><CalendarDays size={16} /><input type="date" value={startDate} onChange={(event) => { const next = event.target.value; setStartDate(next); setForm((current) => ({ ...current, subject: reportSubject('range', date, next, endDate) })); }} /></div></label><label className="report-field"><span className="report-field-label">Hasta</span><div className="date-input-with-icon report-date-input"><CalendarDays size={16} /><input type="date" value={endDate} onChange={(event) => { const next = event.target.value; setEndDate(next); setForm((current) => ({ ...current, subject: reportSubject('range', date, startDate, next) })); }} /></div></label></>}
 
               <div className="report-period-buttons">
                 <button type="button" className="date-range-apply" onClick={() => void load()} disabled={loading}><RefreshCw size={15} /> {loading ? 'Actualizando...' : 'Actualizar'}</button>
@@ -432,6 +458,18 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
         <p className="report-summary-note">{summary.note}</p>
         {report.legacy_notice ? <div className="status-pill alert">{report.legacy_notice}</div> : null}
 
+        {comparativeRows.length ? <section className="panel fade-up report-data-panel report-comparative-panel" aria-label="Comparativo de volumen por módulo">
+          <div className="report-preview-section-heading"><div><h4>Comparativo de volumen por módulo</h4><p>Cada columna indica la fecha o rango exacto utilizado.</p></div></div>
+          <div className="pozos-table-scroll"><table className="pozos-operacion-table report-data-table"><thead><tr>
+            <th>Proceso</th>
+            <th>{comparativeHeaders.selected || 'Seleccionado'}</th>
+            <th>{comparativeHeaders.previous || 'Anterior'}</th>
+            <th>{comparativeHeaders.previous_week || 'Semana anterior'}</th>
+          </tr></thead><tbody>{comparativeRows.map((row: any) => <tr key={row.key || row.label}>
+            <td>{row.label}</td><td>{fmtVolume(row.selected_m3)}</td><td>{fmtVolume(row.previous_m3)}</td><td>{fmtVolume(row.previous_week_m3)}</td>
+          </tr>)}</tbody></table></div>
+        </section> : null}
+
         <section className="panel fade-up report-data-panel report-preview-panel">
           <div className="report-preview-heading"><div><span>Vista previa ligera</span><h3>Vista previa del reporte</h3><p>Pozos, Líneas, Lavadoras y Jarabes · Periodo {report.period_label}</p><small>{report.report_source === 'daily_review' ? 'Fuente: Revisión diaria conciliada' : 'Fuente: periodo conciliado'}</small></div></div>
           <div className="report-preview-sections">
@@ -441,7 +479,7 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
       </> : !loading ? <ChartEmptyState message="Sin reporte cargado." /> : null}
 
       {emailOpen && canEmail ? <div className="modal-backdrop" onClick={() => setEmailOpen(false)}><div className="email-report-modal" onClick={(event) => event.stopPropagation()}>
-        <h3>Enviar Reporte Diario de Control Hídrico Durango</h3>
+        <h3>Enviar Reporte de Control Hídrico Durango</h3>
         <label>Para<input value={form.to} onChange={(event) => setForm({ ...form, to: event.target.value })} placeholder="correo@dominio.com" /></label>
         <label>CC<input value={form.cc} onChange={(event) => setForm({ ...form, cc: event.target.value })} placeholder="Opcional" /></label>
         <label>Asunto<input value={form.subject} onChange={(event) => setForm({ ...form, subject: event.target.value })} /></label>

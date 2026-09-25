@@ -18,6 +18,32 @@ function fmtVolume(value: unknown): string {
   return value === null || value === undefined || value === '' ? 'No disponible' : `${fmt(value)} m³`;
 }
 
+function explicitDateLabel(value: unknown): string {
+  const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : String(value || '');
+}
+
+function explicitRangeLabel(report: any): string {
+  const start = explicitDateLabel(report?.start_date);
+  const end = explicitDateLabel(report?.end_date);
+  if (!start) return String(report?.period_date_label || report?.period_label || '');
+  return !end || start === end ? start : `${start} → ${end}`;
+}
+
+function periodMetricHeader(report: any, metric: string): string {
+  const range = explicitRangeLabel(report);
+  return range ? `${metric} · ${range}` : metric;
+}
+
+function reportFilenameStem(report: any): string {
+  const start = String(report?.start_date || 'periodo');
+  const end = String(report?.end_date || start);
+  const range = start === end ? start : `${start}_a_${end}`;
+  const generated = String(report?.generated_at || '').match(/T(\d{2}):(\d{2}):(\d{2})/);
+  const suffix = generated ? `_generado-${generated[1]}-${generated[2]}-${generated[3]}` : '';
+  return `reporte-control-hidrico-durango-${range}${suffix}`;
+}
+
 function fmtDate(value: unknown): string {
   if (!value) return 'Sin lectura';
   const parsed = new Date(String(value));
@@ -140,12 +166,12 @@ function volumeChart(rows: any[]): string {
 }
 
 export function buildDailyWaterReportHtml(report: any): string {
-  const section = (title: string, rows: any[], history: any) => `
+  const section = (title: string, rows: any[], history: any, itemLabel: string, volumeLabel: string) => `
     <section class="module-section">
       <h2>${escapeHtml(title)}</h2>
       <p class="section-meta">Periodo ${escapeHtml(report.period_label)} · Agrupación histórica: ${escapeHtml(aggregationLabel(history?.aggregation))}</p>
       <div class="table-wrap"><table>
-        <thead><tr><th>Elemento</th><th>Flujo actual</th><th>Totalizador inicial</th><th>Totalizador final</th><th>Volumen del periodo</th><th>Actividad</th><th>Estado de datos</th><th>Comunicación</th><th>Última lectura</th></tr></thead>
+        <thead><tr><th>${escapeHtml(itemLabel)}</th><th>Flujo actual</th><th>Totalizador apertura</th><th>Totalizador al cierre</th><th>${escapeHtml(periodMetricHeader(report, volumeLabel))}</th><th>Actividad</th><th>Estado de datos</th><th>Comunicación</th><th>Última lectura</th></tr></thead>
         <tbody>${rows.map((row) => `<tr>
           <td>${escapeHtml(row.name)}</td>
           <td>${row.flow == null ? 'No disponible' : `${fmt(row.flow)} ${escapeHtml(row.flow_unit || 'L/s')}`}</td>
@@ -182,16 +208,20 @@ export function buildDailyWaterReportHtml(report: any): string {
     return `<tr><td>${escapeHtml(shift.name || '')}</td><td>${escapeHtml(shift.schedule || '')}</td><td>${fmtVolume(shift.summary?.wells?.total_m3)}</td><td>${fmtVolume(shift.summary?.lines?.total_m3)}</td><td>${fmtVolume(sumVolume(flows.filter((item: any) => washerKeys.has(String(item.operational_key || '')))))}</td><td>${fmtVolume(sumVolume(flows.filter((item: any) => jarabesKeys.has(String(item.operational_key || '')))))}</td><td>${escapeHtml(shift.cut_status || '')}</td></tr>`;
   }).join('');
   const shiftsSection = shiftRows ? `<section class="module-section"><h2>Turnos</h2><div class="table-wrap"><table><thead><tr><th>Turno</th><th>Horario</th><th>Pozos</th><th>Líneas</th><th>Lavadoras</th><th>Jarabes</th><th>Estado</th></tr></thead><tbody>${shiftRows}</tbody></table></div></section>` : '';
+  const comparativeRows = (report.comparatives?.rows || []).map((row: any) => `<tr><td>${escapeHtml(row.label || '')}</td><td>${fmtVolume(row.selected_m3)}</td><td>${fmtVolume(row.previous_m3)}</td><td>${fmtVolume(row.previous_week_m3)}</td></tr>`).join('');
+  const comparativeHeaders = report.comparatives?.headers || {};
+  const comparativeSection = comparativeRows ? `<section class="comparison-section"><h2>Comparativo de volumen por módulo</h2><p class="section-meta">Cada columna indica la fecha o rango exacto usado por el cálculo.</p><div class="table-wrap"><table><thead><tr><th>Proceso</th><th>${escapeHtml(comparativeHeaders.selected || 'Seleccionado')}</th><th>${escapeHtml(comparativeHeaders.previous || 'Anterior')}</th><th>${escapeHtml(comparativeHeaders.previous_week || 'Semana anterior')}</th></tr></thead><tbody>${comparativeRows}</tbody></table></div></section>` : '';
   return `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${escapeHtml(report.title)}</title><style>
     *{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#1f2937;margin:0;background:#eef2f5}.report{width:min(1180px,calc(100% - 32px));margin:24px auto;background:#fff;padding:34px;border-radius:12px;box-shadow:0 8px 30px rgba(15,23,42,.08)}header{text-align:center;border-bottom:3px solid #c8102e;padding-bottom:18px}.brand{color:#c8102e;font-size:12px;font-weight:800;letter-spacing:.16em}h1{font-size:28px;margin:7px 0 6px;color:#1f2937}h2{font-size:22px;color:#1f2937;margin:0 0 8px}h3{font-size:15px;color:#334155;margin:22px 0 10px}.meta,.section-meta{color:#64748b;font-size:12px}.summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:26px 0 12px}.summary div{border:1px solid #cbd9e4;border-radius:8px;padding:13px;background:#f8fafc}.summary span{display:block;color:#64748b;font-size:10px;text-transform:uppercase;letter-spacing:.06em}.summary strong{display:block;color:#1f2937;font-size:19px;margin-top:7px}.note{margin:12px 0 26px;padding:12px 14px;border-left:4px solid #c8102e;background:#f1f6fa;color:#475569;font-size:12px;line-height:1.5}.module-section{margin-top:36px;padding-top:8px}.table-wrap{width:100%;overflow-x:auto;border:1px solid #c5d6e3;border-radius:8px}table{width:100%;min-width:900px;border-collapse:collapse;font-size:11px}th{background:#e8f1f8;color:#334155;text-align:center}th,td{border:1px solid #c5d6e3;padding:8px;vertical-align:middle}td:nth-child(n+2){text-align:center}tbody tr:nth-child(even){background:#f7fafc}.report-chart{display:block;width:100%;height:auto;border:1px solid #d7e4ed;border-radius:8px;background:#fbfdff}.chart-grid line{stroke:#e4edf3}.chart-grid text,.report-chart text{font:12px Arial;fill:#475569}.chart-frame{fill:none;stroke:#d7e4ed}.axis-title{font-weight:700}.bar-track{fill:#edf3f7}.chart-empty{border:1px solid #d7e4ed;border-radius:8px;padding:48px 20px;text-align:center;color:#64748b;background:#fbfdff}@media(max-width:900px){.report{width:calc(100% - 16px);margin:8px;padding:20px}.summary{grid-template-columns:repeat(2,1fr)}h1{font-size:22px}.module-section{margin-top:28px}}@media(max-width:540px){.summary{grid-template-columns:1fr}.report{padding:16px}.report-chart{min-width:680px}.module-section{overflow-x:auto}}@media print{body{background:#fff}.report{width:100%;margin:0;padding:0;box-shadow:none}.module-section{break-before:page;page-break-before:always}.table-wrap,.report-chart{break-inside:avoid;page-break-inside:avoid}}
   </style></head><body>
-    <main class="report"><header><div class="brand">ARCA CONTINENTAL · PLANTA DURANGO</div><h1>Reporte Diario de Control Hídrico</h1><p class="meta">Periodo: ${escapeHtml(report.period_label)} · Generado: ${escapeHtml(fmtDate(report.generated_at))}</p></header>
+    <main class="report"><header><div class="brand">ARCA CONTINENTAL · PLANTA DURANGO</div><h1>Reporte de Control Hídrico</h1><p class="meta">Periodo: ${escapeHtml(report.period_label)} · Generado: ${escapeHtml(fmtDate(report.generated_at))}</p></header>
     <div class="summary">${summaryCards.map((card: any) => `<div><span>${escapeHtml(card.label)}</span><strong>${card.kind === 'volume' ? fmtVolume(card.value) : `${Number(card.value || 0)}/${Number(card.total || 0)}`}</strong>${card.detail ? `<small>${escapeHtml(card.detail)}</small>` : ''}</div>`).join('')}</div>
     <p class="note">${escapeHtml(summary.note || 'Los volúmenes mostrados consideran únicamente incrementos validados. Los eventos descartados no se incluyen en los totales.')}<br><strong>Fuente:</strong> ${report.report_source === 'daily_review' ? 'Revisión diaria conciliada' : 'Periodo conciliado'}. <strong>En revisión:</strong> ${Number(summary.review_count || 0)}. <strong>Sin datos:</strong> ${Number(summary.no_data_count || 0)}.<br><strong>Cero:</strong> lectura válida sin flujo. <strong>Hueco:</strong> intervalo sin registros suficientes. Los gráficos no generan intervalos futuros.</p>
-    ${section('Pozos', report.wells?.rows || [], report.history?.wells)}
-    ${section('Líneas', report.production_lines?.rows || [], report.history?.lines)}
-    ${section('Lavadoras', report.washers?.rows || [], report.history?.washers)}
-    ${section('Jarabes', report.jarabes?.rows || [], report.history?.jarabes)}
+    ${comparativeSection}
+    ${section('Pozos', report.wells?.rows || [], report.history?.wells, 'Pozo', 'Volumen bombeado')}
+    ${section('Líneas', report.production_lines?.rows || [], report.history?.lines, 'Línea', 'Volumen consumido')}
+    ${section('Lavadoras', report.washers?.rows || [], report.history?.washers, 'Lavadora', 'Volumen consumido')}
+    ${section('Jarabes', report.jarabes?.rows || [], report.history?.jarabes, 'Jarabes', 'Volumen consumido')}
     ${shiftsSection}
   </main></body></html>`;
 }
@@ -201,7 +231,7 @@ export function exportDailyWaterReportHtml(report: any): void {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
-  anchor.download = `reporte-diario-control-hidrico-durango-${report.start_date}.html`;
+  anchor.download = `${reportFilenameStem(report)}.html`;
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
