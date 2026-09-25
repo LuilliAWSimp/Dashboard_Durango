@@ -72,7 +72,7 @@ function coverageText(group: FlexibleRecord, total: number): string {
   const available = Number(group.coverage_available ?? 0);
   const denominator = Number(group.coverage_total ?? total);
   if (!denominator) return 'Sin elementos monitoreados';
-  return `${available}/${denominator} con volumen confiable`;
+  return `${available}/${denominator} con datos`;
 }
 function changeText(current: number | null, reference: number | null): string {
   if (current === null || reference === null) return 'Sin referencia';
@@ -199,11 +199,6 @@ export default function DashboardBaseSection() {
     .filter(Boolean)
     .sort();
   const latest = latestValues[latestValues.length - 1];
-  const reviewCount = dailyMode
-    ? [wells, lines, lavadoras, jarabes].reduce((sum, group) => sum + Number(group.review_count || 0), 0)
-    : Number(dashboardWells.review_count || 0) + Number(dashboardLines.review_count || 0) + Number(dashboardFlows.review_count || 0);
-  const totalValues = [wells, lines, lavadoras, jarabes].map(groupVolume).filter((value): value is number => value !== null);
-  const totalValidated = totalValues.length ? totalValues.reduce((sum, value) => sum + value, 0) : null;
   const alerts = useMemo(() => evaluateDurangoWaterAlerts(dashboard), [dashboard]);
   const alertAggregation = useMemo(() => recommendedHistoryAggregation(controller.range), [controller.range.startDate, controller.range.endDate]);
   const wellCount = DURANGO_CAPABILITIES.wells.length;
@@ -211,6 +206,15 @@ export default function DashboardBaseSection() {
   const lavadoraCount = LAVADORAS_SECTION_CONFIG.items.length;
   const jarabesCount = JARABES_SECTION_CONFIG.items.length;
   const volumeScope = dailyMode ? `día ${dateLabel(singleReviewDate)}` : 'periodo seleccionado';
+  const currentFlowCount = [snapshotWells, snapshotLines, snapshotLavadoras, snapshotJarabes]
+    .reduce((sum, group) => sum + Number(group.current_flow_count || 0), 0);
+  const monitoredCount = wellCount + lineCount + lavadoraCount + jarabesCount;
+  const criticalAlertCount = alerts.filter((alert) => alert.severity === 'critical').length;
+  const alertTrend = alerts.length === 0
+    ? 'Sin alertas operativas activas'
+    : criticalAlertCount > 0
+      ? `${criticalAlertCount} crítica${criticalAlertCount === 1 ? '' : 's'} · revisar alertas`
+      : `${alerts.length} aviso${alerts.length === 1 ? '' : 's'} · revisar alertas`;
 
   const comparisonRows = [
     { key: 'wells', label: 'Pozos', group: wells, previous: previousDay.wells, week: previousWeek.wells, total: wellCount, route: '/pozos/pozos' },
@@ -222,49 +226,45 @@ export default function DashboardBaseSection() {
   return (
     <div className="dashboard-resumen-page">
       <section className="panel fade-up compact-hero">
-        <PanelHeader title="Resumen hídrico de Durango" subtitle="Snapshot actual + volumen conciliado del día; histórico, comparativos y alertas usan el día operativo actual." />
-        {dailyLoading ? <div className="status-pill auto-refresh-status">Actualizando conciliación y comparativos diarios…</div> : null}
+        <PanelHeader title="Resumen hídrico de Durango" subtitle="Vista ejecutiva de la operación, histórico, comparativos y alertas de la planta." />
+        {dailyLoading ? <div className="status-pill auto-refresh-status">Actualizando comparativos diarios…</div> : null}
         {dailyError ? <div className="status-pill alert">{dailyError}</div> : null}
       </section>
 
       <section className="cards-grid stagger-grid summary-operational-kpis">
-        <KpiCard label={`${operationalVolumeLabel('well', { validated: true })} de pozos · ${volumeScope}`} value={fmt(groupVolume(wells))} unit={groupVolume(wells) === null ? '' : 'm³'} trend={dailyMode ? dailyVolumeTrend(wells, wellCount, previousDay.wells) : volumeTrend(wells, wellCount)} accent="blue" />
-        <KpiCard label={`${operationalVolumeLabel('line', { validated: true })} de líneas · ${volumeScope}`} value={fmt(groupVolume(lines))} unit={groupVolume(lines) === null ? '' : 'm³'} trend={dailyMode ? dailyVolumeTrend(lines, lineCount, previousDay.lines) : volumeTrend(lines, lineCount)} accent="cyan" />
-        <KpiCard label={`${operationalVolumeLabel('flow', { validated: true })} de lavadoras · ${volumeScope}`} value={fmt(groupVolume(lavadoras))} unit={groupVolume(lavadoras) === null ? '' : 'm³'} trend={dailyMode ? dailyVolumeTrend(lavadoras, lavadoraCount, previousDay.lavadoras) : volumeTrend(lavadoras, lavadoraCount)} accent="indigo" />
-        <KpiCard label={`${operationalVolumeLabel('flow', { validated: true })} de Jarabes · ${volumeScope}`} value={fmt(groupVolume(jarabes))} unit={groupVolume(jarabes) === null ? '' : 'm³'} trend={dailyMode ? dailyVolumeTrend(jarabes, jarabesCount, previousDay.jarabes) : volumeTrend(jarabes, jarabesCount)} accent="purple" />
-        <KpiCard label={`Subtotal validado · ${volumeScope}`} value={fmt(totalValidated)} unit={totalValidated === null ? '' : 'm³'} trend={dailyMode ? 'Suma de grupos con volumen confiable; no convierte faltantes en cero.' : 'Suma de grupos disponibles del periodo.'} accent="cyan" />
-        <KpiCard label="Pozos con flujo actual" value={`${Number(snapshotWells.current_flow_count || 0)}/${wellCount}`} unit="pozos" trend="Snapshot actual; independiente del día consultado" accent="teal" />
-        <KpiCard label="Líneas con flujo actual" value={`${Number(snapshotLines.current_flow_count || 0)}/${lineCount}`} unit="líneas" trend="Snapshot actual; independiente del día consultado" accent="teal" />
-        <KpiCard label="Lavadoras con flujo actual" value={`${Number(snapshotLavadoras.current_flow_count || 0)}/${lavadoraCount}`} unit="lavadoras" trend="Snapshot actual y comunicación reciente" accent="teal" />
-        <KpiCard label="Jarabes con flujo actual" value={`${Number(snapshotJarabes.current_flow_count || 0)}/${jarabesCount}`} unit="Jarabes" trend="Snapshot actual y comunicación reciente" accent="teal" />
-        <KpiCard label="Revisión / cobertura parcial" value={String(reviewCount)} unit="elementos" trend={dailyMode ? 'Calidad conciliada del día seleccionado' : 'Elementos del periodo que requieren revisión'} accent="brown" />
-        <KpiCard label="Última actualización" value={latest ? formatSqlDate(latest) : 'Sin lectura'} unit="" trend={controller.refreshing ? 'Actualizando información…' : 'Snapshot automático cada 60 s'} accent="teal" />
+        <KpiCard label={`${operationalVolumeLabel('well')} de pozos · ${volumeScope}`} value={fmt(groupVolume(wells))} unit={groupVolume(wells) === null ? '' : 'm³'} trend={dailyMode ? dailyVolumeTrend(wells, wellCount, previousDay.wells) : volumeTrend(wells, wellCount)} accent="blue" />
+        <KpiCard label={`${operationalVolumeLabel('line')} de líneas · ${volumeScope}`} value={fmt(groupVolume(lines))} unit={groupVolume(lines) === null ? '' : 'm³'} trend={dailyMode ? dailyVolumeTrend(lines, lineCount, previousDay.lines) : volumeTrend(lines, lineCount)} accent="cyan" />
+        <KpiCard label={`${operationalVolumeLabel('flow')} de lavadoras · ${volumeScope}`} value={fmt(groupVolume(lavadoras))} unit={groupVolume(lavadoras) === null ? '' : 'm³'} trend={dailyMode ? dailyVolumeTrend(lavadoras, lavadoraCount, previousDay.lavadoras) : volumeTrend(lavadoras, lavadoraCount)} accent="indigo" />
+        <KpiCard label={`${operationalVolumeLabel('flow')} de Jarabes · ${volumeScope}`} value={fmt(groupVolume(jarabes))} unit={groupVolume(jarabes) === null ? '' : 'm³'} trend={dailyMode ? dailyVolumeTrend(jarabes, jarabesCount, previousDay.jarabes) : volumeTrend(jarabes, jarabesCount)} accent="purple" />
+        <KpiCard label="Elementos con flujo actual" value={`${currentFlowCount}/${monitoredCount}`} unit="elementos" trend="Estado operativo actual" accent="teal" />
+        <KpiCard label="Alertas activas" value={String(alerts.length)} unit={alerts.length === 1 ? 'alerta' : 'alertas'} trend={alertTrend} accent={criticalAlertCount > 0 ? 'red' : 'brown'} />
+        <KpiCard label="Última actualización" value={latest ? formatSqlDate(latest) : 'Sin lectura'} unit="" trend={controller.refreshing ? 'Actualizando información…' : 'Actualización automática cada 60 s'} accent="teal" />
       </section>
 
       <ModuleHistoryPanel range={controller.range} independentRange />
 
       <section className="panel fade-up">
         <PanelHeader
-          title="Comparativo diario por módulo"
+          title="Comparativo de volumen por módulo"
           subtitle={singleReviewDate
-            ? `Día actual ${dateLabel(singleReviewDate)} contra día anterior y misma fecha de la semana anterior.`
-            : 'Comparativo diario no disponible.'}
+            ? `Fecha seleccionada ${dateLabel(singleReviewDate)} frente al día anterior y la misma fecha de la semana anterior.`
+            : 'Selecciona un solo día para consultar el comparativo.'}
         />
         {!singleReviewDate ? (
-          <ChartEmptyState message="El comparativo diario utiliza automáticamente el día operativo actual." />
+          <ChartEmptyState message="Selecciona un solo día para consultar el comparativo por módulo." />
         ) : dailyReview ? (
           <div className="pozos-table-scroll">
             <table className="pozos-operacion-table">
               <thead>
                 <tr>
                   <th>Módulo</th>
-                  <th>Día actual</th>
+                  <th>Fecha seleccionada</th>
                   <th>Día anterior</th>
                   <th>Variación</th>
                   <th>Semana anterior</th>
                   <th>Variación semanal</th>
                   <th>Actividad</th>
-                  <th>Cobertura</th>
+                  <th>Datos</th>
                   <th>Detalle</th>
                 </tr>
               </thead>
@@ -272,7 +272,7 @@ export default function DashboardBaseSection() {
                 {comparisonRows.map((item) => (
                   <tr key={item.key}>
                     <td><strong>{item.label}</strong></td>
-                    <td>{groupVolume(item.group) === null ? 'Sin volumen validado' : `${fmt(groupVolume(item.group))} m³`}</td>
+                    <td>{groupVolume(item.group) === null ? 'Sin dato' : `${fmt(groupVolume(item.group))} m³`}</td>
                     <td>{groupVolume(item.previous) === null ? 'Sin referencia' : `${fmt(groupVolume(item.previous))} m³`}</td>
                     <td>{changeText(groupVolume(item.group), groupVolume(item.previous))}</td>
                     <td>{groupVolume(item.week) === null ? 'Sin referencia' : `${fmt(groupVolume(item.week))} m³`}</td>
@@ -288,40 +288,11 @@ export default function DashboardBaseSection() {
         ) : dailyLoading ? (
           <div className="status-pill">Calculando comparativos diarios…</div>
         ) : (
-          <ChartEmptyState message="No fue posible obtener el comparativo diario del día actual." />
+          <ChartEmptyState message="No fue posible obtener el comparativo de la fecha seleccionada." />
         )}
       </section>
 
       <OperationalAlertsPanel alerts={alerts} range={controller.range} aggregation={alertAggregation} />
-
-      <section className="panel fade-up">
-        <PanelHeader title="Accesos operativos" subtitle="Módulos confirmados y disponibles para análisis de detalle" />
-        <div className="water-type-grid">
-          {[
-            ['Pozos', 'Elementos operativos confirmados', '/pozos/pozos', 'normal'],
-            ['Líneas', 'Producción clasificada desde configuración', '/pozos/lineas', 'normal'],
-            ['Lavadoras', 'Tres lavadoras operativas confirmadas', '/pozos/flujos', 'normal'],
-            ['Jarabes', 'Elemento operativo independiente', '/pozos/jarabes', 'normal'],
-            ['Revisión diaria', 'Cierres por fecha y turnos', '/pozos/revision', 'normal'],
-            ['Reportes', 'PDF, Excel, HTML y correo', '/pozos/reportes', 'normal'],
-          ].map(([title, detail, path, type]) => (
-            <article
-              key={title}
-              className={`water-type-card ${type}`}
-              role="button"
-              tabIndex={0}
-              onClick={() => navigate(path)}
-              onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') navigate(path); }}
-            >
-              <div className="water-type-head">
-                <div><span>Dashboard ARCA</span><strong>{title}</strong></div>
-                <StatusBadge type={type}>{type === 'warning' ? 'Pendiente' : 'Disponible'}</StatusBadge>
-              </div>
-              <div className="water-type-foot"><p>{detail}</p></div>
-            </article>
-          ))}
-        </div>
-      </section>
 
       {controller.error ? <div className="status-pill alert">{controller.error}</div> : null}
       {!dashboard && !controller.loading ? <ChartEmptyState message="No fue posible consultar la información de planta." /> : null}
