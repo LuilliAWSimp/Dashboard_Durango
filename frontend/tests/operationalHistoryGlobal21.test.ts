@@ -29,18 +29,20 @@ test('historico global tiene fechas propias y conserva las cuatro agrupaciones h
   assert.match(history, /type="date" value=\{draftRange\.endDate\}/);
   assert.match(history, />Actualizar<\/button>/);
   assert.match(history, />Restablecer<\/button>/);
-  assert.match(history, /value="minute">1 minuto/);
-  assert.match(history, /value="quarter_hour">15 minutos/);
-  assert.match(history, /value="hourly">Por hora/);
-  assert.match(history, /value="daily">Por día/);
+  assert.match(history, /value="minute"[^\n]*>1 minuto/);
+  assert.match(history, /value="quarter_hour"[^\n]*>15 minutos/);
+  assert.match(history, /value="hourly"[^\n]*>Por hora/);
+  assert.match(history, /value="daily"[^\n]*>Por día/);
 });
 
 test('un rango incompatible escala la agrupacion sin alterar limites backend', () => {
   const history = read('src/pages/pozos/components/ModuleHistoryPanel.tsx');
-  assert.match(history, /current === 'minute' && days > 1/);
-  assert.match(history, /current === 'quarter_hour' && days > 7/);
-  assert.match(history, /current === 'hourly' && days > 31/);
-  assert.match(history, /return 'daily'/);
+  const policy = read('src/pages/pozos/historyRangePolicy.ts');
+  assert.match(history, /supportedHistoryAggregation\(aggregation, next\.startDate, next\.endDate\)/);
+  assert.match(policy, /minute:\s*1/);
+  assert.match(policy, /quarter_hour:\s*7/);
+  assert.match(policy, /hourly:\s*31/);
+  assert.match(policy, /daily:\s*366/);
 });
 
 test('estilos del rango global viven en historicos.css y no en global.css', () => {

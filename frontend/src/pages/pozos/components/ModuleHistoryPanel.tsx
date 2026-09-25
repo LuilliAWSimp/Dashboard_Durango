@@ -303,21 +303,6 @@ function normalizeDateRange(startDate?: string, endDate?: string): { startDate: 
   return start <= end ? { startDate: start, endDate: end } : { startDate: end, endDate: start };
 }
 
-function inclusiveRangeDays(startDate: string, endDate: string): number {
-  const start = new Date(`${startDate}T00:00:00`);
-  const end = new Date(`${endDate}T00:00:00`);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 1;
-  return Math.max(1, Math.floor((end.getTime() - start.getTime()) / 86400000) + 1);
-}
-
-function supportedAggregationForRange(current: HistoryAggregation, startDate: string, endDate: string): HistoryAggregation {
-  const days = inclusiveRangeDays(startDate, endDate);
-  if (current === 'minute' && days > 1) return days <= 7 ? 'quarter_hour' : days <= 31 ? 'hourly' : 'daily';
-  if (current === 'quarter_hour' && days > 7) return days <= 31 ? 'hourly' : 'daily';
-  if (current === 'hourly' && days > 31) return 'daily';
-  return current;
-}
-
 export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggregation: controlledAggregation, onAggregationChange, colors, items, panelTitle, panelSubtitle, className = '', independentRange = false, singleElement = false, onPeriodSummaryChange }: Props) {
   const [globalView, setGlobalView] = useState<OperationalHistoryView>('well');
   const viewConfig = GLOBAL_HISTORY_VIEWS[globalView];
@@ -344,6 +329,7 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
   const allowedTokens = useMemo(() => new Set(activeItems.flatMap((item) => [String(configuredComparisonIdentity(item)), item.operationalKey])), [activeItems]);
   const [internalAggregation, setInternalAggregation] = useState<HistoryAggregation>(() => controlledAggregation || recommendedHistoryAggregation(effectiveRange));
   const aggregation = controlledAggregation || internalAggregation;
+  const rangeDays = inclusiveHistoryRangeDays(String(effectiveRange.startDate || ''), String(effectiveRange.endDate || ''));
   const [metric, setMetric] = useState<ComparisonMetric>(() => singleElement ? 'both' : 'flow');
   const [totalizerDisplay, setTotalizerDisplay] = useState<TotalizerDisplay>('delta');
   const [volumeDisplay, setVolumeDisplay] = useState<DetailVolumeDisplay>('interval');
@@ -381,7 +367,7 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
 
   const applyIndependentRange = () => {
     const next = normalizeDateRange(draftRange.startDate, draftRange.endDate);
-    const supported = supportedAggregationForRange(aggregation, next.startDate, next.endDate);
+    const supported = supportedHistoryAggregation(aggregation, next.startDate, next.endDate);
     if (supported !== aggregation) setAggregation(supported);
     setDraftRange(next);
     setLocalRange({ ...next, refreshKey: Date.now() });
@@ -637,7 +623,7 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
             <button type="button" className="report-action-button module-history-excel-button module-history-five-minute-button" disabled={!selectedElementIds.length || fiveMinuteExporting} onClick={() => void exportFiveMinuteExcel()} title="Exportación técnica independiente cada 5 minutos; máximo 3 días calendario."><FileSpreadsheet size={16} aria-hidden="true" /> {fiveMinuteExporting ? 'Generando...' : 'Excel 5 min'}</button>
             <button type="button" className="ghost-action report-action-button module-history-pdf-button" disabled={exportDisabled || pdfExporting} onClick={() => void exportPdf()} title="Genera un PDF con la misma serie visible."><FileText size={16} aria-hidden="true" /> {pdfExporting ? 'Generando...' : 'PDF'}</button>
           </div>
-          <label className="module-history-aggregation"><span>Agrupación</span><select value={aggregation} onChange={(event) => setAggregation(event.target.value as HistoryAggregation)}><option value="minute">1 minuto</option><option value="quarter_hour">15 minutos</option><option value="hourly">Por hora</option><option value="daily">Por día</option></select></label>
+          <label className="module-history-aggregation"><span>Agrupación</span><select value={aggregation} onChange={(event) => setAggregation(event.target.value as HistoryAggregation)}><option value="minute" disabled={rangeDays > HISTORY_MAX_RANGE_DAYS.minute}>1 minuto</option><option value="quarter_hour" disabled={rangeDays > HISTORY_MAX_RANGE_DAYS.quarter_hour}>15 minutos</option><option value="hourly" disabled={rangeDays > HISTORY_MAX_RANGE_DAYS.hourly}>Por hora</option><option value="daily" disabled={rangeDays > HISTORY_MAX_RANGE_DAYS.daily}>Por día</option></select></label>
         </div>
       </div>
       {metric === 'totalizer' ? <div className="module-history-totalizer-control"><span>Visualización del totalizador</span><div className="module-metric-selector" role="group" aria-label="Visualización del totalizador"><button type="button" className={totalizerDisplay === 'delta' ? 'active' : ''} onClick={() => setTotalizerDisplay('delta')}>Variación del periodo</button><button type="button" className={totalizerDisplay === 'absolute' ? 'active' : ''} onClick={() => setTotalizerDisplay('absolute')}>Valor absoluto</button></div></div> : null}

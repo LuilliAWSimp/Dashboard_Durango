@@ -14,6 +14,7 @@ from app.database import SessionLocal
 from app.services.durango_capabilities import (
     DURANGO_SCADA_CUTOVER_LOCAL,
     LOCAL_TIMEZONE,
+    LAVADORAS,
     POZO_1_FLOW_CALIBRATION_CUTOFF_LOCAL,
     POZO_1_FLOW_SENSOR_ID,
     POZO_1_LEGACY_FLOW_NORMALIZATION_FACTOR,
@@ -45,6 +46,13 @@ CACHE_TTL_HISTORICAL_SECONDS = 10 * 60
 MAX_HISTORY_CACHE_ENTRIES = 256
 MAX_PHYSICAL_VALIDATION_DAYS = 31
 MAX_PHYSICAL_VALIDATION_ROWS = 100_000
+HISTORY_QUERY_CHUNK_DAYS: dict[Aggregation, int] = {
+    'minute': 1,
+    'quarter_hour': 2,
+    'hourly': 3,
+    'daily': 7,
+}
+PHYSICAL_VALIDATION_CHUNK_DAYS = 7
 
 
 class WaterHistoryError(RuntimeError):
@@ -83,6 +91,68 @@ def _validate(module: str, sensor_id: Any, start_date: str, end_date: str, aggre
     if aggregation == 'daily' and days > 366:
         raise ValueError('La agrupación diaria permite un máximo de 366 días.')
     return module, aggregation, start, end
+
+
+
+
+def _history_query_windows(start_dt: datetime, end_dt: datetime, aggregation: Aggregation) -> list[tuple[datetime, datetime]]:
+    if end_dt <= start_dt:
+        return []
+    chunk_days = HISTORY_QUERY_CHUNK_DAYS[aggregation]
+    chunk = timedelta(days=chunk_days)
+    windows: list[tuple[datetime, datetime]] = []
+    cursor = start_dt
+    while cursor < end_dt:
+        chunk_end = min(cursor + chunk, end_dt)
+        windows.append((cursor, chunk_end))
+        cursor = chunk_end
+    return windows
+
+
+def _query_15m_chunked(sensor_id: int, start_dt: datetime, end_dt: datetime, aggregation: Aggregation) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for chunk_start, chunk_end in _history_query_windows(start_dt, end_dt, aggregation):
+        rows.extend(_query_15m(sensor_id, chunk_start, chunk_end))
+    return rows
+
+
+def _query_15m_multi_chunked(sensor_ids: list[int], start_dt: datetime, end_dt: datetime, aggregation: Aggregation) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for chunk_start, chunk_end in _history_query_windows(start_dt, end_dt, aggregation):
+        rows.extend(_query_15m_multi(sensor_ids, chunk_start, chunk_end))
+    return rows
+
+
+def _query_physical_validation_rows_chunked(sensor_ids: list[int], start_dt: datetime, end_dt: datetime) -> list[dict[str, Any]]:
+    if not sensor_ids or end_dt <= start_dt or end_dt - start_dt > timedelta(days=MAX_PHYSICAL_VALIDATION_DAYS):
+        return []
+    rows: list[dict[str, Any]] = []
+    cursor = start_dt
+    chunk = timedelta(days=PHYSICAL_VALIDATION_CHUNK_DAYS)
+    while cursor < end_dt:
+        chunk_end = min(cursor + chunk, end_dt)
+        rows.extend(_query_physical_validation_rows(sensor_ids, cursor, chunk_end))
+        cursor = chunk_end
+    return rows
+
+
+def _query_lavadora_rows_chunked(start_dt: datetime, end_dt: datetime, aggregation: Aggregation) -> dict[str, list[dict[str, Any]]]:
+    combined: dict[str, list[dict[str, Any]]] = {str(item['operational_key']): [] for item in LAVADORAS}
+    for chunk_start, chunk_end in _history_query_windows(start_dt, end_dt, aggregation):
+        chunk_rows = query_lavadora_rows(chunk_start, chunk_end)
+        for key, rows in chunk_rows.items():
+            combined.setdefault(str(key), []).extend(rows)
+    for rows in combined.values():
+        rows.sort(key=lambda row: _dt(row.get('operational_ts')) or datetime.min)
+    return combined
+
+
+def _query_jarabes_rows_chunked(start_dt: datetime, end_dt: datetime, aggregation: Aggregation) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for chunk_start, chunk_end in _history_query_windows(start_dt, end_dt, aggregation):
+        rows.extend(query_jarabes_rows(chunk_start, chunk_end))
+    rows.sort(key=lambda row: _dt(row.get('operational_ts')) or datetime.min)
+    return rows
 
 
 def _step(aggregation: Aggregation) -> timedelta:
@@ -651,10 +721,10 @@ def get_water_history(*, module: str, sensor_id: Any, start_date: str, end_date:
     validation_rows: list[dict[str, Any]] = []
     if not legacy_only and module == 'flow' and contract.get('table') != 'dbo.SensorsBOS_Linea':
         if is_jarabes_identity(identity):
-            raw_rows = query_jarabes_rows(query_start_dt, query_end_dt)
+            raw_rows = _query_jarabes_rows_chunked(query_start_dt, query_end_dt, aggregation)
             source = 'dbo.SensorsBOS_Tanque' if raw_rows else 'no_data'
         else:
-            raw_rows = query_lavadora_rows(query_start_dt, query_end_dt).get(str(identity), [])
+            raw_rows = _query_lavadora_rows_chunked(query_start_dt, query_end_dt, aggregation).get(str(identity), [])
             source = 'dbo.SensorsBOS_Lavadoras' if raw_rows else 'no_data'
         rows = _raw_rows_to_minute(identity, raw_rows) if aggregation == 'minute' else _bos_rows_to_15m(identity, raw_rows)
         validation_rows = [] if aggregation == 'minute' else raw_rows
@@ -663,7 +733,7 @@ def get_water_history(*, module: str, sensor_id: Any, start_date: str, end_date:
             rows = (
                 _raw_rows_to_minute(identity, _query_minute_history_rows([int(identity)], query_start_dt, query_end_dt))
                 if aggregation == 'minute' and query_end_dt > query_start_dt
-                else _query_15m(int(identity), query_start_dt, query_end_dt) if query_end_dt > query_start_dt
+                else _query_15m_chunked(int(identity), query_start_dt, query_end_dt, aggregation) if query_end_dt > query_start_dt
                 else []
             )
         except WaterHistoryError as exc:
@@ -676,7 +746,7 @@ def get_water_history(*, module: str, sensor_id: Any, start_date: str, end_date:
             validation_rows = [] if aggregation == 'minute' else fallback_rows
             source = 'bos_fallback'
         if module == 'well' and aggregation != 'minute' and not validation_rows and query_end_dt > query_start_dt:
-            validation_rows = _query_physical_validation_rows([int(identity)], query_start_dt, query_end_dt)
+            validation_rows = _query_physical_validation_rows_chunked([int(identity)], query_start_dt, query_end_dt)
 
     points = _build_points(
         identity, aggregation, requested_start_dt, requested_end_dt, rows, validation_rows,
@@ -938,14 +1008,14 @@ def get_water_history_module(*, module: str, start_date: str, end_date: str, agg
                     for identity in line_flow_ids:
                         grouped[identity] = _raw_rows_to_minute(identity, [row for row in raw_line_rows if int(row.get('sensor_id') or 0) == identity])
                 else:
-                    for row in _query_15m_multi(line_flow_ids, query_start_dt, query_end_dt):
+                    for row in _query_15m_multi_chunked(line_flow_ids, query_start_dt, query_end_dt, aggregation):
                         row_sensor = int(row.get('sensor_id') or 0)
                         if row_sensor in grouped:
                             grouped[row_sensor].append(row)
             except WaterHistoryError as exc:
                 query_error = exc
-        washer_rows = query_lavadora_rows(query_start_dt, query_end_dt)
-        jarabes_rows = query_jarabes_rows(query_start_dt, query_end_dt) if any(is_jarabes_identity(identity) for identity in identities) else []
+        washer_rows = _query_lavadora_rows_chunked(query_start_dt, query_end_dt, aggregation)
+        jarabes_rows = _query_jarabes_rows_chunked(query_start_dt, query_end_dt, aggregation) if any(is_jarabes_identity(identity) for identity in identities) else []
         for identity in identities:
             if item_contract(identity).get('table') == 'dbo.SensorsBOS_Linea':
                 continue
@@ -962,7 +1032,7 @@ def get_water_history_module(*, module: str, start_date: str, end_date: str, agg
                     for identity in numeric_ids:
                         grouped[identity] = _raw_rows_to_minute(identity, [row for row in raw_rows if int(row.get('sensor_id') or 0) == identity])
                 else:
-                    rows = _query_15m_multi(numeric_ids, query_start_dt, query_end_dt)
+                    rows = _query_15m_multi_chunked(numeric_ids, query_start_dt, query_end_dt, aggregation)
         except WaterHistoryError as exc:
             query_error = exc
         if aggregation != 'minute':
@@ -971,7 +1041,7 @@ def get_water_history_module(*, module: str, start_date: str, end_date: str, agg
                 if row_sensor in grouped:
                     grouped[row_sensor].append(row)
         if module == 'well' and aggregation != 'minute' and query_end_dt > query_start_dt:
-            for row in _query_physical_validation_rows(numeric_ids, query_start_dt, query_end_dt):
+            for row in _query_physical_validation_rows_chunked(numeric_ids, query_start_dt, query_end_dt):
                 validation_sensor = int(row.get('sensor_id') or 0)
                 if validation_sensor in validation_grouped:
                     validation_grouped[validation_sensor].append(row)

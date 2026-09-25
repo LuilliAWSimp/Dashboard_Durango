@@ -18,7 +18,7 @@ test('el componente minuto a minuto deja de formar parte del grafo del Resumen',
 
 test('el historico global conserva consulta a un minuto como reemplazo funcional', () => {
   const history = read('src/pages/pozos/components/ModuleHistoryPanel.tsx');
-  assert.match(history, /value="minute">1 minuto/);
+  assert.match(history, /value="minute"[^\n]*>1 minuto/);
   assert.match(history, /label: 'Pozos'/);
   assert.match(history, /'Fechas del histórico global'/);
 });

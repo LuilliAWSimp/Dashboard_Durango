@@ -34,10 +34,10 @@ test('historico individual conserva Excel Excel 5 min PDF y agrupaciones del mot
   assert.match(history, /> Excel<\/button>/);
   assert.match(history, /'Excel 5 min'/);
   assert.match(history, /'PDF'/);
-  assert.match(history, /<option value="minute">1 minuto<\/option>/);
-  assert.match(history, /<option value="quarter_hour">15 minutos<\/option>/);
-  assert.match(history, /<option value="hourly">Por hora<\/option>/);
-  assert.match(history, /<option value="daily">Por día<\/option>/);
+  assert.match(history, /<option value="minute"[^\n]*>1 minuto<\/option>/);
+  assert.match(history, /<option value="quarter_hour"[^\n]*>15 minutos<\/option>/);
+  assert.match(history, /<option value="hourly"[^\n]*>Por hora<\/option>/);
+  assert.match(history, /<option value="daily"[^\n]*>Por día<\/option>/);
 });
 
 test('modo individual oculta seleccion redundante y elimina el segundo Excel 5 min del rango', () => {

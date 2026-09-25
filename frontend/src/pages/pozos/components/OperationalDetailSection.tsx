@@ -24,6 +24,7 @@ import PanelHeader from './PanelHeader';
 import ElementHistoryPanel from './ElementHistoryPanel';
 import DetailHistoryPeriodMetric from './DetailHistoryPeriodMetric';
 import type { DetailHistoryPeriodSummary } from '../detailHistorySummary';
+import { supportedHistoryAggregation } from '../historyRangePolicy';
 import type { OperationalHistoryView } from './ModuleHistoryPanel';
 import ShiftConsumptionPanel from './ShiftConsumptionPanel';
 import StatusBadge from './StatusBadge';
@@ -179,6 +180,12 @@ export default function OperationalDetailSection({ module, sensorId, backPath, s
 
   const applyRange = () => {
     markPeriodSummaryLoading();
+    const supportedAggregation = supportedHistoryAggregation(
+      historyAggregation,
+      String(current.draftRange.startDate || ''),
+      String(current.draftRange.endDate || ''),
+    );
+    if (supportedAggregation !== historyAggregation) setHistoryAggregation(supportedAggregation);
     current.apply();
   };
 

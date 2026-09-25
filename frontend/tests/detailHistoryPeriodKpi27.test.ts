@@ -63,7 +63,7 @@ test('motor historico publica resumen solo del query actualmente resuelto', () =
 test('cabecera del detalle muestra Periodo seleccionado y marca carga al cambiar rango o agrupacion', () => {
   const detail = read('src/pages/pozos/components/OperationalDetailSection.tsx');
   assert.match(detail, /<span>Periodo seleccionado<\/span><DetailHistoryPeriodMetric/);
-  assert.match(detail, /markPeriodSummaryLoading\(\);\s*current\.apply\(\)/);
+  assert.match(detail, /markPeriodSummaryLoading\(\);[\s\S]*?current\.apply\(\)/);
   assert.match(detail, /markPeriodSummaryLoading\(\);\s*setHistoryAggregation\(value\)/);
   assert.match(detail, /onPeriodSummaryChange=\{setPeriodSummary\}/);
   assert.doesNotMatch(detail, /value=\{fmt\(item\?\.flow_active_avg\)\}/);
