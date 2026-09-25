@@ -20,9 +20,10 @@ def test_inherited_modules_are_explicitly_disabled():
 
 def test_pending_modules_remain_pending_without_becoming_confirmed():
     assert CAPABILITIES['balance'] == 'pending_physical_validation'
-    assert CAPABILITIES['concession'] == 'pending_validation'
+    assert CAPABILITIES['concession'] is False
     assert 'Balance de Agua' in PENDING_MODULES
-    assert 'Concesión' in PENDING_MODULES
+    assert 'Concesión' not in PENDING_MODULES
+    assert 'Concesión' in DISABLED_MODULES
     assert 'Balance de Agua' not in ACTIVE_MODULES
 
 

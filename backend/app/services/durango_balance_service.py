@@ -2,9 +2,10 @@
 
 La topologia hidraulica de Durango todavia no tiene una fuente base oficial ni
 un catalogo confirmado de consumos finales aditivos. Por eso este servicio NO
-publica una "diferencia no conciliada" oficial. Expone un comparativo operativo
-con los volumenes validados disponibles y documenta explicitamente que el
-contrato fisico sigue pendiente de validacion.
+publica una "diferencia no conciliada" oficial ni calcula restas entre grupos
+que todavía no tienen una relación hidráulica confirmada. Expone los volúmenes
+observados por grupo y documenta explícitamente que el contrato físico sigue
+pendiente de validación.
 
 Cuando el contrato de planta se confirme, este archivo es el punto unico donde
 se debe habilitar la fuente base, las inclusiones/exclusiones y el calculo del
@@ -47,21 +48,6 @@ def _group_payload(*, key: str, label: str, role: str, items: Iterable[dict[str,
         'no_history_count': int(summary.get('no_history_count') or 0),
     }
 
-
-def _sum_if_available(groups: Iterable[dict[str, Any]]) -> float | None:
-    values: list[float] = []
-    for group in groups:
-        value = group.get('validated_volume_m3')
-        if value is None:
-            return None
-        values.append(float(value))
-    return round(sum(values), 6)
-
-
-def _coverage_complete(group: dict[str, Any]) -> bool:
-    total = int(group.get('coverage_total') or 0)
-    available = int(group.get('coverage_available') or 0)
-    return total > 0 and available == total and not bool(group.get('has_partial_volume'))
 
 
 def build_durango_balance_payload(
@@ -106,20 +92,6 @@ def build_durango_balance_payload(
     )
     consumption_candidates = [line_group, washer_group, jarabes_group]
 
-    candidate_consumption_total = _sum_if_available(consumption_candidates)
-    source_value = source_candidate.get('validated_volume_m3')
-    comparison_m3 = None
-    if source_value is not None and candidate_consumption_total is not None:
-        comparison_m3 = round(float(source_value) - float(candidate_consumption_total), 6)
-
-    all_groups = [source_candidate, *consumption_candidates]
-    complete_coverage = all(_coverage_complete(group) for group in all_groups)
-    comparison_status = (
-        'complete_observed_coverage' if comparison_m3 is not None and complete_coverage
-        else 'partial_observed_coverage' if comparison_m3 is not None
-        else 'unavailable'
-    )
-
     period_data = period_data or {}
     return {
         'status': BALANCE_STATUS_PENDING,
@@ -137,6 +109,7 @@ def build_durango_balance_payload(
             'double_counting_reviewed': False,
             'reuse_reviewed': False,
             'official_difference_enabled': False,
+            'candidate_arithmetic_enabled': False,
             'pending_questions': [
                 'Confirmar cuál es la fuente base física del balance y si ambos pozos alimentan el mismo alcance.',
                 'Confirmar cuáles de Líneas, Lavadoras y Jarabes son consumos finales aditivos y cuáles podrían estar en serie.',
@@ -146,10 +119,12 @@ def build_durango_balance_payload(
         },
         'source_candidate': source_candidate,
         'consumption_candidates': consumption_candidates,
-        'candidate_consumption_total_m3': candidate_consumption_total,
-        'operational_comparison_m3': comparison_m3,
-        'operational_comparison_status': comparison_status,
-        # La guia reserva este concepto para un contrato fisico cerrado.
+        # La guía reserva sumas/restas entre grupos para un contrato físico cerrado.
+        # Mientras tanto se exponen los grupos por separado y no se publica una
+        # diferencia, eficiencia ni subtotal candidato con significado hidráulico.
+        'candidate_consumption_total_m3': None,
+        'operational_comparison_m3': None,
+        'operational_comparison_status': 'disabled_pending_physical_validation',
         'unreconciled_difference_m3': None,
         'period': {
             'start_date': period_data.get('start_date'),

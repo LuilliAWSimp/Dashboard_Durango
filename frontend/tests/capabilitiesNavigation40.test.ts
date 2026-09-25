@@ -23,7 +23,7 @@ test('navegación visible responde a capabilities y conserva estados pendientes'
   const labels = items.map((item) => item.label);
   assert.deepEqual(labels, [
     'Resumen', 'Pozos', 'Líneas', 'Lavadoras', 'Jarabes',
-    'Balance de Agua · En validación', 'Concesión · Pendiente',
+    'Balance de Agua · En validación',
     'Revisión Diaria', 'Reportes',
   ]);
   assert.equal(items.some((item) => item.key === 'usuarios'), false);
@@ -66,7 +66,7 @@ test('payload runtime de backend prevalece sobre fallback frontend', () => {
         wells: false,
         lines: true,
         balance: 'pending_physical_validation',
-        concession: 'pending_validation',
+        concession: false,
       },
     },
   });

@@ -51,7 +51,7 @@ CAPABILITIES: dict[str, str | bool] = {
     'cip': False,
     'uv': False,
     'consumptions': False,
-    'concession': 'pending_validation',
+    'concession': False,
     'energy': False,
     'reports': True,
     'shifts': True,
@@ -236,8 +236,8 @@ SENSORS_BY_MODULE = {
 }
 
 ACTIVE_MODULES = ['Resumen', 'Pozos', 'Líneas', 'Lavadoras', 'Jarabes', 'Revisión diaria', 'Reportes']
-PENDING_MODULES = ['Balance de Agua', 'Concesión']
-DISABLED_MODULES = ['Tanques', 'CIP', 'Lámparas UV', 'Consumos heredados', 'Energía']
+PENDING_MODULES = ['Balance de Agua']
+DISABLED_MODULES = ['Tanques', 'CIP', 'Lámparas UV', 'Consumos heredados', 'Energía', 'Concesión']
 
 DEFAULT_CURRENT_FLOW_ACTIVE_THRESHOLD = 0.01
 CURRENT_FLOW_ACTIVE_THRESHOLD_BY_KEY: dict[str, float] = {}

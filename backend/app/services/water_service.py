@@ -17,7 +17,7 @@ WATER_SECTION_META = {
     'lineas': ('Líneas', 'Elementos operativos clasificados como líneas'),
     'flujos': ('Flujos', 'Lavadoras y Jarabes confirmados'),
     'balance': ('Balance de Agua', 'Referencia operativa de volúmenes registrados'),
-    'concesion': ('Concesión', 'Pendiente de fuente confirmada'),
+    'concesion': ('Concesión', 'Módulo no habilitado'),
     'revision': ('Revisión diaria', 'Cierres y consumos por fecha'),
     'reportes': ('Reportes', 'PDF, Excel, vista y correo'),
     'consumos': ('Consumos', 'Puntos auxiliares confirmados'),
@@ -194,7 +194,7 @@ def _cards(payload: dict[str, Any]) -> list[KpiCard]:
 
 def get_water_dashboard_payload(section: str = 'dashboard', start_date: Any = None, end_date: Any = None, period: Any = None, include_history: bool = False, include_energy_water: bool = False, force_refresh: bool = False) -> WaterDashboardPayload:
     if section == 'concesion':
-        return _empty(section, 'pending_validation', 'No existe una fuente de concesión confirmada para Durango.')
+        return _empty(section, 'not_available', 'No se habilita sin título, volumen autorizado, vigencia y fuente legal confirmados.')
 
     current = get_bos_water_dashboard_payload(
         start_date=None, end_date=None, period=None,

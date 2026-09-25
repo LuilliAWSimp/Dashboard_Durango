@@ -7,12 +7,12 @@ const read = (relativePath: string) => readFileSync(new URL(`../${relativePath}`
 test('Balance consume el contrato backend y no reconstruye un balance oficial en frontend', () => {
   const source = read('src/pages/pozos/sections/BalanceSection.tsx');
   assert.match(source, /dashboard\?\.balance/);
-  assert.match(source, /operational_comparison_m3/);
-  assert.match(source, /unreconciled_difference_m3/);
-  assert.match(source, /Pendiente de validación física/);
-  assert.match(source, /no es balance oficial/);
+  assert.doesNotMatch(source, /operational_comparison_m3/);
+  assert.doesNotMatch(source, /candidate_consumption_total_m3/);
+  assert.match(source, /En validación física/);
+  assert.match(source, /Sin cálculo de balance/);
   assert.doesNotMatch(source, /Number\(wells\.total_m3/);
-  assert.doesNotMatch(source, /Pozos − Líneas − Lavadoras − Jarabes" accent/);
+  assert.doesNotMatch(source, /Pozos − Líneas − Lavadoras − Jarabes/);
 });
 
 test('Balance tiene hoja modular propia y no agrega estilos nuevos al global', () => {
