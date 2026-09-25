@@ -19,6 +19,8 @@ import DateRangeControls from './DateRangeControls';
 import MetricPair from './MetricPair';
 import PanelHeader from './PanelHeader';
 import ElementHistoryPanel from './ElementHistoryPanel';
+import DetailHistoryPeriodMetric from './DetailHistoryPeriodMetric';
+import type { DetailHistoryPeriodSummary } from '../detailHistorySummary';
 import type { OperationalHistoryView } from './ModuleHistoryPanel';
 import ShiftConsumptionPanel from './ShiftConsumptionPanel';
 import StatusBadge from './StatusBadge';
@@ -99,6 +101,7 @@ export default function OperationalDetailSection({ module, sensorId, backPath, s
     autoRefresh: true,
   });
   const [historyAggregation, setHistoryAggregation] = useState<HistoryAggregation>(initialContext.aggregation);
+  const [periodSummary, setPeriodSummary] = useState<DetailHistoryPeriodSummary | null>(null);
   const dashboard = current.dashboard as DashboardData | null;
   const allowedItems = sectionConfig?.items;
   const rows = moduleRows(dashboard, module).filter((row, index) => rowMatchesItems(row, index, module, allowedItems));
@@ -131,13 +134,6 @@ export default function OperationalDetailSection({ module, sensorId, backPath, s
   const communicationNeedsAttention = !isNormalCommunication(communication);
   const detailOpen = item?.reconciled_open_m3 ?? item?.period_open_m3;
   const detailClose = item?.reconciled_close_m3 ?? item?.period_close_m3;
-  const detailVolume = item?.reconciled_validated_volume_m3 ?? item?.validated_volume_m3 ?? item?.period_m3;
-  const reconciledReliable = item?.reconciled_volume_reliable;
-  const detailVolumeReliable = typeof reconciledReliable === 'boolean'
-    ? reconciledReliable
-    : Boolean(item?.quality_volume_reliable ?? item?.volume_reliable);
-  const qualityLabel = String(item?.quality_label || item?.validation || item?.coverage_status || activity);
-  const qualityReason = String(item?.quality_reason || '').trim();
   const labels = sectionConfig?.labels;
   const navigationLabel = labels?.navigationLabel || (module === 'well' ? 'pozos' : module === 'line' ? 'líneas' : 'flujos');
   const historyItems = useMemo(() => [{
@@ -162,15 +158,30 @@ export default function OperationalDetailSection({ module, sensorId, backPath, s
     navigate({ pathname: location.pathname, search }, { replace: true, state: location.state });
   }, [current.range, historyAggregation, location.pathname, location.search, location.state, module, navigate]);
 
+  useEffect(() => {
+    setPeriodSummary(null);
+  }, [sensorId]);
+
+  const markPeriodSummaryLoading = () => {
+    setPeriodSummary((summary) => summary ? { ...summary, loading: true, error: '' } : summary);
+  };
+
+  const changeHistoryAggregation = (value: HistoryAggregation) => {
+    markPeriodSummaryLoading();
+    setHistoryAggregation(value);
+  };
+
   const updateDraftRange = (range: DateRange) => {
     current.setDraftRange(range);
   };
 
   const applyRange = () => {
+    markPeriodSummaryLoading();
     current.apply();
   };
 
   const resetRange = () => {
+    markPeriodSummaryLoading();
     const nextRange = { ...initialContext.range };
     current.setDraftRange(nextRange);
     current.setRange((previousRange) => ({
@@ -223,7 +234,7 @@ export default function OperationalDetailSection({ module, sensorId, backPath, s
         <div className="well-detail-hero-metrics">
           <article><span>Flujo actual</span><strong>{fmt(item?.current_flow ?? item?.flow_lps)} <small>{flowUnit}</small></strong></article>
           <article><span>Totalizador actual</span><strong>{fmt(item?.current_totalizer_m3 ?? item?.totalizador_m3)} <small>m³</small></strong></article>
-          <article><span>{operationalVolumeLabel(module, { scope: 'period' })}</span><strong>{detailVolumeReliable && num(detailVolume) !== null ? fmt(detailVolume) : qualityLabel} <small>{detailVolumeReliable && num(detailVolume) !== null ? 'm³' : ''}</small></strong>{!detailVolumeReliable && qualityReason ? <small className="quality-reason-inline">{qualityReason}</small> : null}</article>
+          <article className="detail-period-kpi"><span>Periodo seleccionado</span><DetailHistoryPeriodMetric summary={periodSummary} identity={sensorId} flowUnit={flowUnit} volumeLabel={operationalVolumeLabel(module, { scope: 'period' })} /></article>
           <article><span>Estado actual</span><strong>{currentState}</strong></article>
           <article><span>Última lectura</span><strong>{formatSqlDate(item?.last_update || item?.ultima_lectura)}</strong></article>
           {communicationNeedsAttention ? <article className="attention"><span>Comunicación</span><strong>{communication}</strong></article> : null}
@@ -248,8 +259,9 @@ export default function OperationalDetailSection({ module, sensorId, backPath, s
         view={historyView}
         range={current.range}
         aggregation={historyAggregation}
-        onAggregationChange={setHistoryAggregation}
+        onAggregationChange={changeHistoryAggregation}
         item={historyItems[0]}
+        onPeriodSummaryChange={setPeriodSummary}
       />
 
       <section className={`panel fade-up operational-period-summary operational-detail-summary operational-detail-${module}`}>
@@ -257,7 +269,7 @@ export default function OperationalDetailSection({ module, sensorId, backPath, s
         <div className="metric-pairs-grid">
           <MetricPair label="Totalizador inicial" value={fmt(detailOpen)} unit={num(detailOpen) === null ? '' : 'm³'} />
           <MetricPair label="Totalizador final" value={fmt(detailClose)} unit={num(detailClose) === null ? '' : 'm³'} />
-          <MetricPair label="Flujo promedio" value={fmt(item?.flow_active_avg)} unit={num(item?.flow_active_avg) === null ? '' : flowUnit} />
+          <MetricPair label="Flujo promedio" value={periodSummary?.loading ? 'Calculando…' : fmt(periodSummary?.flowAverage)} unit={!periodSummary?.loading && num(periodSummary?.flowAverage) !== null ? flowUnit : ''} />
           <MetricPair label="Actividad del periodo" value={activity} />
           {communicationNeedsAttention ? <MetricPair label="Comunicación" value={communication} /> : null}
         </div>

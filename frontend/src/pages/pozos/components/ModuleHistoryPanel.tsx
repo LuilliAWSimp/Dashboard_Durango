@@ -9,6 +9,7 @@ import { fetchWaterModuleHistory } from '../../../services/waterService';
 import { formatOperationalDateRange, rangeIncludesToday, recommendedHistoryAggregation } from '../dateUtils';
 import { operationalVolumeAxisLabel, operationalVolumeLabel } from '../operationalTerminology';
 import { withProgressiveVolume, type DetailVolumeDisplay } from '../detailHistoryVolume';
+import { detailHistoryIntervalLabel, summarizeDetailHistory, type DetailHistoryPeriodSummary } from '../detailHistorySummary';
 import {
   buildModuleComparisonRows,
   comparisonAxis,
@@ -75,6 +76,7 @@ interface Props {
   className?: string;
   independentRange?: boolean;
   singleElement?: boolean;
+  onPeriodSummaryChange?: (summary: DetailHistoryPeriodSummary) => void;
 }
 
 function intervalLabel(startValue: unknown, endValue: unknown, aggregation: HistoryAggregation): string {
@@ -294,7 +296,7 @@ function supportedAggregationForRange(current: HistoryAggregation, startDate: st
   return current;
 }
 
-export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggregation: controlledAggregation, onAggregationChange, colors, items, panelTitle, panelSubtitle, className = '', independentRange = false, singleElement = false }: Props) {
+export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggregation: controlledAggregation, onAggregationChange, colors, items, panelTitle, panelSubtitle, className = '', independentRange = false, singleElement = false, onPeriodSummaryChange }: Props) {
   const [globalView, setGlobalView] = useState<OperationalHistoryView>('well');
   const viewConfig = GLOBAL_HISTORY_VIEWS[globalView];
   const lockedViewConfig = fixedView ? GLOBAL_HISTORY_VIEWS[fixedView] : null;
@@ -330,6 +332,7 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+  const [resolvedQueryIdentity, setResolvedQueryIdentity] = useState('');
   const dataRef = useRef<WaterModuleHistoryResponse | null>(null);
   const requestIdRef = useRef(0);
   const inFlightIdentityRef = useRef('');
@@ -338,6 +341,7 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
   useEffect(() => {
     setData(null);
     dataRef.current = null;
+    setResolvedQueryIdentity('');
   }, [module]);
 
   useEffect(() => {
@@ -377,6 +381,7 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
       const response = await fetchWaterModuleHistory({ module, startDate: String(effectiveRange.startDate), endDate: String(effectiveRange.endDate), aggregation, forceRefresh });
       if (requestId !== requestIdRef.current) return;
       setData(response);
+      setResolvedQueryIdentity(identity);
       setError('');
     } catch (reason: unknown) {
       if (requestId !== requestIdRef.current) return;
@@ -394,6 +399,35 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
     if (!data) return null;
     return { ...data, series: data.series.filter((series) => seriesMatchesAllowed(series, allowedTokens)) };
   }, [data, allowedTokens]);
+  const currentQueryIdentity = `${module}:${effectiveRange.startDate}:${effectiveRange.endDate}:${aggregation}`;
+  const detailSeries = singleElement ? filteredData?.series?.[0] : undefined;
+  const detailPeriodSummary = useMemo(() => summarizeDetailHistory(detailSeries?.points || []), [detailSeries?.points]);
+  const detailPeriodInterval = useMemo(
+    () => detailHistoryIntervalLabel(detailSeries?.points || [], effectiveRange),
+    [detailSeries?.points, effectiveRange.startDate, effectiveRange.endDate],
+  );
+  const detailPeriodLoading = Boolean(singleElement && (loading || resolvedQueryIdentity !== currentQueryIdentity));
+
+  useEffect(() => {
+    if (!singleElement || !onPeriodSummaryChange || !activeIdentities.length) return;
+    onPeriodSummaryChange({
+      identity: activeIdentities[0],
+      loading: detailPeriodLoading,
+      intervalLabel: detailPeriodInterval,
+      flowAverage: detailPeriodLoading ? null : detailPeriodSummary.flowAverage,
+      volumeM3: detailPeriodLoading ? null : detailPeriodSummary.volumeM3,
+      error: detailPeriodLoading ? '' : error,
+    });
+  }, [
+    activeIdentities,
+    detailPeriodInterval,
+    detailPeriodLoading,
+    detailPeriodSummary.flowAverage,
+    detailPeriodSummary.volumeM3,
+    error,
+    onPeriodSummaryChange,
+    singleElement,
+  ]);
   const rows = useMemo(() => buildModuleComparisonRows(filteredData), [filteredData]);
   const progressiveIdentity = singleElement && activeIdentities.length === 1 ? activeIdentities[0] : null;
   const displayRows = useMemo(

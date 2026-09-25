@@ -2,6 +2,7 @@ import type { DateRange, HistoryAggregation } from '../types';
 import type { OperationalModule } from '../operationalNavigation';
 import ModuleHistoryPanel from './ModuleHistoryPanel';
 import type { OperationalHistoryView } from './ModuleHistoryPanel';
+import type { DetailHistoryPeriodSummary } from '../detailHistorySummary';
 
 interface HistoryItem {
   sensorId: number | null;
@@ -17,6 +18,7 @@ interface Props {
   aggregation: HistoryAggregation;
   onAggregationChange: (value: HistoryAggregation) => void;
   item: HistoryItem;
+  onPeriodSummaryChange?: (summary: DetailHistoryPeriodSummary) => void;
 }
 
 export default function ElementHistoryPanel({
@@ -26,6 +28,7 @@ export default function ElementHistoryPanel({
   aggregation,
   onAggregationChange,
   item,
+  onPeriodSummaryChange,
 }: Props) {
   return (
     <ModuleHistoryPanel
@@ -39,6 +42,7 @@ export default function ElementHistoryPanel({
       panelSubtitle="Flujo, volumen, totalizador y exportaciones del elemento para el rango seleccionado."
       className={`operational-detail-history operational-element-history operational-history-${module}`}
       singleElement
+      onPeriodSummaryChange={onPeriodSummaryChange}
     />
   );
 }

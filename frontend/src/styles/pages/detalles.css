@@ -239,3 +239,65 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Durango 27 · KPI del mismo periodo visible en el histórico individual. */
+.well-detail-hero-metrics article.detail-period-kpi {
+  grid-column: 1 / -1;
+}
+
+.detail-period-kpi-content {
+  display: grid;
+  gap: 9px;
+}
+
+.detail-period-kpi-values {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.well-detail-hero-metrics .detail-period-kpi-values > span {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(125, 211, 252, .12);
+  border-radius: 12px;
+  background: rgba(8, 47, 73, .26);
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.well-detail-hero-metrics .detail-period-kpi-values strong {
+  display: block;
+  font-size: 18px;
+  line-height: 1.15;
+}
+
+.well-detail-hero-metrics .detail-period-kpi-values small {
+  display: block;
+  margin-top: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: none;
+}
+
+.well-detail-hero-metrics .detail-period-kpi-range,
+.well-detail-hero-metrics .detail-period-kpi-error,
+.well-detail-hero-metrics .detail-period-kpi-content--loading > small {
+  display: block;
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.35;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.well-detail-hero-metrics .detail-period-kpi-error {
+  color: #fbbf24;
+}
+
+@media (max-width: 720px) {
+  .detail-period-kpi-values {
+    grid-template-columns: 1fr;
+  }
+}
