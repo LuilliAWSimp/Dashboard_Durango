@@ -18,8 +18,8 @@ test('Reportes usa preview ligero sin históricos ni turnos', () => {
 });
 
 test('exportaciones completas se generan únicamente bajo demanda', () => {
-  assert.match(reports, /downloadDailyWaterReportPdf\(filters\)/);
-  assert.match(reports, /downloadDailyWaterReportExcel\(filters\)/);
+  assert.match(reports, /downloadDailyWaterReportPdf\(appliedFilters\)/);
+  assert.match(reports, /downloadDailyWaterReportExcel\(appliedFilters\)/);
   assert.match(reports, /includeHistory: true, includeShifts: true/);
   assert.match(reports, /formats: selectedFormats/);
 });

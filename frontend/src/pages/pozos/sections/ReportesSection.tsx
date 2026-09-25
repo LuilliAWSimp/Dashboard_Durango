@@ -17,10 +17,9 @@ import { useNotifications } from '../components/NotificationCenter';
 import ScheduledReportEmailPanel from '../components/ScheduledReportEmailPanel';
 import { downloadFullHistoricalExcel, downloadFullHistoricalPdf } from '../../../services/waterHistoricalExportService';
 import { operationalVolumeLabel } from '../operationalTerminology';
+import { normalizeReportFilters, reportFiltersIncludeDate, sameReportFilters, type ReportFilters, type ReportMode } from '../reportExportContract';
 
-type ReportMode = 'day' | 'range';
 type ReportSectionKey = 'wells' | 'production_lines' | 'washers' | 'jarabes';
-type ReportFilters = { date?: string; startDate?: string; endDate?: string };
 type ExportAction = 'pdf' | 'xlsx' | 'html' | 'historical-excel' | 'historical-pdf' | null;
 
 const REPORT_SECTIONS: Array<{ key: ReportSectionKey; label: string }> = [
@@ -227,12 +226,13 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
     message: 'Se adjunta el Reporte de Control Hídrico Durango del periodo seleccionado.',
   });
 
-  const filters = useMemo<ReportFilters>(
-    () => (mode === 'day' ? { date } : { startDate, endDate }),
+  const draftFilters = useMemo<ReportFilters>(
+    () => normalizeReportFilters(mode, date, startDate, endDate),
     [mode, date, startDate, endDate],
   );
+  const [appliedFilters, setAppliedFilters] = useState<ReportFilters>({ date: today });
 
-  const load = async (nextFilters: ReportFilters = filters, background = false) => {
+  const load = async (nextFilters: ReportFilters = draftFilters, background = false) => {
     if (inFlightRef.current) return;
     inFlightRef.current = true;
     if (background && report) setRefreshing(true);
@@ -240,7 +240,15 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
     if (!background) setError('');
     try {
       // Preview intentionally excludes historical series and administrative shifts.
-      setReport(await fetchDailyWaterReportPreview(nextFilters));
+      const nextReport = await fetchDailyWaterReportPreview(nextFilters);
+      setReport(nextReport);
+      if (!background) {
+        setAppliedFilters(nextFilters);
+        const nextSubject = nextFilters.date
+          ? reportSubject('day', nextFilters.date, nextFilters.date, nextFilters.date)
+          : reportSubject('range', date, nextFilters.startDate || '', nextFilters.endDate || '');
+        setForm((current) => ({ ...current, subject: nextSubject }));
+      }
       setError('');
     } catch (caught) {
       setError(friendlyReportError(caught, 'No fue posible consultar el reporte. Intenta nuevamente.'));
@@ -257,26 +265,24 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
     setDate(today);
     setStartDate(today);
     setEndDate(today);
-    setForm((current) => ({ ...current, subject: reportSubject('day', today, today, today) }));
     void load(initial);
   };
 
   useEffect(() => { void load({ date: today }); }, []);
 
-  const includesToday = mode === 'day'
-    ? date === today
-    : [startDate, endDate].sort()[0] <= today && today <= [startDate, endDate].sort()[1];
-  useAutoRefresh(includesToday, () => { void load(filters, true); });
+  const includesToday = reportFiltersIncludeDate(appliedFilters, today);
+  useAutoRefresh(includesToday, () => { void load(appliedFilters, true); });
+  const hasPendingPeriodChanges = !sameReportFilters(draftFilters, appliedFilters);
 
   const runExport = async (action: Exclude<ExportAction, null>) => {
     if (exportAction) return;
     setExportAction(action);
     setError('');
     try {
-      if (action === 'pdf') await downloadDailyWaterReportPdf(filters);
-      if (action === 'xlsx') await downloadDailyWaterReportExcel(filters);
+      if (action === 'pdf') await downloadDailyWaterReportPdf(appliedFilters);
+      if (action === 'xlsx') await downloadDailyWaterReportExcel(appliedFilters);
       if (action === 'html') {
-        const fullReport = await fetchDailyWaterReport(filters, { includeHistory: true, includeShifts: true });
+        const fullReport = await fetchDailyWaterReport(appliedFilters, { includeHistory: true, includeShifts: true });
         exportDailyWaterReportHtml(fullReport);
       }
     } catch (caught) {
@@ -325,9 +331,9 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
         cc: form.cc || undefined,
         subject: form.subject,
         message: form.message,
-        date: mode === 'day' ? date : undefined,
-        start_date: mode === 'range' ? startDate : undefined,
-        end_date: mode === 'range' ? endDate : undefined,
+        date: appliedFilters.date,
+        start_date: appliedFilters.startDate,
+        end_date: appliedFilters.endDate,
         formats: selectedFormats,
       });
       setEmailOpen(false);
@@ -366,6 +372,7 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
     ? fmtVolume(card.value)
     : `${Number(card.value ?? 0).toLocaleString('es-MX')}/${Number(card.total ?? 0).toLocaleString('es-MX')}`;
   const isBusy = exportAction !== null;
+  const exportReady = Boolean(report) && !loading;
 
   return (
     <div className="reportes-page durango-report-page">
@@ -387,14 +394,14 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
               <div className="report-field report-mode-field">
                 <span className="report-field-label">Tipo</span>
                 <div className="report-mode-toggle" role="group" aria-label="Tipo de periodo">
-                  <button type="button" className={mode === 'day' ? 'active' : ''} aria-pressed={mode === 'day'} onClick={() => { setMode('day'); setForm((current) => ({ ...current, subject: reportSubject('day', date, startDate, endDate) })); }}>Fecha</button>
-                  <button type="button" className={mode === 'range' ? 'active' : ''} aria-pressed={mode === 'range'} onClick={() => { setMode('range'); setForm((current) => ({ ...current, subject: reportSubject('range', date, startDate, endDate) })); }}>Periodo</button>
+                  <button type="button" className={mode === 'day' ? 'active' : ''} aria-pressed={mode === 'day'} onClick={() => setMode('day')}>Fecha</button>
+                  <button type="button" className={mode === 'range' ? 'active' : ''} aria-pressed={mode === 'range'} onClick={() => setMode('range')}>Periodo</button>
                 </div>
               </div>
 
               {mode === 'day' ? (
-                <label className="report-field"><span className="report-field-label">Fecha</span><div className="date-input-with-icon report-date-input"><CalendarDays size={16} /><input type="date" value={date} onChange={(event) => { const next = event.target.value; setDate(next); setForm((current) => ({ ...current, subject: reportSubject('day', next, startDate, endDate) })); }} /></div></label>
-              ) : <><label className="report-field"><span className="report-field-label">Desde</span><div className="date-input-with-icon report-date-input"><CalendarDays size={16} /><input type="date" value={startDate} onChange={(event) => { const next = event.target.value; setStartDate(next); setForm((current) => ({ ...current, subject: reportSubject('range', date, next, endDate) })); }} /></div></label><label className="report-field"><span className="report-field-label">Hasta</span><div className="date-input-with-icon report-date-input"><CalendarDays size={16} /><input type="date" value={endDate} onChange={(event) => { const next = event.target.value; setEndDate(next); setForm((current) => ({ ...current, subject: reportSubject('range', date, startDate, next) })); }} /></div></label></>}
+                <label className="report-field"><span className="report-field-label">Fecha</span><div className="date-input-with-icon report-date-input"><CalendarDays size={16} /><input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></div></label>
+              ) : <><label className="report-field"><span className="report-field-label">Desde</span><div className="date-input-with-icon report-date-input"><CalendarDays size={16} /><input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} /></div></label><label className="report-field"><span className="report-field-label">Hasta</span><div className="date-input-with-icon report-date-input"><CalendarDays size={16} /><input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} /></div></label></>}
 
               <div className="report-period-buttons">
                 <button type="button" className="date-range-apply" onClick={() => void load()} disabled={loading}><RefreshCw size={15} /> {loading ? 'Actualizando...' : 'Actualizar'}</button>
@@ -405,14 +412,15 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
             <div className="report-actions-block">
               <span className="report-field-label">Acciones</span>
               <div className="report-actions" aria-label="Acciones del reporte">
-                <button type="button" className="report-action-button export-pdf-button" disabled={isBusy} onClick={() => void runExport('pdf')}><FileDown size={17} /> {exportAction === 'pdf' ? 'Generando PDF...' : 'Generar PDF'}</button>
-                <button type="button" className="report-action-button export-excel-button" disabled={isBusy} onClick={() => void runExport('xlsx')}><FileSpreadsheet size={17} /> {exportAction === 'xlsx' ? 'Generando Excel...' : 'Exportar Excel'}</button>
-                <button type="button" className="report-action-button" disabled={isBusy} onClick={() => void runExport('html')}><Eye size={17} /> {exportAction === 'html' ? 'Generando vista...' : 'Vista HTML'}</button>
-                {canEmail ? <button type="button" className="report-action-button" disabled={sending} onClick={() => setEmailOpen(true)}><Mail size={17} /> Enviar por correo</button> : null}
+                <button type="button" className="report-action-button export-pdf-button" disabled={isBusy || !exportReady} onClick={() => void runExport('pdf')}><FileDown size={17} /> {exportAction === 'pdf' ? 'Generando PDF...' : 'Generar PDF'}</button>
+                <button type="button" className="report-action-button export-excel-button" disabled={isBusy || !exportReady} onClick={() => void runExport('xlsx')}><FileSpreadsheet size={17} /> {exportAction === 'xlsx' ? 'Generando Excel...' : 'Exportar Excel'}</button>
+                <button type="button" className="report-action-button" disabled={isBusy || !exportReady} onClick={() => void runExport('html')}><Eye size={17} /> {exportAction === 'html' ? 'Generando vista...' : 'Vista HTML'}</button>
+                {canEmail ? <button type="button" className="report-action-button" disabled={sending || !exportReady} onClick={() => setEmailOpen(true)}><Mail size={17} /> Enviar por correo</button> : null}
               </div>
             </div>
           </div>
         </div>
+        {hasPendingPeriodChanges && report ? <div className="status-pill">Cambios de periodo pendientes. Pulsa Actualizar para aplicarlos a la vista y a las exportaciones.</div> : null}
         {refreshing ? <div className="status-pill auto-refresh-status">Actualizando datos de la vista previa…</div> : null}
         {error ? <div className="status-pill alert">{error}</div> : null}
       </section>

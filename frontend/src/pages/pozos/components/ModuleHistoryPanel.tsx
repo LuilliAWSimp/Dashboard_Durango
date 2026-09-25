@@ -480,7 +480,7 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
     const color = palette[Math.max(itemIndex, 0) % palette.length];
     const totalizerColor = TOTALIZER_COLORS[Math.max(itemIndex, 0) % TOTALIZER_COLORS.length];
     const result: ExportSeries[] = [];
-    if (axes.showFlow) result.push({ key: `flow_${identity}`, name: `${sourceSeries?.name || item?.name || identity} · Flujo`, metric: 'flow', unit: item?.flowUnit || 'L/s', color });
+    if (axes.showFlow) result.push({ key: `flow_${identity}`, name: `${sourceSeries?.name || item?.name || identity} · Flujo`, metric: 'flow', unit: item?.flowUnit || 'L/s', color, chart_type: 'line', axis: 'left' });
     if (axes.showTotalizer) result.push({
       key: metric === 'both'
         ? (singleElement && volumeDisplay === 'cumulative' ? `volume_cumulative_${identity}` : `volume_${identity}`)
@@ -489,6 +489,8 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
       metric: 'totalizer',
       unit: 'm³',
       color: totalizerColor,
+      chart_type: metric === 'both' && (!singleElement || volumeDisplay === 'interval') ? 'bar' : 'line',
+      axis: metric === 'both' ? 'right' : 'left',
     });
     return result;
   }), [visible, activeItems, filteredData, palette, axes.showFlow, axes.showTotalizer, effectiveTotalizerDisplay, metric, singleElement, volumeDisplay, module]);
@@ -544,6 +546,8 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
         selected_names: selectedNames,
         rows: exportRows,
         series: exportSeries,
+        left_axis_label: axes.showFlow ? 'Flujo (L/s)' : totalizerAxisLabel,
+        right_axis_label: axes.independentAxes ? totalizerAxisLabel : undefined,
       });
     } catch (reason: unknown) {
       setError((reason as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'No fue posible generar el PDF del histórico.');

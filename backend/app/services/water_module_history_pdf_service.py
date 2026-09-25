@@ -51,16 +51,23 @@ def _hex_color(value: Any, fallback: str = '#0ea5e9') -> colors.Color:
 def _axis_bounds(values: list[float], *, force_zero: bool = False) -> tuple[float, float]:
     if not values:
         return (0.0, 1.0)
-    low = min(values)
-    high = max(values)
-    if force_zero:
-        low = min(0.0, low)
-        high = max(0.0, high)
+    source_low = min(values)
+    source_high = max(values)
+    low = min(0.0, source_low) if force_zero else source_low
+    high = max(0.0, source_high) if force_zero else source_high
     if math.isclose(low, high, rel_tol=1e-9, abs_tol=1e-9):
         pad = max(abs(low) * 0.1, 1.0)
-        return (low - pad, high + pad)
-    pad = (high - low) * 0.08
-    return (low - pad, high + pad)
+        lower = low - pad
+        upper = high + pad
+    else:
+        pad = (high - low) * 0.08
+        lower = low - pad
+        upper = high + pad
+    if force_zero and source_low >= 0:
+        lower = 0.0
+    if force_zero and source_high <= 0:
+        upper = 0.0
+    return (lower, upper)
 
 
 def _format_axis(value: float) -> str:
@@ -83,7 +90,7 @@ def _format_value(value: Any) -> str:
     return f'{numeric:,.4f}'.rstrip('0').rstrip('.')
 
 
-def _chart_drawing(rows: list[dict[str, Any]], series: list[dict[str, Any]], metric_label: str) -> Drawing:
+def _chart_drawing(rows: list[dict[str, Any]], series: list[dict[str, Any]], left_axis_label: str, right_axis_label: str) -> Drawing:
     width = 748
     height = 292
     plot_left = 58
@@ -96,12 +103,8 @@ def _chart_drawing(rows: list[dict[str, Any]], series: list[dict[str, Any]], met
     drawing = Drawing(width, height)
     drawing.add(Rect(0, 0, width, height, fillColor=colors.white, strokeColor=colors.HexColor('#cbd5e1'), strokeWidth=0.8, rx=6, ry=6))
 
-    flow_series = [item for item in series if _text(item.get('metric')).lower() == 'flow']
-    totalizer_series = [item for item in series if _text(item.get('metric')).lower() == 'totalizer']
-    both = bool(flow_series and totalizer_series and metric_label.lower() == 'ambos')
-
-    left_series = flow_series if both else series
-    right_series = totalizer_series if both else []
+    left_series = [item for item in series if _text(item.get('axis'), 'left').lower() != 'right']
+    right_series = [item for item in series if _text(item.get('axis'), 'left').lower() == 'right']
 
     left_values = [
         numeric
@@ -115,9 +118,10 @@ def _chart_drawing(rows: list[dict[str, Any]], series: list[dict[str, Any]], met
         for row in rows
         if (numeric := _number(row.get(_text(item.get('key'))))) is not None
     ]
-    force_zero_left = bool(flow_series) or 'variacion' in metric_label.lower() or 'variación' in metric_label.lower() or both
+    force_zero_left = any(_text(item.get('chart_type'), 'line').lower() == 'bar' for item in left_series) or any(_text(item.get('metric')).lower() == 'flow' for item in left_series)
+    force_zero_right = any(_text(item.get('chart_type'), 'line').lower() == 'bar' for item in right_series)
     left_min, left_max = _axis_bounds(left_values, force_zero=force_zero_left)
-    right_min, right_max = _axis_bounds(right_values, force_zero=True)
+    right_min, right_max = _axis_bounds(right_values, force_zero=force_zero_right)
 
     grid_color = colors.HexColor('#e2e8f0')
     axis_color = colors.HexColor('#64748b')
@@ -150,21 +154,43 @@ def _chart_drawing(rows: list[dict[str, Any]], series: list[dict[str, Any]], met
         drawing.add(Line(x, plot_bottom, x, plot_bottom - 3, strokeColor=axis_color, strokeWidth=0.6))
         drawing.add(String(x, plot_bottom - 12, label, textAnchor='middle', fontName='Helvetica', fontSize=6.5, fillColor=label_color))
 
-    drawing.add(String(12, (plot_bottom + plot_top) / 2, 'Flujo' if flow_series else 'Valor', textAnchor='middle', fontName='Helvetica-Bold', fontSize=8, fillColor=colors.HexColor('#0369a1'), angle=90))
+    drawing.add(String(12, (plot_bottom + plot_top) / 2, left_axis_label or 'Valor', textAnchor='middle', fontName='Helvetica-Bold', fontSize=8, fillColor=colors.HexColor('#0369a1'), angle=90))
     if right_series:
-        drawing.add(String(width - 12, (plot_bottom + plot_top) / 2, 'Totalizador', textAnchor='middle', fontName='Helvetica-Bold', fontSize=8, fillColor=colors.HexColor('#7c3aed'), angle=90))
+        drawing.add(String(width - 12, (plot_bottom + plot_top) / 2, right_axis_label or 'Valor', textAnchor='middle', fontName='Helvetica-Bold', fontSize=8, fillColor=colors.HexColor('#7c3aed'), angle=90))
 
-    def y_for(value: float, metric: str) -> float:
-        use_right = bool(right_series and metric == 'totalizer')
+    def y_for(value: float, axis: str) -> float:
+        use_right = bool(right_series and axis == 'right')
         lower, upper = (right_min, right_max) if use_right else (left_min, left_max)
         if math.isclose(lower, upper):
             return plot_bottom + plot_height / 2
         return plot_bottom + (value - lower) / (upper - lower) * plot_height
 
+    bar_series = [item for item in series if _text(item.get('chart_type'), 'line').lower() == 'bar']
+    bar_count = max(len(bar_series), 1)
+    slot_width = plot_width / max(row_count, 1)
+    max_bar_width = min(12.0, slot_width * 0.72 / bar_count)
+
     for item in series:
         key = _text(item.get('key'))
-        metric = _text(item.get('metric')).lower()
+        axis = _text(item.get('axis'), 'left').lower()
+        chart_type = _text(item.get('chart_type'), 'line').lower()
         stroke = _hex_color(item.get('color'))
+        if chart_type == 'bar':
+            bar_index = bar_series.index(item)
+            for index, row in enumerate(rows):
+                value = _number(row.get(key))
+                if value is None:
+                    continue
+                x_center = plot_left if row_count == 1 else plot_left + plot_width * index / (row_count - 1)
+                zero_y = y_for(0.0, axis)
+                value_y = y_for(value, axis)
+                offset = (bar_index - (bar_count - 1) / 2) * max_bar_width
+                x = x_center + offset - max_bar_width / 2
+                y = min(zero_y, value_y)
+                height_value = max(abs(value_y - zero_y), 0.8)
+                drawing.add(Rect(x, y, max_bar_width, height_value, fillColor=stroke, fillOpacity=0.72, strokeColor=None))
+            continue
+
         previous: tuple[float, float] | None = None
         for index, row in enumerate(rows):
             value = _number(row.get(key))
@@ -172,9 +198,9 @@ def _chart_drawing(rows: list[dict[str, Any]], series: list[dict[str, Any]], met
                 previous = None
                 continue
             x = plot_left if row_count == 1 else plot_left + plot_width * index / (row_count - 1)
-            y = y_for(value, metric)
+            y = y_for(value, axis)
             if previous is not None:
-                drawing.add(Line(previous[0], previous[1], x, y, strokeColor=stroke, strokeWidth=1.35 if metric == 'flow' else 1.05))
+                drawing.add(Line(previous[0], previous[1], x, y, strokeColor=stroke, strokeWidth=1.35 if _text(item.get('metric')).lower() == 'flow' else 1.8))
             previous = (x, y)
 
     return drawing
@@ -205,6 +231,8 @@ def build_module_history_pdf(payload: dict[str, Any]) -> tuple[bytes, str]:
             'metric': _text(item.get('metric'), 'flow').lower(),
             'unit': _text(item.get('unit')),
             'color': _text(item.get('color'), '#0ea5e9'),
+            'chart_type': 'bar' if _text(item.get('chart_type'), 'line').lower() == 'bar' else 'line',
+            'axis': 'right' if _text(item.get('axis'), 'left').lower() == 'right' else 'left',
         })
     if not allowed_series:
         raise ValueError('El PDF no recibió series válidas para graficar.')
@@ -248,7 +276,9 @@ def build_module_history_pdf(payload: dict[str, Any]) -> tuple[bytes, str]:
     story.append(header)
     story.append(Spacer(1, 5 * mm))
 
-    story.append(_chart_drawing(rows, allowed_series, metric_label))
+    left_axis_label = _text(payload.get('left_axis_label'), 'Valor')
+    right_axis_label = _text(payload.get('right_axis_label'))
+    story.append(_chart_drawing(rows, allowed_series, left_axis_label, right_axis_label))
     story.append(Spacer(1, 3 * mm))
 
     legend_parts = []
