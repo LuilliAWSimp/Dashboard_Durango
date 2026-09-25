@@ -98,7 +98,6 @@ export default function OperationalDetailSection({ module, sensorId, backPath, s
   const [initialContext] = useState(() => readOperationalNavigationContext(location.search, module));
   const initialRangeFactory = useCallback(() => ({ ...initialContext.range }), [initialContext.range]);
   const current = useSqlChartDashboard('dashboard', initialRangeFactory, {
-    forceRefresh: true,
     includeHistory: false,
     includeEnergyWater: false,
     autoRefresh: true,

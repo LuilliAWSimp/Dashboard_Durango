@@ -10,6 +10,7 @@ const CURRENT_TTL_MS = 25 * 1000;
 const TODAY_TTL_MS = 60 * 1000;
 const HISTORY_TTL_MS = 10 * 60 * 1000;
 const MONTHLY_TTL_MS = 30 * 60 * 1000;
+const MAX_CACHE_ENTRIES = 100;
 
 interface WaterRequestOptions {
   startDate?: string;
@@ -101,6 +102,10 @@ async function cachedRequest<T>(
   if (forceRefresh) cache.delete(key);
   const request = loader()
     .then((data) => {
+      if (cache.size >= MAX_CACHE_ENTRIES && !cache.has(key)) {
+        const oldestKey = cache.keys().next().value;
+        if (oldestKey !== undefined) cache.delete(oldestKey);
+      }
       cache.set(key, { ts: Date.now(), ttl, data });
       return data;
     })

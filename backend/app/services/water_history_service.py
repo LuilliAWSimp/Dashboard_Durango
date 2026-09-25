@@ -42,6 +42,7 @@ Module = Literal['well', 'line', 'flow']
 _CACHE: dict[str, dict[str, Any]] = {}
 CACHE_TTL_CURRENT_SECONDS = 60
 CACHE_TTL_HISTORICAL_SECONDS = 10 * 60
+MAX_HISTORY_CACHE_ENTRIES = 256
 MAX_PHYSICAL_VALIDATION_DAYS = 31
 MAX_PHYSICAL_VALIDATION_ROWS = 100_000
 
@@ -615,7 +616,15 @@ def _history_cache_ttl(start: date, end: date, now_day: date | None = None) -> i
 
 
 def _store_cache(cache_key: str, value: dict[str, Any], ttl_seconds: int) -> dict[str, Any]:
-    _CACHE[cache_key] = {'expires_at': monotonic() + ttl_seconds, 'value': value}
+    now = monotonic()
+    expired = [key for key, entry in _CACHE.items() if now >= float(entry.get('expires_at') or 0)]
+    for key in expired:
+        _CACHE.pop(key, None)
+    if len(_CACHE) >= MAX_HISTORY_CACHE_ENTRIES and cache_key not in _CACHE:
+        oldest_key = next(iter(_CACHE), None)
+        if oldest_key is not None:
+            _CACHE.pop(oldest_key, None)
+    _CACHE[cache_key] = {'expires_at': now + ttl_seconds, 'value': value}
     return value
 
 def get_water_history(*, module: str, sensor_id: Any, start_date: str, end_date: str, aggregation: str, force_refresh: bool = False) -> dict[str, Any]:

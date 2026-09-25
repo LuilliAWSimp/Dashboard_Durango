@@ -5,7 +5,7 @@ import { DURANGO_CAPABILITIES } from '../../../config/plantCapabilities';
 import useAutoRefresh from '../../../hooks/useAutoRefresh';
 import { downloadWaterModuleHistoryPdf } from '../../../services/waterModuleHistoryExportService';
 import { downloadFiveMinuteModuleHistoryExcel, validateFiveMinuteExportRange } from '../../../services/waterFiveMinuteExportService';
-import { fetchWaterModuleHistory } from '../../../services/waterService';
+import { fetchWaterHistory, fetchWaterModuleHistory } from '../../../services/waterService';
 import { formatOperationalDateRange, rangeIncludesToday, recommendedHistoryAggregation } from '../dateUtils';
 import { operationalVolumeAxisLabel, operationalVolumeLabel } from '../operationalTerminology';
 import { withProgressiveVolume, type DetailVolumeDisplay } from '../detailHistoryVolume';
@@ -22,7 +22,7 @@ import {
   type ComparisonRow,
   type OperationalIdentity,
 } from '../moduleComparison';
-import type { DateRange, FlexibleRecord, HistoryAggregation, WaterModuleHistoryResponse } from '../types';
+import type { DateRange, FlexibleRecord, HistoryAggregation, WaterHistoryResponse, WaterModuleHistoryResponse } from '../types';
 import ChartEmptyState from './ChartEmptyState';
 import PanelHeader from './PanelHeader';
 
@@ -178,6 +178,28 @@ body{font-family:Arial,sans-serif;color:#111827}h1{font-size:18px;margin:0 0 12p
 
 function identityText(identity: OperationalIdentity): string {
   return String(identity);
+}
+
+function singleHistoryAsModuleResponse(history: WaterHistoryResponse): WaterModuleHistoryResponse {
+  return {
+    module: history.module,
+    start_date: history.start_date,
+    end_date: history.end_date,
+    aggregation: history.aggregation,
+    effective_end_at: typeof history.effective_end_at === 'string' ? history.effective_end_at : undefined,
+    has_future_intervals: history.has_future_intervals,
+    source_status: history.source_status,
+    series: [{
+      sensor_id: history.sensor_id,
+      operational_key: history.operational_key,
+      name: history.name,
+      flow_unit: history.flow_unit,
+      source_status: history.source_status,
+      has_data: history.has_data,
+      has_future_intervals: history.has_future_intervals,
+      points: history.points,
+    }],
+  };
 }
 
 function seriesMatchesAllowed(series: { sensor_id?: number | null; operational_key?: string }, allowed: Set<string>) {
@@ -336,13 +358,17 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
   const dataRef = useRef<WaterModuleHistoryResponse | null>(null);
   const requestIdRef = useRef(0);
   const inFlightIdentityRef = useRef('');
+  const appliedRefreshKeyRef = useRef(Number(effectiveRange.refreshKey || 0));
+
+  const singleIdentity = singleElement && activeIdentities.length === 1 ? activeIdentities[0] : null;
+  const queryIdentity = `${module}:${singleIdentity === null ? 'module' : identityText(singleIdentity)}:${effectiveRange.startDate}:${effectiveRange.endDate}:${aggregation}`;
 
   useEffect(() => { dataRef.current = data; }, [data]);
   useEffect(() => {
     setData(null);
     dataRef.current = null;
     setResolvedQueryIdentity('');
-  }, [module]);
+  }, [module, singleIdentity]);
 
   useEffect(() => {
     setSelected(activeIdentities);
@@ -371,35 +397,55 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
 
   const load = useCallback(async (forceRefresh = false, background = false) => {
     if (!effectiveRange.startDate || !effectiveRange.endDate) return;
-    const identity = `${module}:${effectiveRange.startDate}:${effectiveRange.endDate}:${aggregation}`;
+    const identity = queryIdentity;
     if (inFlightIdentityRef.current === identity) return;
     inFlightIdentityRef.current = identity;
     const requestId = ++requestIdRef.current;
     if (!dataRef.current) setLoading(true); else if (background) setRefreshing(true);
     if (!background) setError('');
     try {
-      const response = await fetchWaterModuleHistory({ module, startDate: String(effectiveRange.startDate), endDate: String(effectiveRange.endDate), aggregation, forceRefresh });
+      const response = singleIdentity === null
+        ? await fetchWaterModuleHistory({
+            module,
+            startDate: String(effectiveRange.startDate),
+            endDate: String(effectiveRange.endDate),
+            aggregation,
+            forceRefresh,
+          })
+        : singleHistoryAsModuleResponse(await fetchWaterHistory({
+            module,
+            sensorId: singleIdentity,
+            startDate: String(effectiveRange.startDate),
+            endDate: String(effectiveRange.endDate),
+            aggregation,
+            forceRefresh,
+          }));
       if (requestId !== requestIdRef.current) return;
       setData(response);
       setResolvedQueryIdentity(identity);
       setError('');
     } catch (reason: unknown) {
       if (requestId !== requestIdRef.current) return;
-      setError((reason as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'No fue posible consultar el histórico por módulo.');
+      setError((reason as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'No fue posible consultar el histórico operativo.');
     } finally {
       if (requestId === requestIdRef.current) { setLoading(false); setRefreshing(false); }
       if (inFlightIdentityRef.current === identity) inFlightIdentityRef.current = '';
     }
-  }, [module, effectiveRange.startDate, effectiveRange.endDate, aggregation]);
+  }, [module, singleIdentity, queryIdentity, effectiveRange.startDate, effectiveRange.endDate, aggregation]);
 
-  useEffect(() => { void load(Boolean(effectiveRange.refreshKey), false); }, [load, effectiveRange.refreshKey]);
-  useAutoRefresh(rangeIncludesToday(effectiveRange), () => { void load(true, true); });
+  useEffect(() => {
+    const refreshKey = Number(effectiveRange.refreshKey || 0);
+    const manualRefresh = refreshKey !== appliedRefreshKeyRef.current;
+    appliedRefreshKeyRef.current = refreshKey;
+    void load(manualRefresh, false);
+  }, [load, effectiveRange.refreshKey]);
+  useAutoRefresh(rangeIncludesToday(effectiveRange), () => { void load(false, true); });
 
   const filteredData = useMemo<WaterModuleHistoryResponse | null>(() => {
     if (!data) return null;
     return { ...data, series: data.series.filter((series) => seriesMatchesAllowed(series, allowedTokens)) };
   }, [data, allowedTokens]);
-  const currentQueryIdentity = `${module}:${effectiveRange.startDate}:${effectiveRange.endDate}:${aggregation}`;
+  const currentQueryIdentity = queryIdentity;
   const detailSeries = singleElement ? filteredData?.series?.[0] : undefined;
   const detailPeriodSummary = useMemo(() => summarizeDetailHistory(detailSeries?.points || []), [detailSeries?.points]);
   const detailPeriodInterval = useMemo(

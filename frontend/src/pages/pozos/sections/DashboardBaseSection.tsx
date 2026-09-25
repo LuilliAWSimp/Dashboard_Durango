@@ -111,7 +111,6 @@ function groupStatusType(group: FlexibleRecord): string {
 export default function DashboardBaseSection() {
   const navigate = useNavigate();
   const controller = useSqlChartDashboard('dashboard', defaultTodayRange, {
-    forceRefresh: true,
     includeHistory: false,
     includeEnergyWater: false,
     autoRefresh: true,

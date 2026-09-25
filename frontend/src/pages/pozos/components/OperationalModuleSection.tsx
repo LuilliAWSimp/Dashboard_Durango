@@ -236,7 +236,6 @@ export default function OperationalModuleSection({
   const [aggregation, setAggregation] = useState(initialContext.aggregation);
   const initialRangeFactory = useCallback(() => ({ ...initialContext.range }), [initialContext.range]);
   const controller = useSqlChartDashboard('dashboard', initialRangeFactory, {
-    forceRefresh: true,
     includeHistory: false,
     includeEnergyWater: false,
     autoRefresh: true,

@@ -40,7 +40,6 @@ const BAR_COLORS = ['#0ea5e9', '#7dd3fc', '#a855f7', '#f59e0b'];
 
 export default function BalanceSection() {
   const controller = useSqlChartDashboard('balance', defaultTodayRange, {
-    forceRefresh: true,
     includeHistory: false,
     includeEnergyWater: false,
     autoRefresh: true,

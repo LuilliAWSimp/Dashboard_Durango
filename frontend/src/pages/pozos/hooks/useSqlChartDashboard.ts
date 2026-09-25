@@ -16,7 +16,6 @@ function errorMessage(error: unknown): string | undefined {
 export interface UseSqlChartDashboardOptions {
   includeHistory?: boolean;
   includeEnergyWater?: boolean;
-  forceRefresh?: boolean;
   autoRefresh?: boolean;
 }
 
@@ -50,6 +49,7 @@ export default function useSqlChartDashboard(
   const inFlightIdentityRef = useRef('');
   const requestIdRef = useRef(0);
   const dashboardRef = useRef<unknown | null>(null);
+  const appliedRefreshKeyRef = useRef(Number(range.refreshKey || 0));
 
   useEffect(() => {
     dashboardRef.current = dashboard;
@@ -72,7 +72,7 @@ export default function useSqlChartDashboard(
         period: dateRangePeriod(range),
         include_history: Boolean(options.includeHistory),
         include_energy_water: Boolean(options.includeEnergyWater),
-        force_refresh: kind !== 'initial',
+        force_refresh: kind === 'manual',
       });
       if (!mountedRef.current || requestId !== requestIdRef.current) return;
       setDashboard(data);
@@ -90,11 +90,14 @@ export default function useSqlChartDashboard(
       }
       if (inFlightIdentityRef.current === identity) inFlightIdentityRef.current = '';
     }
-  }, [section, range.startDate, range.endDate, range.refreshKey, options.includeHistory, options.includeEnergyWater]);
+  }, [section, range.startDate, range.endDate, options.includeHistory, options.includeEnergyWater]);
 
   useEffect(() => {
-    load(Number(range.refreshKey || 0) > 0 ? 'manual' : 'initial');
-  }, [load]);
+    const refreshKey = Number(range.refreshKey || 0);
+    const manualRefresh = refreshKey !== appliedRefreshKeyRef.current;
+    appliedRefreshKeyRef.current = refreshKey;
+    load(manualRefresh ? 'manual' : 'initial');
+  }, [load, range.refreshKey]);
 
   useAutoRefresh(Boolean(options.autoRefresh && rangeIncludesToday(range)), () => load('auto'));
 
