@@ -40,6 +40,7 @@ class MeResponse(BaseModel):
     user: AuthUser
     csrf_token: str
     expires_at: str
+    browser_session: str | None = None
 
 
 class SetupStatusResponse(BaseModel):
@@ -62,3 +63,8 @@ class UserUpdateRequest(BaseModel):
 
 class PasswordResetRequest(BaseModel):
     password: str = Field(min_length=10, max_length=1024)
+
+
+class PasswordChangeRequest(BaseModel):
+    current_password: str = Field(min_length=1, max_length=1024)
+    new_password: str = Field(min_length=10, max_length=1024)

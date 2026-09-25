@@ -1,0 +1,347 @@
+/* Durango 18C · Históricos operativos
+   Responsabilidad: selector de agrupación, tooltips y acciones del histórico.
+   No agregar aquí reglas de Reportes ni Turnos. */
+
+.operational-history-panel {
+  --arca-history-scope: 1;
+}
+
+/* Historical aggregation control: accessible dark dropdown */
+.date-range-panel {
+  overflow: visible;
+  z-index: 12;
+}
+
+.date-range-fields select {
+  background-color: #061827;
+  color: #effbff;
+}
+
+.date-range-fields select option,
+.date-range-fields select optgroup {
+  background-color: #071827;
+  color: #effbff;
+  opacity: 1;
+}
+
+.date-range-fields select option:checked {
+  background-color: #0e7490;
+  color: #ffffff;
+}
+
+.date-range-fields select option:disabled {
+  background-color: #071827;
+  color: #7893a4;
+  opacity: 1;
+}
+
+.history-aggregation-select {
+  position: relative;
+  min-width: 132px;
+  width: 100%;
+  color: #effbff;
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 12px;
+}
+
+.history-aggregation-trigger {
+  width: 100%;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid rgba(56, 189, 248, .42);
+  border-radius: 10px;
+  padding: 7px 10px;
+  background: linear-gradient(135deg, rgba(14, 165, 233, .14), rgba(3, 15, 28, .96));
+  color: #effbff;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+}
+
+.history-aggregation-trigger svg {
+  flex: 0 0 auto;
+  transition: transform .18s ease;
+}
+
+.history-aggregation-trigger[aria-expanded='true'] svg {
+  transform: rotate(180deg);
+}
+
+.history-aggregation-trigger:hover {
+  border-color: rgba(56, 189, 248, .68);
+  background: linear-gradient(135deg, rgba(14, 165, 233, .22), rgba(3, 15, 28, .98));
+}
+
+.history-aggregation-trigger:focus-visible {
+  outline: none;
+  border-color: rgba(56, 189, 248, .9);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, .2), inset 0 1px 0 rgba(255,255,255,.05);
+}
+
+.history-aggregation-menu {
+  position: absolute;
+  z-index: 120;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  display: grid;
+  gap: 3px;
+  min-width: 156px;
+  padding: 6px;
+  border: 1px solid rgba(56, 189, 248, .42);
+  border-radius: 12px;
+  background: #071827;
+  box-shadow: 0 18px 42px rgba(0, 0, 0, .48), inset 0 1px 0 rgba(255,255,255,.04);
+}
+
+.history-aggregation-option {
+  width: 100%;
+  min-height: 36px;
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #071827;
+  color: #effbff;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.history-aggregation-option:hover,
+.history-aggregation-option:focus-visible {
+  outline: none;
+  background: #0b3c52;
+  color: #ffffff;
+}
+
+.history-aggregation-option.is-selected,
+.history-aggregation-option[aria-selected='true'] {
+  background: #0e7490;
+  color: #ffffff;
+  box-shadow: inset 3px 0 0 #67e8f9;
+}
+
+/* Historical chart tooltip: local two-column layout */
+.water-history-tooltip {
+  box-sizing: border-box;
+  min-width: 290px;
+  width: max-content;
+  max-width: min(340px, calc(100vw - 32px));
+  padding: 14px 16px;
+  overflow: hidden;
+}
+
+.water-history-tooltip .chart-tooltip-label,
+.water-history-tooltip-heading {
+  display: grid;
+  gap: 3px;
+  margin-bottom: 12px;
+  line-height: 1.35;
+  white-space: normal;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.water-history-tooltip-date {
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.water-history-tooltip-interval {
+  color: #a9dff3;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.water-history-tooltip .chart-tooltip-list {
+  display: grid;
+  gap: 9px;
+}
+
+.water-history-tooltip .chart-tooltip-row {
+  display: grid;
+  grid-template-columns: minmax(125px, 1fr) minmax(90px, auto);
+  align-items: start;
+  gap: 16px;
+}
+
+.water-history-tooltip .chart-tooltip-name {
+  min-width: 0;
+  color: #b7d7e6;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.water-history-tooltip .chart-tooltip-value {
+  min-width: 0;
+  max-width: 174px;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.35;
+  text-align: right;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .water-history-tooltip {
+    min-width: 220px;
+    width: min(280px, calc(100vw - 32px));
+    max-width: calc(100vw - 32px);
+  }
+
+  .water-history-tooltip .chart-tooltip-row {
+    grid-template-columns: 1fr;
+    gap: 3px;
+  }
+
+  .water-history-tooltip .chart-tooltip-value {
+    max-width: none;
+    text-align: left;
+  }
+}
+
+/* Durango homologacion 04: historico modular completo. */
+.module-history-export-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.module-history-export-actions .report-action-button{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:38px}
+.module-history-excel-button{border-color:rgba(34,197,94,.45)!important;background:rgba(22,101,52,.9)!important;color:#f0fdf4!important}
+.module-history-excel-button:hover:not(:disabled),.module-history-excel-button:focus-visible:not(:disabled){border-color:rgba(134,239,172,.8)!important;background:rgba(21,128,61,.98)!important}
+.module-history-totalizer-control{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:2px 0 12px;padding:10px 12px;border:1px solid rgba(125,211,252,.16);border-radius:14px;background:rgba(3,21,34,.5)}
+.module-history-totalizer-control>span{color:#9ddcf2;font-size:12px;font-weight:800;letter-spacing:.04em}
+@media(max-width:720px){.module-history-export-actions{width:100%}.module-history-export-actions .report-action-button{flex:1}.module-history-totalizer-control{align-items:stretch}.module-history-totalizer-control .module-metric-selector{width:100%}}
+
+/* Durango 18D — controles y graficas claras migrados desde 11E. */
+.pozos-shell.theme-light .history-aggregation-menu {
+  background: #ffffff !important;
+  border-color: #8ebed8 !important;
+  box-shadow: 0 14px 32px rgba(20, 74, 108, .16) !important;
+}
+
+.pozos-shell.theme-light .history-aggregation-option {
+  color: #163a5f !important;
+  background: #ffffff !important;
+}
+
+.pozos-shell.theme-light .history-aggregation-option:hover,
+.pozos-shell.theme-light .history-aggregation-option:focus-visible {
+  color: #0b1f3a !important;
+  background: #eaf6fd !important;
+}
+
+.pozos-shell.theme-light .history-aggregation-option.is-selected,
+.pozos-shell.theme-light .history-aggregation-option[aria-selected='true'] {
+  color: #ffffff !important;
+  background: #0b4f7a !important;
+  box-shadow: inset 3px 0 0 #38bdf8 !important;
+}
+
+/* Selector Flujo / Totalizador / Ambos: claro real, sin heredar la capsula oscura. */
+.pozos-shell.theme-light .module-metric-selector {
+  background: #eaf6fd !important;
+  border-color: #9fc5da !important;
+  box-shadow: none !important;
+}
+
+.pozos-shell.theme-light .module-metric-selector button {
+  color: #163a5f !important;
+  background: transparent !important;
+  border-color: transparent !important;
+}
+
+.pozos-shell.theme-light .module-metric-selector button:hover,
+.pozos-shell.theme-light .module-metric-selector button:focus-visible {
+  color: #0b1f3a !important;
+  background: #d8edf8 !important;
+  border-color: #8ebed8 !important;
+}
+
+.pozos-shell.theme-light .module-metric-selector button.active {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #0b4f7a, #0d6a9f) !important;
+  border-color: #0b4f7a !important;
+  box-shadow: 0 6px 14px rgba(11, 79, 122, .16) !important;
+}
+
+.pozos-shell.theme-light .module-selection-heading {
+  color: #234a70 !important;
+}
+
+.pozos-shell.theme-light .module-selection-heading button {
+  color: #0369a1 !important;
+  background: transparent !important;
+}
+
+.pozos-shell.theme-light .module-selection-heading button:hover,
+.pozos-shell.theme-light .module-selection-heading button:focus-visible {
+  color: #0b4f7a !important;
+  background: #eaf6fd !important;
+  border-color: #8ebed8 !important;
+}
+
+.pozos-shell.theme-light .module-history-tab,
+.pozos-shell.theme-light .sensor-chip,
+.pozos-shell.theme-light .minute-flow-selection .sensor-chip {
+  color: #164e70 !important;
+  background: #ffffff !important;
+  border-color: #9fc5da !important;
+}
+
+.pozos-shell.theme-light .module-history-tab:hover,
+.pozos-shell.theme-light .sensor-chip:hover,
+.pozos-shell.theme-light .minute-flow-selection .sensor-chip:hover {
+  color: #0b1f3a !important;
+  background: #eaf6fd !important;
+  border-color: #6faac9 !important;
+}
+
+.pozos-shell.theme-light .module-history-tab.active,
+.pozos-shell.theme-light .sensor-chip.active,
+.pozos-shell.theme-light .minute-flow-selection .sensor-chip.active {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #0284c7, #0b4f7a) !important;
+  border-color: #0b4f7a !important;
+}
+
+/* Graficas claras: grid, ejes y leyendas con contraste suficiente. */
+.pozos-shell.theme-light .recharts-cartesian-grid line,
+.pozos-shell.theme-light .recharts-cartesian-grid-horizontal line,
+.pozos-shell.theme-light .recharts-cartesian-grid-vertical line {
+  stroke: rgba(31, 78, 112, .28) !important;
+  stroke-width: 1 !important;
+}
+
+.pozos-shell.theme-light .recharts-cartesian-axis-line,
+.pozos-shell.theme-light .recharts-cartesian-axis-tick-line {
+  stroke: #6f8fa6 !important;
+}
+
+.pozos-shell.theme-light .recharts-cartesian-axis-tick-value,
+.pozos-shell.theme-light .recharts-text,
+.pozos-shell.theme-light .recharts-label {
+  fill: #334e68 !important;
+}
+
+.pozos-shell.theme-light .recharts-legend-item-text {
+  color: #234a70 !important;
+  font-weight: 700 !important;
+}
+
+.pozos-shell.theme-light .recharts-reference-line-line,
+.pozos-shell.theme-light .recharts-reference-dot circle {
+  stroke: #52758d !important;
+}
+
+/* Las barras de volumen deben conservarse visibles sobre fondo blanco. */
+.pozos-shell.theme-light .module-history-panel .recharts-bar-rectangle path {
+  opacity: .86;
+}

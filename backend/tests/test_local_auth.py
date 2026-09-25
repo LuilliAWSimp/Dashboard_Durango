@@ -276,23 +276,70 @@ class LocalAuthTests(unittest.TestCase):
         self.assertEqual(client.get('/api/v1/dashboard', headers={'Origin': ORIGIN}).status_code, 401)
         self.assertEqual(client.get('/api/v1/dashboard', headers={'Origin': ORIGIN, BROWSER_SESSION_HEADER: 'incorrecto'}).status_code, 401)
 
-    def test_cookie_auxiliar_sola_no_restaura_sesion_https(self):
+    def test_cookie_auxiliar_permite_recuperar_binding_solo_en_auth_me(self):
         result = self.service.authenticate(username='adminlocal', password=ADMIN_PASSWORD)
         client = TestClient(self.build_app())
         client.cookies.set(COOKIE_NAME, result.token)
         client.cookies.set(BROWSER_COOKIE_NAME, result.browser_session)
 
-        # En web normal la cookie auxiliar no sustituye al estado vivo del
-        # frontend. Sin X-ARCA-Browser-Session debe volver a login.
+        # Una ruta operativa sigue exigiendo el binding explícito por header.
         response = client.get('/api/v1/dashboard', headers={'Origin': ORIGIN})
         self.assertEqual(response.status_code, 401)
 
-        # Una pestaña activa sí envía el binding compartido por header.
+        # /auth/me es la única verificación autoritativa que puede recuperar
+        # el binding desde la cookie HttpOnly si localStorage se perdió.
+        recovered = client.get('/api/v1/auth/me', headers={'Origin': ORIGIN})
+        self.assertEqual(recovered.status_code, 200)
+        self.assertEqual(recovered.json()['browser_session'], result.browser_session)
+
         response = client.get(
             '/api/v1/dashboard',
-            headers={'Origin': ORIGIN, BROWSER_SESSION_HEADER: result.browser_session},
+            headers={'Origin': ORIGIN, BROWSER_SESSION_HEADER: recovered.json()['browser_session']},
         )
         self.assertEqual(response.status_code, 200)
+
+
+    def test_diagnostico_de_rechazo_de_sesion(self):
+        result = self.service.authenticate(username='adminlocal', password=ADMIN_PASSWORD)
+
+        session, reason = self.service.get_session_with_reason('token-inexistente', result.browser_session)
+        self.assertIsNone(session)
+        self.assertEqual(reason, 'session_not_found')
+
+        session, reason = self.service.get_session_with_reason(result.token, None)
+        self.assertIsNone(session)
+        self.assertEqual(reason, 'browser_session_missing')
+
+        session, reason = self.service.get_session_with_reason(result.token, 'binding-incorrecto')
+        self.assertIsNone(session)
+        self.assertEqual(reason, 'browser_session_mismatch')
+
+        self.service.revoke_session(1)
+        session, reason = self.service.get_session_with_reason(result.token, result.browser_session)
+        self.assertIsNone(session)
+        self.assertEqual(reason, 'session_revoked')
+
+        fresh = self.service.authenticate(username='adminlocal', password=ADMIN_PASSWORD)
+        fresh_hash = hashlib.sha256(fresh.token.encode()).hexdigest()
+        with self.service.database.connect() as connection:
+            connection.execute(
+                'UPDATE sessions SET last_activity_at = ? WHERE token_hash = ?',
+                (iso(utc_now() - timedelta(hours=9)), fresh_hash),
+            )
+        session, reason = self.service.get_session_with_reason(fresh.token, fresh.browser_session)
+        self.assertIsNone(session)
+        self.assertEqual(reason, 'session_idle_expired')
+
+        absolute = self.service.authenticate(username='adminlocal', password=ADMIN_PASSWORD)
+        absolute_hash = hashlib.sha256(absolute.token.encode()).hexdigest()
+        with self.service.database.connect() as connection:
+            connection.execute(
+                'UPDATE sessions SET created_at = ? WHERE token_hash = ?',
+                (iso(utc_now() - timedelta(hours=13)), absolute_hash),
+            )
+        session, reason = self.service.get_session_with_reason(absolute.token, absolute.browser_session)
+        self.assertIsNone(session)
+        self.assertEqual(reason, 'session_absolute_expired')
 
     def test_multiples_pestanas_comparten_sesion_y_csrf_estable(self):
         first, result = self.session_client()
@@ -368,6 +415,65 @@ class LocalAuthTests(unittest.TestCase):
         with self.service.database.connect() as connection:
             touched = connection.execute('SELECT last_activity_at FROM sessions WHERE token_hash = ?', (token_hash,)).fetchone()['last_activity_at']
         self.assertNotEqual(old, touched)
+
+    def test_cambio_propio_conserva_sesion_actual_y_revoca_otras(self):
+        user = self.service.create_user(
+            username='viewerpass',
+            display_name='Viewer Password',
+            password=VIEWER_PASSWORD,
+            role='viewer',
+        )
+        current_client, current_session = self.session_client('viewerpass', VIEWER_PASSWORD)
+        other_session = self.service.authenticate(username='viewerpass', password=VIEWER_PASSWORD)
+
+        response = current_client.post(
+            '/api/v1/auth/change-password',
+            json={
+                'current_password': VIEWER_PASSWORD,
+                'new_password': 'NuevaConsulta2026!',
+            },
+            headers={CSRF_HEADER: current_session.csrf_token},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['other_sessions_revoked'], 1)
+        self.assertEqual(current_client.get('/api/v1/dashboard').status_code, 200)
+        self.assertIsNotNone(self.service.get_session(current_session.token, current_session.browser_session))
+        self.assertIsNone(self.service.get_session(other_session.token, other_session.browser_session))
+
+        with self.assertRaises(InvalidCredentialsError):
+            self.service.authenticate(username='viewerpass', password=VIEWER_PASSWORD)
+        fresh = self.service.authenticate(username='viewerpass', password='NuevaConsulta2026!')
+        self.assertIsNotNone(self.service.get_session(fresh.token, fresh.browser_session))
+
+        with self.service.database.connect() as connection:
+            audit = connection.execute(
+                "SELECT action, details FROM auth_audit WHERE target_user_id = ? ORDER BY id DESC LIMIT 1",
+                (user['id'],),
+            ).fetchone()
+        self.assertEqual(audit['action'], 'login_success')
+
+    def test_cambio_propio_exige_password_actual_y_csrf(self):
+        self.service.create_user(
+            username='operatorpass',
+            display_name='Operator Password',
+            password=OPERATOR_PASSWORD,
+            role='operator',
+        )
+        client, session = self.session_client('operatorpass', OPERATOR_PASSWORD)
+
+        without_csrf = client.post(
+            '/api/v1/auth/change-password',
+            json={'current_password': OPERATOR_PASSWORD, 'new_password': 'NuevaOperador2026!'},
+        )
+        self.assertEqual(without_csrf.status_code, 403)
+
+        wrong_current = client.post(
+            '/api/v1/auth/change-password',
+            json={'current_password': 'Incorrecta2026!', 'new_password': 'NuevaOperador2026!'},
+            headers={CSRF_HEADER: session.csrf_token},
+        )
+        self.assertEqual(wrong_current.status_code, 400)
+        self.assertEqual(client.get('/api/v1/dashboard').status_code, 200)
 
     def test_reset_desactivar_y_revocar_invalidan_sesiones(self):
         user = self.service.create_user(username='operator2', display_name='Operador', password=OPERATOR_PASSWORD, role='operator')

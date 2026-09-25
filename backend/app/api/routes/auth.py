@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from app.auth.dependencies import require_roles
 from app.auth.service import (
     AccountLockedError,
+    CurrentPasswordMismatchError,
     DuplicateUserError,
     InactiveUserError,
     InvalidCredentialsError,
@@ -21,6 +22,7 @@ from app.schemas.auth import (
     LoginRequest,
     LoginResponse,
     MeResponse,
+    PasswordChangeRequest,
     PasswordResetRequest,
     SetupStatusResponse,
     UserCreateRequest,
@@ -224,6 +226,7 @@ def me(request: Request):
         user=AuthUser(**session['user']),
         csrf_token=request.app.state.auth_service.csrf_token_for_session(session),
         expires_at=session['expires_at'],
+        browser_session=getattr(request.state, 'auth_browser_session', None),
     )
 
 
@@ -241,6 +244,30 @@ def logout(request: Request, response: Response):
             samesite=None if legacy_local_http else settings.auth_cookie_samesite,
         )
     return {'message': 'Sesión cerrada.'}
+
+
+@router.post('/change-password')
+def change_password(payload: PasswordChangeRequest, request: Request):
+    actor = request.state.auth_user
+    session = request.state.auth_session
+    try:
+        revoked_count = request.app.state.auth_service.change_password(
+            int(actor['id']),
+            current_session_id=int(session['id']),
+            current_password=payload.current_password,
+            new_password=payload.new_password,
+            ip_address=_client_ip(request),
+        )
+    except CurrentPasswordMismatchError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except UserNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {
+        'message': 'Contraseña actualizada. La sesión actual permanece activa.',
+        'other_sessions_revoked': revoked_count,
+    }
 
 
 @router.get('/users', response_model=list[AuthUser], dependencies=[_admin_required])

@@ -186,6 +186,7 @@ def build_module_history_pdf(payload: dict[str, Any]) -> tuple[bytes, str]:
     aggregation_label = _text(payload.get('aggregation_label'), '15 min')
     start_date = _text(payload.get('start_date'))
     end_date = _text(payload.get('end_date'), start_date)
+    range_label = _text(payload.get('range_label'), f'{start_date} a {end_date}')
     selected_names = [_text(item) for item in (payload.get('selected_names') or []) if _text(item)]
     rows = [item for item in (payload.get('rows') or []) if isinstance(item, dict)][:MAX_ROWS]
     series = [item for item in (payload.get('series') or []) if isinstance(item, dict)][:MAX_SERIES]
@@ -236,7 +237,7 @@ def build_module_history_pdf(payload: dict[str, Any]) -> tuple[bytes, str]:
                 Paragraph(f'Historico operativo por modulo - {module_label}', title_style),
                 Paragraph(f'{metric_label} - {aggregation_label}', meta_style),
             ],
-            Paragraph(f'<b>Rango</b><br/>{start_date} a {end_date}<br/><b>Elementos</b><br/>{", ".join(selected_names)}', meta_style),
+            Paragraph(f'<b>Rango</b><br/>{range_label}<br/><b>Elementos</b><br/>{", ".join(selected_names)}', meta_style),
         ]
     ], colWidths=[178 * mm, 85 * mm])
     header.setStyle(TableStyle([

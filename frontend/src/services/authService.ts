@@ -17,7 +17,13 @@ export interface LoginResponse {
 export interface CurrentSessionResponse {
   user: User;
   csrf_token: string;
+  browser_session?: string | null;
   local_session_token?: string | null;
+}
+
+export interface ChangePasswordResponse {
+  message: string;
+  other_sessions_revoked: number;
 }
 
 export interface CreateUserPayload {
@@ -48,7 +54,11 @@ export async function login(username: string, password: string): Promise<LoginRe
 
 export async function getCurrentSession(): Promise<CurrentSessionResponse> {
   const { data } = await api.get<CurrentSessionResponse>('/auth/me');
-  setCsrfToken(data.csrf_token);
+  if (data.browser_session) {
+    setAuthSession(data.browser_session, data.csrf_token, { broadcast: false });
+  } else {
+    setCsrfToken(data.csrf_token);
+  }
   return data;
 }
 
@@ -58,6 +68,14 @@ export async function logout(): Promise<void> {
   } finally {
     clearAuthSession({ broadcast: true, notify: true });
   }
+}
+
+export async function changeOwnPassword(currentPassword: string, newPassword: string): Promise<ChangePasswordResponse> {
+  const { data } = await api.post<ChangePasswordResponse>('/auth/change-password', {
+    current_password: currentPassword,
+    new_password: newPassword,
+  });
+  return data;
 }
 
 export async function listUsers(): Promise<User[]> {

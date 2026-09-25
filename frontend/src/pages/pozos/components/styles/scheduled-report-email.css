@@ -1,0 +1,219 @@
+.scheduled-email-toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.scheduled-email-toolbar > .report-action-button {
+  flex: 0 0 auto;
+}
+
+.scheduled-email-delivery-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 8px;
+  font-size: 0.86rem;
+}
+
+.scheduled-email-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(3, 18, 31, 0.64);
+  backdrop-filter: blur(4px);
+}
+
+.scheduled-email-modal {
+  width: min(760px, 100%);
+  max-height: calc(100vh - 40px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(125, 211, 252, 0.24);
+  border-radius: 18px;
+  background: #0d2538;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.36);
+  color: #f8fbff;
+}
+
+.scheduled-email-modal-header,
+.scheduled-email-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+}
+
+.scheduled-email-modal-header {
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.scheduled-email-modal-header h3 {
+  margin: 3px 0 0;
+}
+
+.scheduled-email-modal-close {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 10px;
+  background: rgba(15, 46, 68, 0.8);
+  color: inherit;
+  cursor: pointer;
+}
+
+.scheduled-email-modal-body {
+  display: grid;
+  gap: 16px;
+  min-height: 0;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.scheduled-email-modal-footer {
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.scheduled-email-modal-footer > div {
+  display: flex;
+  gap: 10px;
+}
+
+.scheduled-email-period-selector {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.scheduled-email-period-selector legend {
+  grid-column: 1 / -1;
+  margin-bottom: 4px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.scheduled-email-period-selector label {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 10px;
+  align-items: center;
+  padding: 13px 14px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.scheduled-email-period-selector label.is-selected {
+  border-color: rgba(56, 189, 248, 0.72);
+  background: rgba(14, 116, 144, 0.22);
+}
+
+.scheduled-email-period-selector label span {
+  grid-column: 2;
+  opacity: 0.78;
+  font-size: 0.82rem;
+}
+
+.scheduled-email-time-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.scheduled-email-time-grid > :only-child {
+  grid-column: 1 / -1;
+}
+
+.scheduled-email-history-modal {
+  width: min(820px, 100%);
+}
+
+.scheduled-email-history-list {
+  display: grid;
+  gap: 10px;
+}
+
+.scheduled-email-history-item {
+  padding: 13px 14px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 12px;
+  background: rgba(12, 39, 58, 0.72);
+}
+
+.scheduled-email-history-item > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.scheduled-email-history-item p {
+  margin: 6px 0 0;
+  font-size: 0.84rem;
+  opacity: 0.82;
+}
+
+.scheduled-email-modal-backdrop.theme-light .scheduled-email-modal {
+  border-color: rgba(2, 132, 199, 0.24);
+  background: #ffffff;
+  color: #102f48;
+  box-shadow: 0 24px 70px rgba(15, 45, 70, 0.2);
+}
+
+.scheduled-email-modal-backdrop.theme-light .scheduled-email-modal-close,
+.scheduled-email-modal-backdrop.theme-light .scheduled-email-history-item {
+  border-color: rgba(2, 132, 199, 0.18);
+  background: #eef8ff;
+  color: #102f48;
+}
+
+.scheduled-email-modal-backdrop.theme-light .scheduled-email-period-selector label {
+  border-color: rgba(2, 132, 199, 0.2);
+  background: #ffffff;
+}
+
+.scheduled-email-modal-backdrop.theme-light .scheduled-email-period-selector label.is-selected {
+  border-color: rgba(2, 132, 199, 0.62);
+  background: #e7f6ff;
+}
+
+@media (max-width: 760px) {
+  .scheduled-email-toolbar,
+  .scheduled-email-modal-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .scheduled-email-toolbar > .report-action-button,
+  .scheduled-email-modal-footer > div,
+  .scheduled-email-modal-footer button {
+    width: 100%;
+  }
+
+  .scheduled-email-period-selector,
+  .scheduled-email-time-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .scheduled-email-modal-backdrop {
+    padding: 8px;
+  }
+
+  .scheduled-email-modal {
+    max-height: calc(100vh - 16px);
+  }
+}

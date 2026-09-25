@@ -6,7 +6,7 @@ import sqlite3
 import threading
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -79,6 +79,8 @@ def initialize_report_email_scheduler_storage() -> None:
                 cc_json TEXT NOT NULL DEFAULT '[]',
                 timezone TEXT NOT NULL,
                 send_delay_minutes INTEGER NOT NULL DEFAULT 10,
+                send_time_local TEXT,
+                send_time_local_2 TEXT,
                 subject TEXT,
                 message TEXT,
                 created_by_user_id TEXT,
@@ -111,6 +113,92 @@ def initialize_report_email_scheduler_storage() -> None:
             """
         )
 
+        columns = {str(row['name']) for row in conn.execute('PRAGMA table_info(report_email_schedules)').fetchall()}
+        if 'send_time_local' not in columns:
+            conn.execute('ALTER TABLE report_email_schedules ADD COLUMN send_time_local TEXT')
+        if 'send_time_local_2' not in columns:
+            conn.execute('ALTER TABLE report_email_schedules ADD COLUMN send_time_local_2 TEXT')
+
+        rows = conn.execute(
+            """
+            SELECT id, period_mode, send_delay_minutes, send_time_local, send_time_local_2
+            FROM report_email_schedules
+            """
+        ).fetchall()
+        for row in rows:
+            first, second = _resolved_delivery_times(dict(row))
+            conn.execute(
+                """
+                UPDATE report_email_schedules
+                SET send_time_local = ?, send_time_local_2 = ?
+                WHERE id = ?
+                """,
+                (first, second, row['id']),
+            )
+
+
+
+def _clock_text(value: Any) -> str | None:
+    text = str(value or '').strip()
+    if not text:
+        return None
+    try:
+        parsed = datetime.strptime(text, '%H:%M')
+    except ValueError as exc:
+        raise ReportScheduleError('El horario debe usar formato HH:MM de 00:00 a 23:59.') from exc
+    return parsed.strftime('%H:%M')
+
+
+def _clock_value(value: str) -> time:
+    return datetime.strptime(value, '%H:%M').time()
+
+
+def _time_after_close(close_at: datetime, clock_text: str) -> datetime:
+    due_at = datetime.combine(close_at.date(), _clock_value(clock_text))
+    if due_at < close_at:
+        due_at += timedelta(days=1)
+    return due_at
+
+
+def _legacy_delivery_times(period_mode: str, delay_minutes: int) -> tuple[str, str | None]:
+    delay = timedelta(minutes=max(int(delay_minutes), 0))
+    if period_mode == 'fixed_12h_blocks':
+        first = (datetime.combine(datetime.today().date(), time(hour=12)) + delay).strftime('%H:%M')
+        second = (datetime.combine(datetime.today().date(), time.min) + delay).strftime('%H:%M')
+        return first, second
+    first = (datetime.combine(datetime.today().date(), time.min) + delay).strftime('%H:%M')
+    return first, None
+
+
+def _resolved_delivery_times(schedule: dict[str, Any]) -> tuple[str, str | None]:
+    mode = str(schedule.get('period_mode') or 'previous_calendar_day_24h')
+    delay = int(schedule.get('send_delay_minutes') or settings.report_email_send_delay_minutes)
+    legacy_first, legacy_second = _legacy_delivery_times(mode, delay)
+    first = _clock_text(schedule.get('send_time_local')) or legacy_first
+    if mode == 'fixed_12h_blocks':
+        second = _clock_text(schedule.get('send_time_local_2')) or legacy_second or '00:10'
+        return first, second
+    return first, None
+
+
+def _periods_for_day(schedule: dict[str, Any], day) -> list[ScheduledPeriod]:
+    mode = str(schedule.get('period_mode'))
+    first_time, second_time = _resolved_delivery_times(schedule)
+    start = datetime.combine(day, time.min)
+    if mode == 'previous_calendar_day_24h':
+        end = start + timedelta(days=1)
+        due_at = datetime.combine(end.date(), _clock_value(first_time))
+        return [ScheduledPeriod(start=start, end=end, due_at=due_at, mode=mode)]
+    if mode == 'fixed_12h_blocks':
+        end_a = start + timedelta(hours=12)
+        end_b = start + timedelta(days=1)
+        due_a = _time_after_close(end_a, first_time)
+        due_b = _time_after_close(end_b, second_time or '00:10')
+        return [
+            ScheduledPeriod(start=start, end=end_a, due_at=due_a, mode=mode),
+            ScheduledPeriod(start=end_a, end=end_b, due_at=due_b, mode=mode),
+        ]
+    raise ReportScheduleError('Modo de periodo no soportado.')
 
 def _json_list(value: Any) -> list[str]:
     if value is None:
@@ -182,6 +270,13 @@ def create_report_email_schedule(payload: dict[str, Any], created_by: str = 'pen
     now = datetime.now(LOCAL_ZONE).replace(tzinfo=None).isoformat(timespec='seconds')
     schedule_id = str(uuid.uuid4())
     delay = int(payload.get('send_delay_minutes') or settings.report_email_send_delay_minutes)
+    period_mode = str(payload.get('period_mode') or 'previous_calendar_day_24h')
+    first_time, second_time = _resolved_delivery_times({
+        'period_mode': period_mode,
+        'send_delay_minutes': delay,
+        'send_time_local': payload.get('send_time_local'),
+        'send_time_local_2': payload.get('send_time_local_2'),
+    })
     formats = sorted({str(item).lower() for item in payload.get('formats') or [] if str(item).lower() in {'pdf', 'excel'}})
     recipients = sorted({str(item).strip() for item in payload.get('recipients') or [] if str(item).strip()})
     cc = sorted({str(item).strip() for item in payload.get('cc') or [] if str(item).strip()})
@@ -194,20 +289,22 @@ def create_report_email_schedule(payload: dict[str, Any], created_by: str = 'pen
             """
             INSERT INTO report_email_schedules (
                 id, name, enabled, period_mode, formats_json, recipients_json, cc_json,
-                timezone, send_delay_minutes, subject, message, created_by_user_id,
-                created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                timezone, send_delay_minutes, send_time_local, send_time_local_2,
+                subject, message, created_by_user_id, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 schedule_id,
                 str(payload.get('name') or 'Reporte programado').strip(),
                 1 if payload.get('enabled', True) else 0,
-                str(payload.get('period_mode') or 'previous_calendar_day_24h'),
+                period_mode,
                 json.dumps(formats, ensure_ascii=False),
                 json.dumps(recipients, ensure_ascii=False),
                 json.dumps(cc, ensure_ascii=False),
                 LOCAL_TIMEZONE,
                 delay,
+                first_time,
+                second_time,
                 payload.get('subject'),
                 payload.get('message'),
                 created_by,
@@ -235,6 +332,21 @@ def update_report_email_schedule(schedule_id: str, payload: dict[str, Any]) -> d
             if key == 'enabled':
                 value = 1 if bool(value) else 0
             updates[column] = value
+
+    desired_mode = str(payload.get('period_mode') or current.get('period_mode') or 'previous_calendar_day_24h')
+    desired_delay = int(payload.get('send_delay_minutes') or current.get('send_delay_minutes') or settings.report_email_send_delay_minutes)
+    mode_changed = 'period_mode' in payload and desired_mode != str(current.get('period_mode'))
+    first_input = payload.get('send_time_local') if 'send_time_local' in payload else (None if mode_changed else current.get('send_time_local'))
+    second_input = payload.get('send_time_local_2') if 'send_time_local_2' in payload else (None if mode_changed else current.get('send_time_local_2'))
+    first_time, second_time = _resolved_delivery_times({
+        'period_mode': desired_mode,
+        'send_delay_minutes': desired_delay,
+        'send_time_local': first_input,
+        'send_time_local_2': second_input,
+    })
+    updates['send_time_local'] = first_time
+    updates['send_time_local_2'] = second_time
+
     if payload.get('formats') is not None:
         formats = sorted({str(item).lower() for item in payload['formats'] if str(item).lower() in {'pdf', 'excel'}})
         if not formats:
@@ -247,8 +359,6 @@ def update_report_email_schedule(schedule_id: str, payload: dict[str, Any]) -> d
         updates['recipients_json'] = json.dumps(recipients, ensure_ascii=False)
     if payload.get('cc') is not None:
         updates['cc_json'] = json.dumps(sorted({str(item).strip() for item in payload['cc'] if str(item).strip()}), ensure_ascii=False)
-    if not updates:
-        return current
     updates['updated_at'] = datetime.now(LOCAL_ZONE).replace(tzinfo=None).isoformat(timespec='seconds')
     assignments = ', '.join(f'{column} = ?' for column in updates)
     params = [*updates.values(), schedule_id]
@@ -286,72 +396,48 @@ def list_report_email_runs(schedule_id: str, limit: int = 20) -> list[dict[str, 
 
 
 def _candidate_periods(schedule: dict[str, Any], now: datetime) -> list[ScheduledPeriod]:
-    delay = timedelta(minutes=int(schedule.get('send_delay_minutes') or settings.report_email_send_delay_minutes))
-    mode = str(schedule.get('period_mode'))
     today = now.date()
     candidates: list[ScheduledPeriod] = []
-    if mode == 'previous_calendar_day_24h':
-        for days_back in (2, 1):
-            report_day = today - timedelta(days=days_back)
-            start = datetime.combine(report_day, datetime.min.time())
-            end = start + timedelta(days=1)
-            candidates.append(ScheduledPeriod(start=start, end=end, due_at=end + delay, mode=mode))
-    elif mode == 'fixed_12h_blocks':
-        for days_back in (1, 0):
-            day = today - timedelta(days=days_back)
-            start_a = datetime.combine(day, datetime.min.time())
-            end_a = start_a + timedelta(hours=12)
-            start_b = end_a
-            end_b = start_a + timedelta(days=1)
-            candidates.extend([
-                ScheduledPeriod(start=start_a, end=end_a, due_at=end_a + delay, mode=mode),
-                ScheduledPeriod(start=start_b, end=end_b, due_at=end_b + delay, mode=mode),
-            ])
-    else:
-        raise ReportScheduleError('Modo de periodo no soportado.')
+    for day_offset in (-2, -1, 0):
+        candidates.extend(_periods_for_day(schedule, today + timedelta(days=day_offset)))
     return sorted(candidates, key=lambda item: item.due_at)
 
 
 def _latest_closed_period(schedule: dict[str, Any], now: datetime) -> ScheduledPeriod:
     """Latest physically closed period for the explicit "Enviar ahora" action.
 
-    Manual testing intentionally ignores the configured delivery delay; the delay
+    Manual testing intentionally ignores the configured delivery clock; the clock
     only governs automatic execution.
     """
     mode = str(schedule.get('period_mode'))
-    delay = timedelta(minutes=int(schedule.get('send_delay_minutes') or settings.report_email_send_delay_minutes))
-    midnight = datetime.combine(now.date(), datetime.min.time())
+    midnight = datetime.combine(now.date(), time.min)
     if mode == 'previous_calendar_day_24h':
         end = midnight
         start = end - timedelta(days=1)
-        return ScheduledPeriod(start=start, end=end, due_at=end + delay, mode=mode)
+        configured = _periods_for_day(schedule, start.date())[0]
+        return ScheduledPeriod(start=start, end=end, due_at=configured.due_at, mode=mode)
     if mode == 'fixed_12h_blocks':
         if now.hour >= 12:
             start = midnight
             end = midnight + timedelta(hours=12)
+            configured = _periods_for_day(schedule, start.date())[0]
         else:
             end = midnight
             start = end - timedelta(hours=12)
-        return ScheduledPeriod(start=start, end=end, due_at=end + delay, mode=mode)
+            configured = _periods_for_day(schedule, start.date())[1]
+        return ScheduledPeriod(start=start, end=end, due_at=configured.due_at, mode=mode)
     raise ReportScheduleError('Modo de periodo no soportado.')
 
 
 def _next_run_at(schedule: dict[str, Any], now: datetime) -> datetime:
-    mode = str(schedule.get('period_mode'))
-    delay = timedelta(minutes=int(schedule.get('send_delay_minutes') or settings.report_email_send_delay_minutes))
-    midnight = datetime.combine(now.date(), datetime.min.time())
-    if mode == 'previous_calendar_day_24h':
-        candidate = midnight + delay
-        if candidate <= now:
-            candidate += timedelta(days=1)
-        return candidate
-    if mode == 'fixed_12h_blocks':
-        noon = midnight + timedelta(hours=12) + delay
-        night = midnight + timedelta(days=1) + delay
-        if now < noon:
-            return noon
-        return night
-    return midnight + timedelta(days=1) + delay
+    today = now.date()
+    candidates: list[ScheduledPeriod] = []
+    for day_offset in (-1, 0, 1):
+        candidates.extend(_periods_for_day(schedule, today + timedelta(days=day_offset)))
+    future = sorted((item.due_at for item in candidates if item.due_at > now))
+    if future:
+        return future[0]
+    return min(item.due_at for item in _periods_for_day(schedule, today + timedelta(days=2)))
 
 
 def _default_subject(schedule: dict[str, Any], period: ScheduledPeriod) -> str:

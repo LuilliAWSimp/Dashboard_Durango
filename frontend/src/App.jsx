@@ -6,11 +6,29 @@ import { DASHBOARD_TITLE, PLANT_NAME } from './config/plant';
 import Sidebar from './components/Sidebar';
 import LoginPage from './pages/LoginPage';
 import PozosDashboardPage from './pages/PozosDashboardPage';
-import { getCurrentSession, hasBrowserSession, logout } from './services/authService';
+import { getCurrentSession, logout } from './services/authService';
 import { fetchWaterDashboard } from './services/waterService';
 import { NotificationProvider } from './pages/pozos/components/NotificationCenter';
 
 const DEFAULT_POZOS_SECTION = 'dashboard';
+
+function sleep(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+async function restoreCurrentSessionWithRetry(maxAttempts = 3) {
+  let lastError;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await getCurrentSession();
+    } catch (error) {
+      lastError = error;
+      if (error?.response?.status === 401) throw error;
+      if (attempt < maxAttempts) await sleep(250 * attempt);
+    }
+  }
+  throw lastError;
+}
 const DURANGO_THEME_STORAGE_KEY = 'arca-durango-theme';
 
 function getStoredDurangoTheme() {
@@ -94,9 +112,9 @@ function Shell({ user, onLogout, sidebarProps, children, headerMeta, shellClass 
 
   return (
     <div className={`app-shell ${shellClass} theme-${theme}`.trim()} data-theme={theme}>
-      <Sidebar {...sidebarProps} theme={theme} onThemeToggle={onThemeToggle} />
+      <Sidebar {...sidebarProps} theme={theme} onThemeToggle={onThemeToggle} user={user} onLogout={onLogout} />
       <div className="main-shell">
-        <Header title={headerMeta.title} subtitle={headerMeta.subtitle} now={clock} onExport={headerMeta.onExport} onEmail={headerMeta.onEmail} user={user} onLogout={onLogout} />
+        <Header title={headerMeta.title} subtitle={headerMeta.subtitle} now={clock} onExport={headerMeta.onExport} onEmail={headerMeta.onEmail} />
         <div className="plant-context-bar" aria-label="Nombre de planta"><span>{PLANT_NAME}</span></div>
         <main className="page-content">{children}</main>
       </div>
@@ -183,7 +201,9 @@ function LegacyPozosRedirect() {
 
 export default function App() {
   const [user, setUser] = useState(null);
-  const [sessionChecked, setSessionChecked] = useState(() => !hasBrowserSession());
+  const [sessionChecked, setSessionChecked] = useState(false);
+  const [sessionRestoreError, setSessionRestoreError] = useState('');
+  const [restoreRequest, setRestoreRequest] = useState(0);
 
   useEffect(() => {
     document.title = user ? DASHBOARD_TITLE : 'Login ARCA · Durango';
@@ -194,20 +214,27 @@ export default function App() {
     const expired = () => {
       if (!active) return;
       setUser(null);
+      setSessionRestoreError('');
       setSessionChecked(true);
     };
     const restoreSession = () => {
-      if (!hasBrowserSession()) {
-        if (active) {
-          setUser(null);
-          setSessionChecked(true);
-        }
-        return;
-      }
-      if (active) setSessionChecked(false);
-      getCurrentSession()
-        .then((session) => { if (active) setUser(session.user); })
-        .catch(() => { if (active) setUser(null); })
+      if (!active) return;
+      setSessionRestoreError('');
+      setSessionChecked(false);
+      restoreCurrentSessionWithRetry()
+        .then((session) => {
+          if (active) setUser(session.user);
+        })
+        .catch((error) => {
+          if (!active) return;
+          if (error?.response?.status === 401) {
+            setUser(null);
+            return;
+          }
+          // Red, timeout y 5xx no equivalen a expiración. Si ya había un
+          // usuario cargado se conserva; en arranque se ofrece reintentar.
+          setSessionRestoreError('No se pudo confirmar la sesión por un problema temporal de comunicación.');
+        })
         .finally(() => { if (active) setSessionChecked(true); });
     };
     const updated = () => restoreSession();
@@ -220,7 +247,7 @@ export default function App() {
       window.removeEventListener('arca-auth-expired', expired);
       window.removeEventListener('arca-auth-updated', updated);
     };
-  }, []);
+  }, [restoreRequest]);
 
   const handleLogout = async () => {
     try { await logout(); }
@@ -231,6 +258,16 @@ export default function App() {
 
   if (!sessionChecked) {
     return <InitialPlantLoader status="loading" error="" onRetry={() => {}} />;
+  }
+
+  if (sessionRestoreError && !user) {
+    return (
+      <InitialPlantLoader
+        status="error"
+        error={sessionRestoreError}
+        onRetry={() => setRestoreRequest((value) => value + 1)}
+      />
+    );
   }
 
   return (

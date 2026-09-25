@@ -14,6 +14,7 @@ export interface ModuleHistoryPdfPayload {
   aggregation_label: string;
   start_date: string;
   end_date: string;
+  range_label?: string;
   selected_names: string[];
   rows: Record<string, unknown>[];
   series: ModuleHistoryPdfSeries[];

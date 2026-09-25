@@ -68,6 +68,7 @@ export interface DashboardData extends FlexibleRecord {
   tank_inputs?: FlexibleRecord[];
   entry_vs_exit?: FlexibleRecord[];
   operational_summary?: FlexibleRecord;
+  balance?: FlexibleRecord;
   period_data?: FlexibleRecord;
   updated_at?: unknown;
   source_status?: unknown;

@@ -112,7 +112,10 @@ class DurangoReportValidatedSummaryTests(unittest.TestCase):
         self.assertEqual(summary['review_count'], 0)
         self.assertEqual(summary['partial_validation_count'], 0)
         self.assertEqual(summary['validated_items_count'], 5)
-        self.assertEqual(summary['note'], SUMMARY_NOTE)
+        self.assertEqual(
+            summary['note'],
+            SUMMARY_NOTE + ' El periodo contiene elementos con cobertura incompleta; el total se presenta como subtotal validado.',
+        )
         self.assertEqual(report['notes'], [])
         self.assertNotIn('Lavadora Línea 2', [item['name'] for item in report['production_lines']['rows']])
         self.assertEqual([item['name'] for item in report['operational_flows']['rows']].count('Lavadora Línea 2'), 1)
@@ -125,10 +128,10 @@ class DurangoReportValidatedSummaryTests(unittest.TestCase):
         workbook = load_workbook(BytesIO(content), data_only=False)
         summary_sheet = workbook['Resumen']
         summary_values = {summary_sheet.cell(row, 1).value: summary_sheet.cell(row, 2).value for row in range(2, summary_sheet.max_row + 1)}
-        self.assertAlmostEqual(summary_values['Volumen validado de pozos (m³)'], 175.65, places=6)
-        self.assertAlmostEqual(summary_values['Volumen validado de líneas (m³)'], 24.21, places=6)
-        self.assertEqual(summary_values['Volumen validado de lavadoras (m³)'], 0)
-        self.assertAlmostEqual(summary_values['Volumen validado de Jarabes (m³)'], 11.43, places=6)
+        self.assertAlmostEqual(summary_values['Volumen bombeado validado de pozos (m³)'], 175.65, places=6)
+        self.assertAlmostEqual(summary_values['Volumen consumido validado de líneas (m³)'], 24.21, places=6)
+        self.assertEqual(summary_values['Volumen consumido validado de lavadoras (m³)'], 0)
+        self.assertAlmostEqual(summary_values['Volumen consumido validado de Jarabes (m³)'], 11.43, places=6)
         self.assertAlmostEqual(summary_values['Subtotal validado operativo (m³)'], 211.29, places=6)
         wells_sheet = workbook['Pozos']
         self.assertIsInstance(wells_sheet['E2'].value, (int, float))
@@ -153,6 +156,9 @@ class DurangoReportValidatedSummaryTests(unittest.TestCase):
         self.assertFalse(report['includes_history'])
         self.assertFalse(report['includes_shifts'])
         self.assertEqual(report['report_source'], 'daily_review')
+        self.assertEqual(report['period_label'], 'Del 04/08/2026 00:00 al 04/08/2026 23:59')
+        self.assertTrue(str(report['period_start_at']).startswith('2026-08-04T00:00'))
+        self.assertTrue(str(report['period_end_at']).startswith('2026-08-05T00:00'))
         self.assertEqual(report['shifts'], [])
         self.assertEqual(report['history']['wells'], {})
 

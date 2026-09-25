@@ -113,7 +113,7 @@ export default function RevisionDiariaSection() {
     ? review.shifts as unknown as WaterShiftsResponse
     : null;
 
-  return <>
+  return <div className="daily-review-page">
     <section className="panel fade-up daily-review-header-panel">
       <PanelHeader title="Revisión diaria" subtitle="Fuente diaria única: cierres conciliados, calidad, actividad y turnos por fecha" />
       <div className="date-range-panel">
@@ -140,5 +140,5 @@ export default function RevisionDiariaSection() {
       <div className="pozos-table-scroll"><table className="pozos-operacion-table"><thead><tr><th>Grupo</th><th>Elemento</th><th>Estado actual</th><th>Flujo de cierre</th><th>Apertura</th><th>Totalizador de cierre</th><th>Volumen del día</th><th>Actividad</th><th>Validación</th><th>Tiempo activo</th><th>Cobertura</th><th>Comunicación</th><th>Última actualización</th></tr></thead><tbody>{rows.map((item, index) => { const validated = num(item.validated_volume_m3); const volumeText = validated === null ? 'Sin volumen validado' : `${fmt(validated)} m³`; const validation = displayValidation(item, validated); return <tr key={`${item.group}-${item.sensor_id || item.operational_key || index}`}><td>{String(item.group)}</td><td>{String(item.name || item.nombre || `Elemento ${index + 1}`)}</td><td>{String(item.current_state || 'Sin registros')}</td><td>{num(item.current_flow ?? item.flow_lps) === null ? '—' : `${fmt(item.current_flow ?? item.flow_lps)} ${String(item.flow_unit || 'L/s')}`}</td><td>{num(item.period_open_m3) === null ? '—' : `${fmt(item.period_open_m3)} m³`}</td><td>{num(item.period_close_m3 ?? item.current_totalizer_m3) === null ? '—' : `${fmt(item.period_close_m3 ?? item.current_totalizer_m3)} m³`}</td><td>{volumeText}</td><td><StatusBadge type={statusType(item.activity)}>{String(item.activity || 'Sin registros')}</StatusBadge></td><td><div className="quality-diagnostic-cell"><StatusBadge type={statusType(validation)}>{validation}</StatusBadge>{qualityReason(item) ? <small>{qualityReason(item)}</small> : null}</div></td><td>{num(item.active_minutes) === null ? '—' : `${fmt(item.active_minutes)} min`}</td><td>{num(item.coverage_percent) === null ? '—' : `${fmt(item.coverage_percent)}% · ${String(item.coverage_status || '')}`}</td><td>{String(item.communication || item.estado_comunicacion || 'Sin lectura')}</td><td>{formatSqlDate(item.last_update || item.ultima_lectura)}</td></tr>; })}</tbody></table></div>
     </section>
     <ShiftConsumptionPanel group="all" date={selectedDate} showDateControls={false} reviewMode title="Cortes por turno del día seleccionado" dataOverride={shifts} />
-  </>;
+  </div>;
 }

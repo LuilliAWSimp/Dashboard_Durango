@@ -1,0 +1,527 @@
+/* Durango 18D — responsabilidad visual de Revision diaria.
+   El wrapper no agrega caja visual; sirve como frontera semantica para trabajo futuro. */
+.daily-review-page {
+  display: contents;
+}
+
+/* Daily Review */
+.daily-review-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 24px;
+  align-items: center;
+  background:
+    radial-gradient(circle at top right, rgba(248, 113, 113, .16), transparent 32%),
+    linear-gradient(135deg, rgba(8, 47, 73, .92), rgba(15, 23, 42, .96));
+}
+
+.daily-review-hero h2 {
+  margin: 8px 0 8px;
+  color: #f8fbff;
+  font-size: clamp(26px, 3vw, 42px);
+}
+
+.daily-review-hero p {
+  max-width: 760px;
+  margin: 0;
+  color: #b7d7e8;
+  line-height: 1.55;
+}
+
+.daily-review-status-card {
+  min-width: 240px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 22px;
+  border: 1px solid rgba(248, 113, 113, .24);
+  background: rgba(15, 23, 42, .72);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06);
+}
+
+.daily-review-icon {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  color: #fecaca;
+  background: rgba(248, 113, 113, .14);
+  border: 1px solid rgba(248, 113, 113, .22);
+}
+
+.daily-review-status-card span {
+  display: block;
+  color: #9fc8da;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.daily-review-status-card strong {
+  display: block;
+  color: #fff;
+  font-size: 20px;
+  margin-top: 6px;
+}
+
+.daily-review-kpi-grid {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.daily-review-main-grid {
+  grid-template-columns: minmax(0, 1.05fr) minmax(420px, .95fr);
+  align-items: start;
+}
+
+.daily-priority-list,
+.daily-export-list,
+.review-rule-stack {
+  display: grid;
+  gap: 12px;
+}
+
+.daily-priority-list article {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(148, 163, 184, .14);
+  background: rgba(15, 23, 42, .56);
+}
+
+.daily-priority-list article.critical,
+.daily-diagnostics-grid article.critical {
+  border-color: rgba(248, 113, 113, .32);
+  background: rgba(248, 113, 113, .08);
+}
+
+.daily-priority-list article.warning,
+.daily-diagnostics-grid article.warning {
+  border-color: rgba(245, 158, 11, .3);
+  background: rgba(245, 158, 11, .08);
+}
+
+.daily-priority-list article.nodata,
+.daily-diagnostics-grid article.nodata {
+  border-color: rgba(148, 163, 184, .26);
+  background: rgba(148, 163, 184, .07);
+}
+
+.priority-rank {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  color: #e0f7ff;
+  background: rgba(14, 165, 233, .14);
+  border: 1px solid rgba(125, 211, 252, .14);
+  font-weight: 800;
+}
+
+.priority-topline {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.priority-topline strong {
+  color: #f8fbff;
+  font-size: 15px;
+}
+
+.priority-topline span {
+  color: #7dd3fc;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.priority-body p {
+  margin: 6px 0 0;
+  color: #b7d7e8;
+  line-height: 1.45;
+  font-size: 13px;
+}
+
+.priority-meta-row {
+  margin-top: 9px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.priority-meta-row em,
+.priority-meta-row b {
+  font-style: normal;
+  font-weight: 700;
+  font-size: 12px;
+  color: #dff7ff;
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .06);
+  border: 1px solid rgba(148, 163, 184, .12);
+}
+
+.daily-ranking-table-wrap {
+  margin-top: 18px;
+  overflow-x: auto;
+}
+
+.daily-ranking-table th,
+.daily-ranking-table td {
+  font-size: 12px;
+}
+
+.daily-diagnostics-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.daily-diagnostics-grid article {
+  padding: 16px;
+  border-radius: 20px;
+  background: rgba(15, 23, 42, .58);
+  border: 1px solid rgba(148, 163, 184, .14);
+}
+
+.diagnostic-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.diagnostic-card-head strong {
+  color: #f8fbff;
+  font-size: 16px;
+}
+
+.diagnostic-mini-row + .diagnostic-mini-row {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(148, 163, 184, .12);
+}
+
+.diagnostic-mini-row span,
+.review-rule-stack span {
+  display: block;
+  color: #7dd3fc;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  margin-bottom: 5px;
+}
+
+.diagnostic-mini-row p,
+.review-rule-stack p {
+  margin: 0;
+  color: #b7d7e8;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.daily-review-bottom-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(360px, .65fr);
+}
+
+.daily-export-list article {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(148, 163, 184, .14);
+  background: rgba(15, 23, 42, .56);
+}
+
+.export-check-icon {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  color: #7dd3fc;
+  background: rgba(14, 165, 233, .12);
+  border: 1px solid rgba(125, 211, 252, .14);
+}
+
+.daily-export-list strong {
+  display: block;
+  color: #f8fbff;
+  font-size: 14px;
+}
+
+.daily-export-list span {
+  display: block;
+  color: #9fc8da;
+  font-size: 13px;
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+.review-rule-stack article {
+  padding: 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(148, 163, 184, .14);
+  background: rgba(15, 23, 42, .56);
+}
+
+@media (max-width: 1280px) {
+  .daily-review-kpi-grid,
+  .daily-diagnostics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .daily-review-main-grid,
+  .daily-review-bottom-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .daily-review-hero,
+  .daily-priority-list article {
+    grid-template-columns: 1fr;
+  }
+
+  .daily-review-status-card {
+    min-width: 0;
+  }
+
+  .daily-review-kpi-grid,
+  .daily-diagnostics-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Daily Review spacing fixes */
+.daily-review-hero {
+  padding: 34px 32px !important;
+  gap: 28px;
+  align-items: center;
+  overflow: hidden;
+}
+
+.daily-review-hero > div:first-child {
+  min-width: 0;
+  padding-left: 2px;
+}
+
+.daily-review-hero .eyebrow {
+  display: block;
+  margin: 0 0 12px;
+  line-height: 1.2;
+  letter-spacing: .18em;
+}
+
+.daily-review-hero h2 {
+  margin: 0 0 12px;
+  line-height: 1.08;
+  max-width: 980px;
+}
+
+.daily-review-hero p {
+  margin: 0;
+  max-width: 860px;
+  line-height: 1.55;
+}
+
+.daily-review-status-card {
+  align-self: center;
+  margin: 0;
+  min-width: 270px;
+  padding: 18px 20px;
+}
+
+/* Paneles internos de Revision Diaria: header y contenido con el mismo margen */
+.daily-review-main-grid > .panel,
+.daily-review-bottom-grid > .panel,
+.daily-diagnostics-panel {
+  padding: 24px !important;
+  overflow: hidden;
+}
+
+.daily-review-main-grid .panel > .panel-header,
+.daily-review-bottom-grid .panel > .panel-header,
+.daily-diagnostics-panel > .panel-header {
+  padding: 0 !important;
+  margin: 0 0 20px !important;
+}
+
+.daily-review-main-grid .panel-title,
+.daily-review-bottom-grid .panel-title,
+.daily-diagnostics-panel .panel-title {
+  line-height: 1.15;
+}
+
+.daily-review-main-grid .panel-subtitle,
+.daily-review-bottom-grid .panel-subtitle,
+.daily-diagnostics-panel .panel-subtitle {
+  margin-top: 6px;
+  line-height: 1.45;
+}
+
+/* Prioridades del dia */
+.daily-priority-list {
+  gap: 16px;
+}
+
+.daily-priority-list article {
+  padding: 20px 22px;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.priority-rank {
+  margin-top: 2px;
+  flex: 0 0 auto;
+}
+
+.priority-body {
+  min-width: 0;
+}
+
+.priority-topline {
+  align-items: flex-start;
+  margin-bottom: 6px;
+}
+
+.priority-body p {
+  margin-top: 8px;
+  line-height: 1.48;
+}
+
+.priority-meta-row {
+  margin-top: 12px;
+}
+
+.daily-ranking-table-wrap {
+  margin-top: 22px;
+}
+
+/* Diagnosticos resumidos por pozo */
+.daily-diagnostics-grid {
+  gap: 16px;
+  align-items: stretch;
+}
+
+.daily-diagnostics-grid article {
+  padding: 22px 18px;
+  display: flex;
+  flex-direction: column;
+}
+
+.diagnostic-card-head {
+  margin-bottom: 18px;
+}
+
+.diagnostic-mini-row + .diagnostic-mini-row {
+  margin-top: 16px;
+  padding-top: 16px;
+}
+
+.diagnostic-mini-row span {
+  margin-bottom: 7px;
+}
+
+.diagnostic-mini-row p {
+  line-height: 1.48;
+}
+
+/* Bloques inferiores de revision diaria */
+.daily-export-list,
+.review-rule-stack {
+  gap: 14px;
+}
+
+.daily-export-list article,
+.review-rule-stack article {
+  padding: 18px 20px;
+}
+
+@media (max-width: 760px) {
+  .daily-review-hero {
+    padding: 24px !important;
+    grid-template-columns: 1fr;
+  }
+
+  .daily-review-status-card {
+    min-width: 0;
+  }
+
+  .daily-review-main-grid > .panel,
+  .daily-review-bottom-grid > .panel,
+  .daily-diagnostics-panel {
+    padding: 18px !important;
+  }
+
+  .daily-priority-list article {
+    padding: 16px;
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Revision diaria: jerarquia y contraste mas marcados. */
+.pozos-shell.theme-light .daily-review-header-panel,
+.pozos-shell.theme-light .daily-review-detail-panel,
+.pozos-shell.theme-light .shift-consumption-panel {
+  background: #ffffff;
+  border-color: #b7d7e8;
+}
+
+.pozos-shell.theme-light .daily-review-header-panel .panel-title,
+.pozos-shell.theme-light .daily-review-detail-panel .panel-title,
+.pozos-shell.theme-light .shift-consumption-panel .panel-title {
+  color: #0b1f3a;
+}
+
+.pozos-shell.theme-light .daily-review-header-panel .panel-subtitle,
+.pozos-shell.theme-light .daily-review-detail-panel .panel-subtitle,
+.pozos-shell.theme-light .shift-consumption-panel .panel-subtitle {
+  color: #4d6a80;
+}
+
+.pozos-shell.theme-light .daily-review-detail-panel .pozos-table-scroll,
+.pozos-shell.theme-light .shift-overview-table-wrap,
+.pozos-shell.theme-light .shift-detail-table-wrap {
+  border: 1px solid #b8d8e8;
+  background: #ffffff;
+}
+
+.pozos-shell.theme-light .daily-review-detail-panel .pozos-operacion-table th,
+.pozos-shell.theme-light .shift-overview-table th,
+.pozos-shell.theme-light .shift-detail-table th {
+  color: #173f5f;
+  background: #dff2fb;
+  border-bottom-color: #a9ccdf;
+}
+
+.pozos-shell.theme-light .daily-review-detail-panel .pozos-operacion-table td,
+.pozos-shell.theme-light .shift-overview-table td,
+.pozos-shell.theme-light .shift-detail-table td {
+  color: #23445d;
+  background: #ffffff;
+  border-bottom-color: #d7e7ef;
+}
+
+.pozos-shell.theme-light .daily-review-detail-panel .pozos-operacion-table tbody tr:nth-child(even) td,
+.pozos-shell.theme-light .shift-overview-table tbody tr:nth-child(even) td,
+.pozos-shell.theme-light .shift-detail-table tbody tr:nth-child(even) td {
+  background: #f1f9fd;
+}
+
+.pozos-shell.theme-light .daily-review-detail-panel .pozos-operacion-table tbody tr:hover td,
+.pozos-shell.theme-light .shift-overview-table tbody tr:hover td,
+.pozos-shell.theme-light .shift-detail-table tbody tr:hover td {
+  background: #e4f4fb;
+}

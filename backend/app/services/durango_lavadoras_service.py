@@ -17,6 +17,7 @@ from app.services.durango_capabilities import (
     current_flow_threshold_for_sensor,
     normalize_flow_lps,
 )
+from app.services.durango_terminology import operational_volume_label
 from app.services.operation_semantics import expected_minute_samples, interval_operation_metrics, period_activity_label
 from app.services.plant_time import local_now_naive, local_to_source_naive, source_to_local_naive
 from app.services.totalizer_quality import analyze_totalizer_series
@@ -337,7 +338,7 @@ def build_lavadora_period_item(
         'discarded_totalizer_event_details': list(analysis.discarded_events),
         'has_discontinuities': analysis.has_discontinuities,
         'volume_reliable': analysis.volume_reliable,
-        'volume_display_label': 'Volumen validado parcial' if analysis.has_discontinuities else 'Volumen del periodo',
+        'volume_display_label': operational_volume_label('flow', validated=analysis.has_discontinuities, scope='period'),
         'today_accumulated_m3': analysis.validated_volume_m3,
         'today_accumulated_reliable': bool(analysis.reliable and totals),
         'activity': activity,
