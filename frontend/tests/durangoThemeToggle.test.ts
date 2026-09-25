@@ -4,7 +4,6 @@ import { readFileSync } from 'node:fs';
 
 const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
 const sidebarJsx = readFileSync(new URL('../src/components/Sidebar.jsx', import.meta.url), 'utf8');
-const sidebarTsx = readFileSync(new URL('../src/components/Sidebar.tsx', import.meta.url), 'utf8');
 const themeCss = readFileSync(new URL('../src/styles/theme.css', import.meta.url), 'utf8');
 const sharedCss = readFileSync(new URL('../src/styles/shared.css', import.meta.url), 'utf8');
 const historicosCss = readFileSync(new URL('../src/styles/pages/historicos.css', import.meta.url), 'utf8');
@@ -17,14 +16,12 @@ test('Durango conserva oscuro por defecto y persiste la preferencia de tema', ()
   assert.match(app, /data-theme=\{theme\}/);
 });
 
-test('selector de tema existe en los dos Sidebar usados por el proyecto', () => {
-  for (const sidebar of [sidebarJsx, sidebarTsx]) {
-    assert.match(sidebar, /Modo claro/);
-    assert.match(sidebar, /Modo oscuro/);
-    assert.match(sidebar, /Sun/);
-    assert.match(sidebar, /Moon/);
-    assert.match(sidebar, /sidebar-theme-control/);
-  }
+test('selector de tema existe en el Sidebar canónico del runtime', () => {
+  assert.match(sidebarJsx, /Modo claro/);
+  assert.match(sidebarJsx, /Modo oscuro/);
+  assert.match(sidebarJsx, /Sun/);
+  assert.match(sidebarJsx, /Moon/);
+  assert.match(sidebarJsx, /sidebar-theme-control/);
 });
 
 test('modo claro usa superficies claras, sidebar azul y KPIs azules desde theme.css', () => {

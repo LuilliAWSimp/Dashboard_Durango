@@ -1,4 +1,4 @@
-// Runtime JS kept in parity with dailyWaterReportExportService.ts.
+// Fuente canónica única para la exportación HTML del reporte hídrico.
 function escapeHtml(value) {
     return String(value ?? '')
         .replace(/&/g, '&amp;')

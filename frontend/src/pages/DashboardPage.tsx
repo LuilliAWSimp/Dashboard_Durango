@@ -20,7 +20,7 @@ import {
 import { BellRing, Settings2, TriangleAlert, X } from 'lucide-react';
 import DataTable, { type DataTableRow } from '../components/DataTable';
 import KpiCard from '../components/KpiCard';
-import type { HeaderExportFormat } from '../components/Header';
+type HeaderExportFormat = 'excel' | 'pdf' | 'html' | 'png';
 import { getCircuitGroupsForSection, getCircuitsForTransformer, type Circuit, type CircuitGroup } from '../data/circuits';
 import { fetchDashboard } from '../services/dashboardService';
 import { downloadReport, sendReportByEmail } from '../services/exportService';

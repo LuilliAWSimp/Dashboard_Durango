@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-import { buildDailyWaterReportHtml } from '../src/services/dailyWaterReportExportService.ts';
+import { buildDailyWaterReportHtml } from '../src/services/dailyWaterReportExportService.js';
 
 const reports = readFileSync(new URL('../src/pages/pozos/sections/ReportesSection.tsx', import.meta.url), 'utf8');
 const backend = readFileSync(new URL('../../backend/app/services/water_daily_report_service.py', import.meta.url), 'utf8');

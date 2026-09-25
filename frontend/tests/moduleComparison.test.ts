@@ -59,7 +59,7 @@ test('Ambos declara ejes independientes y la selección múltiple no altera otro
 
 test('el selector compartido de turnos conserva etiqueta y estilos accesibles', () => {
   const component = readFileSync(new URL('../src/pages/pozos/components/ShiftConsumptionPanel.tsx', import.meta.url), 'utf8');
-  const styles = readFileSync(new URL('../src/styles/global.css', import.meta.url), 'utf8');
+  const styles = readFileSync(new URL('../src/styles/pages/turnos.css', import.meta.url), 'utf8');
   assert.match(component, /Turno operativo/);
   assert.match(component, /aria-label="Turno operativo"/);
   assert.match(styles, /\.shift-selector-field select\s*\{/);
