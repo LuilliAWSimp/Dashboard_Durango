@@ -46,5 +46,6 @@ test('modo individual oculta seleccion redundante y elimina el segundo Excel 5 m
   assert.match(history, /!singleElement \? <>[\s\S]*?Elementos visibles/);
   assert.doesNotMatch(detail, /FiveMinuteExcelExportButton/);
   assert.doesNotMatch(detail, /extraAction=/);
-  assert.match(detail, /subtitle="El rango actualiza indicadores, histórico y cortes del elemento\."/);
+  assert.match(detail, /title="Rango del detalle"/);
+  assert.match(detail, /subtitle=""/);
 });

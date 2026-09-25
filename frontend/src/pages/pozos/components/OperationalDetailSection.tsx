@@ -130,7 +130,6 @@ export default function OperationalDetailSection({ module, sensorId, backPath, s
   const configuredName = currentIndex >= 0 ? navigationItems[currentIndex]?.name : null;
   const name = String(item?.name || item?.nombre || configuredName || `Elemento ${sensorId}`);
   const flowUnit = String(item?.flow_unit || configuredHistoryItem?.flowUnit || 'L/s');
-  const activity = String(item?.period_activity || item?.activity || 'Sin registros');
   const rawCurrentState = String(item?.current_state || (num(item?.current_flow ?? item?.flow_lps) === null ? 'Sin registros' : Number(item?.current_flow ?? item?.flow_lps) > 0 ? 'Activo' : 'Sin flujo'));
   const currentState = displayOperationalState(rawCurrentState);
   const communication = String(item?.communication || item?.estado_comunicacion || 'Sin lectura');
@@ -237,12 +236,10 @@ export default function OperationalDetailSection({ module, sensorId, backPath, s
               </button>
             ) : <span />}
           </nav>
-          <div className="eyebrow">Detalle operativo</div>
           <div className="well-detail-title-row">
             <h2>{name}</h2>
             <StatusBadge type={statusType({ ...item, current_state: rawCurrentState })}>{currentState}</StatusBadge>
           </div>
-          <p>{labels?.detailSubtitle || 'Análisis individual del elemento para el periodo seleccionado.'}</p>
         </div>
         <div className="well-detail-hero-metrics">
           <article><span>Flujo actual</span><strong>{fmt(item?.current_flow ?? item?.flow_lps)} <small>{flowUnit}</small></strong></article>
@@ -262,7 +259,7 @@ export default function OperationalDetailSection({ module, sensorId, backPath, s
         onReset={resetRange}
         status={current.loading ? 'Actualizando periodo...' : undefined}
         title="Rango del detalle"
-        subtitle="El rango actualiza indicadores, histórico y cortes del elemento."
+        subtitle=""
         className={`operational-detail-range operational-detail-${module}`}
       />
       {current.error ? <div className="status-pill alert">{current.error}</div> : null}
@@ -278,12 +275,11 @@ export default function OperationalDetailSection({ module, sensorId, backPath, s
       />
 
       <section className={`panel fade-up operational-period-summary operational-detail-summary operational-detail-${module}`}>
-        <PanelHeader title="Resumen del periodo" subtitle="Lecturas principales del elemento en el rango seleccionado" />
+        <PanelHeader title="Resumen del periodo" />
         <div className="metric-pairs-grid">
           <MetricPair label="Totalizador inicial" value={fmt(detailOpen)} unit={num(detailOpen) === null ? '' : 'm³'} />
           <MetricPair label="Totalizador final" value={fmt(detailClose)} unit={num(detailClose) === null ? '' : 'm³'} />
           <MetricPair label="Flujo promedio" value={periodSummary?.loading ? 'Calculando…' : fmt(periodSummary?.flowAverage)} unit={!periodSummary?.loading && num(periodSummary?.flowAverage) !== null ? flowUnit : ''} />
-          <MetricPair label="Actividad del periodo" value={activity} />
           {communicationNeedsAttention ? <MetricPair label="Comunicación" value={communication} /> : null}
         </div>
       </section>

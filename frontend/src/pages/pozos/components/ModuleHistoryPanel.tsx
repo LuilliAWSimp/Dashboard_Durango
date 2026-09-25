@@ -72,7 +72,7 @@ interface Props {
   colors?: string[];
   items?: HistoryItem[];
   panelTitle?: string;
-  panelSubtitle?: string;
+  panelSubtitle?: string | null;
   className?: string;
   independentRange?: boolean;
   singleElement?: boolean;
@@ -590,7 +590,7 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
     <section className={`panel chart-panel fade-up module-history-panel operational-module-comparison operational-history-panel operational-history-${fixedView || (fixedModule ? module : globalView)} ${className}`.trim()}>
       <PanelHeader
         title={panelTitle || (lockedHistory ? `Histórico operativo · ${moduleDisplayLabel}` : 'Histórico operativo global')}
-        subtitle={panelSubtitle || (lockedHistory ? `Consulta ${moduleDisplayLabel.toLowerCase()} con el mismo motor histórico del Resumen.` : 'Consulta Pozos, Líneas, Lavadoras y Jarabes desde un único histórico.')}
+        subtitle={panelSubtitle === null ? undefined : (panelSubtitle || (lockedHistory ? `Consulta ${moduleDisplayLabel.toLowerCase()} con el mismo motor histórico del Resumen.` : 'Consulta Pozos, Líneas, Lavadoras y Jarabes desde un único histórico.'))}
       />
       {independentRange ? (
         <div className="module-history-range-panel" aria-label={lockedHistory ? `Fechas del histórico de ${moduleDisplayLabel}` : 'Fechas del histórico global'}>
@@ -628,8 +628,8 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
       </div>
       {metric === 'totalizer' ? <div className="module-history-totalizer-control"><span>Visualización del totalizador</span><div className="module-metric-selector" role="group" aria-label="Visualización del totalizador"><button type="button" className={totalizerDisplay === 'delta' ? 'active' : ''} onClick={() => setTotalizerDisplay('delta')}>Variación del periodo</button><button type="button" className={totalizerDisplay === 'absolute' ? 'active' : ''} onClick={() => setTotalizerDisplay('absolute')}>Valor absoluto</button></div></div> : null}
       {singleElement && metric === 'both' ? <div className="module-history-totalizer-control operational-detail-volume-control"><span>Volumen</span><div className="module-metric-selector" role="group" aria-label="Modo de visualización del volumen"><button type="button" className={volumeDisplay === 'interval' ? 'active' : ''} aria-pressed={volumeDisplay === 'interval'} onClick={() => setVolumeDisplay('interval')} title="Muestra el volumen conciliado de cada intervalo de agrupación.">Por intervalo</button><button type="button" className={volumeDisplay === 'cumulative' ? 'active' : ''} aria-pressed={volumeDisplay === 'cumulative'} onClick={() => setVolumeDisplay('cumulative')} title="Acumula progresivamente sólo los volúmenes válidos dentro del periodo seleccionado.">Acumulado progresivo</button></div></div> : null}
-      {metric === 'both' ? <div className="status-pill module-metric-note">{singleElement && volumeDisplay === 'cumulative' ? 'Flujo y volumen acumulado se muestran como líneas independientes; los huecos permanecen sin conectar.' : <>Flujo se muestra como línea en el eje izquierdo y {operationalVolumeLabel(module, { scope: 'period' }).toLowerCase()} como barras en el eje derecho.</>}</div> : null}
-      {aggregation === 'minute' ? <div className="status-pill module-metric-note">La vista de 1 minuto admite un máximo de un día por consulta.</div> : null}
+      {metric === 'both' && !singleElement ? <div className="status-pill module-metric-note">Flujo se muestra como línea en el eje izquierdo y {operationalVolumeLabel(module, { scope: 'period' }).toLowerCase()} como barras en el eje derecho.</div> : null}
+      {aggregation === 'minute' && !singleElement ? <div className="status-pill module-metric-note">La vista de 1 minuto admite un máximo de un día por consulta.</div> : null}
       {!singleElement ? <>
         <div className="module-selection-heading">
           <span>Elementos visibles</span>

@@ -219,7 +219,7 @@ function DateRangeControls({
     <section className={`date-range-panel panel fade-up ${className}`.trim()}>
       <div>
         <div className="panel-title">{title}</div>
-        <div className="panel-subtitle">{subtitle}</div>
+        {subtitle ? <div className="panel-subtitle">{subtitle}</div> : null}
         <div className="date-range-meta">
           <span>{meta.periodTitle}</span>
           <span>{meta.rangeLabel}</span>

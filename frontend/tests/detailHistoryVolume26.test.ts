@@ -32,7 +32,7 @@ test('acumulado usa linea, no conecta huecos, y el modo por intervalo conserva b
   assert.match(history, /volumeDisplay === 'cumulative'[\s\S]*?<Line/);
   assert.match(history, /dataKey=\{`volume_cumulative_\$\{identity\}`\}/);
   assert.match(history, /connectNulls=\{false\}/);
-  assert.match(history, /los huecos permanecen sin conectar/);
+  assert.match(history, /metric === 'both' && !singleElement/);
 });
 
 test('tooltip Excel y PDF usan la misma representacion de volumen visible', () => {
