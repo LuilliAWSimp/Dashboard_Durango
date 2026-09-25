@@ -51,6 +51,14 @@ function fmtLocalDate(value: unknown): string {
   });
 }
 
+function friendlyReportError(caught: unknown, fallback: string): string {
+  const candidate = caught as { response?: { data?: { detail?: string } }; message?: string };
+  const detail = String(candidate.response?.data?.detail || candidate.message || '').trim();
+  if (!detail) return fallback;
+  if (/sql|odbc|pyodbc|database|query|sensor|bos|connection string/i.test(detail)) return fallback;
+  return detail;
+}
+
 function statusType(value: unknown): string {
   const text = String(value || '').toLowerCase();
   if (text.includes('parcial') || text.includes('atrasada')) return 'warning';
@@ -72,18 +80,18 @@ function reportRows(report: any, key: ReportSectionKey): any[] {
 }
 
 function validationLabel(item: any): string {
-  if (item?.quality_label) return String(item.quality_label);
-  if (item?.validation && String(item.validation) !== 'Validación parcial') return String(item.validation);
-  if (item?.validated_volume_m3 !== null && item?.validated_volume_m3 !== undefined) return 'Validado';
-  return 'Sin volumen validado';
+  const status = String(item?.quality_status || item?.validation_status || '').toLowerCase();
+  const sourceLabel = String(item?.quality_label || item?.validation || '').toLowerCase();
+  const samples = Number(item?.samples_received ?? item?.samples ?? 0);
+  if (status === 'partial' || status === 'partial_coverage' || status === 'review' || sourceLabel.includes('parcial') || sourceLabel.includes('revisi')) return 'Datos parciales';
+  if (status === 'unavailable' || status === 'no_data') return samples > 0 ? 'Datos parciales' : 'Sin datos';
+  if (item?.validated_volume_m3 !== null && item?.validated_volume_m3 !== undefined) return 'Datos completos';
+  return samples > 0 ? 'Datos parciales' : 'Sin datos';
 }
 
-function qualityReason(item: any): string {
-  const reason = String(item?.quality_reason || '').trim();
-  if (!reason) return '';
-  const details = item?.quality_details && typeof item.quality_details === 'object' ? item.quality_details : {};
-  const stamp = details.timestamp ? ` · ${fmtLocalDate(details.timestamp)}` : '';
-  return `${reason}${stamp}`;
+function reportVolumeDisplay(item: any): string {
+  if (item?.validated_volume_m3 !== null && item?.validated_volume_m3 !== undefined) return `${fmt(item.validated_volume_m3)} m³`;
+  return Number(item?.samples_received ?? item?.samples ?? 0) > 0 ? 'Sin volumen disponible' : 'Sin datos';
 }
 
 function ReportSkeleton() {
@@ -163,9 +171,9 @@ function ReportPreviewTable({ rows, sectionKey, periodDateLabel }: { rows: any[]
               <td>{item.flow == null ? 'No disponible' : `${fmt(item.flow)} ${item.flow_unit || 'L/s'}`}</td>
               <td>{item.opening_m3 == null ? 'No disponible' : `${fmt(item.opening_m3)} m³`}</td>
               <td>{item.closing_m3 == null ? 'No disponible' : `${fmt(item.closing_m3)} m³`}</td>
-              <td>{item.validated_volume_m3 == null ? 'Sin volumen validado' : `${fmt(item.validated_volume_m3)} m³`}</td>
+              <td>{reportVolumeDisplay(item)}</td>
               <td><StatusBadge type={statusType(item.activity)}>{item.activity}</StatusBadge></td>
-              <td><div className="quality-diagnostic-cell"><StatusBadge type={validationStatusType(item)}>{validationLabel(item)}</StatusBadge>{qualityReason(item) ? <small>{qualityReason(item)}</small> : null}</div></td>
+              <td><StatusBadge type={validationStatusType(item)}>{validationLabel(item)}</StatusBadge></td>
               <td>{item.communication}</td>
               <td>{fmtLocalDate(item.last_update)}</td>
             </tr>
@@ -235,8 +243,7 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
       setReport(await fetchDailyWaterReportPreview(nextFilters));
       setError('');
     } catch (caught) {
-      const candidate = caught as { response?: { data?: { detail?: string } }; message?: string };
-      setError(candidate.response?.data?.detail || candidate.message || 'No fue posible consultar el reporte.');
+      setError(friendlyReportError(caught, 'No fue posible consultar el reporte. Intenta nuevamente.'));
     } finally {
       inFlightRef.current = false;
       setLoading(false);
@@ -273,8 +280,7 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
         exportDailyWaterReportHtml(fullReport);
       }
     } catch (caught) {
-      const candidate = caught as { response?: { data?: { detail?: string } }; message?: string };
-      setError(candidate.response?.data?.detail || candidate.message || 'No fue posible generar el formato solicitado.');
+      setError(friendlyReportError(caught, 'No fue posible generar el formato solicitado. Intenta nuevamente.'));
     } finally {
       setExportAction(null);
     }
@@ -289,12 +295,12 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
       if (format === 'excel') await downloadFullHistoricalExcel();
       else await downloadFullHistoricalPdf();
     } catch (caught) {
-      const candidate = caught as { response?: { data?: { detail?: string } }; message?: string };
-      setError(candidate.response?.data?.detail || candidate.message || 'No fue posible generar el histórico completo de planta.');
+      const message = friendlyReportError(caught, 'No fue posible generar el histórico completo de planta. Intenta nuevamente.');
+      setError(message);
       notify({
         tone: 'error',
         title: 'No se pudo generar el histórico completo',
-        message: candidate.response?.data?.detail || candidate.message || 'Revisa la conexión con SQL Server e intenta nuevamente.',
+        message,
       });
     } finally {
       setExportAction(null);
@@ -415,13 +421,12 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
 
       <section className="panel historical-export-panel fade-up" aria-label="Histórico completo de planta">
         <div className="historical-export-copy">
-          <span className="report-field-label">Histórico completo de planta</span>
-          <h3>Crudo + conciliado + cobertura</h3>
+          <span className="report-field-label">Exportaciones históricas</span>
+          <h3>Histórico completo de planta</h3>
           <p>
-            Excel conserva el detalle por minuto y separa datos crudos de datos conciliados. PDF resume cobertura, huecos y criterios de calidad.
-            Pozos/Líneas tienen registro físico confirmado desde 03/06/2026 15:35; el segmento hidráulico validado inicia 04/08/2026 18:16.
+            Excel conserva el detalle minuto a minuto. PDF presenta un resumen visual de los datos disponibles y los intervalos sin información.
           </p>
-          <small>Pozo 1 conserva su cambio de unidad del 11/08 y Jarabes mantiene el corte 3010 → 3004 sin mezclar identidades.</small>
+          <small>Incluye Pozos, Líneas, Lavadoras y Jarabes respetando la configuración histórica de cada elemento.</small>
         </div>
         <div className="historical-export-actions">
           <button
@@ -455,7 +460,7 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
             </article>
           ))}
         </section>
-        <p className="report-summary-note">{summary.note}</p>
+        <p className="report-summary-note">Los valores corresponden al periodo seleccionado. Cuando un elemento no cuenta con información suficiente se muestra como “No disponible”.</p>
         {report.legacy_notice ? <div className="status-pill alert">{report.legacy_notice}</div> : null}
 
         {comparativeRows.length ? <section className="panel fade-up report-data-panel report-comparative-panel" aria-label="Comparativo de volumen por módulo">
@@ -471,7 +476,7 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
         </section> : null}
 
         <section className="panel fade-up report-data-panel report-preview-panel">
-          <div className="report-preview-heading"><div><span>Vista previa ligera</span><h3>Vista previa del reporte</h3><p>Pozos, Líneas, Lavadoras y Jarabes · Periodo {report.period_label}</p><small>{report.report_source === 'daily_review' ? 'Fuente: Revisión diaria conciliada' : 'Fuente: periodo conciliado'}</small></div></div>
+          <div className="report-preview-heading"><div><span>Resumen en pantalla</span><h3>Vista previa del reporte</h3><p>Pozos, Líneas, Lavadoras y Jarabes · Periodo {report.period_label}</p></div></div>
           <div className="report-preview-sections">
             {REPORT_SECTIONS.map((section) => <ReportPreviewSection key={section.key} report={report} section={section} />)}
           </div>

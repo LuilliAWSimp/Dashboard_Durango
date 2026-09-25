@@ -269,11 +269,44 @@ def _report_row(item: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+
+
+def _report_data_label(item: dict[str, Any]) -> str:
+    status = str(item.get('quality_status') or item.get('validation_status') or '').strip().lower()
+    source_label = str(item.get('quality_label') or item.get('validation') or '').strip().lower()
+    samples = int(item.get('samples_received') or item.get('samples') or 0)
+    if status in {'partial', 'partial_coverage', 'review'} or 'parcial' in source_label or 'revisi' in source_label:
+        return 'Datos parciales'
+    if status in {'unavailable', 'no_data'}:
+        return 'Datos parciales' if samples > 0 else 'Sin datos'
+    if _validated_volume(item) is not None:
+        return 'Datos completos'
+    return 'Datos parciales' if samples > 0 else 'Sin datos'
+
+
+def _report_summary_data_label(summary: dict[str, Any]) -> str:
+    no_data = int(summary.get('no_data_count') or 0)
+    partial = int(summary.get('review_count') or 0)
+    if no_data > 0 or partial > 0:
+        return 'Datos parciales'
+    return 'Datos completos'
+
+
+def _history_data_label(point: dict[str, Any]) -> str:
+    status = str(point.get('data_status') or '').strip().lower()
+    if status in {'operational', 'zero_consumption', 'validated', 'valid_zero'}:
+        return 'Datos completos'
+    if status in {'future_interval'}:
+        return 'Pendiente'
+    if status in {'partial_activity', 'invalid_totalizer', 'partial_coverage', 'review', 'legacy_configuration_pending'}:
+        return 'Datos parciales'
+    return 'Sin datos'
 def _report_volume_display(item: dict[str, Any]) -> str:
     validated = _as_float(item.get('validated_volume_m3'))
     if validated is not None:
         return f'{_fmt_number(validated)} m³'
-    return 'Sin volumen validado'
+    samples = int(item.get('samples_received') or item.get('samples') or 0)
+    return 'Sin volumen disponible' if samples > 0 else 'Sin datos'
 
 
 def _module_validated_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
@@ -778,7 +811,7 @@ def _validated_volume_drawing(rows: list[dict[str, Any]], *, width: float) -> Dr
                 drawing.add(Rect(label_width, y, plot_width * value / scale_max, 8.0, fillColor=colors.HexColor(color), strokeColor=None))
             label = f'{value:,.2f} m³'
         else:
-            label = 'Sin registros' if int(row.get('samples') or 0) <= 0 else 'Sin volumen validado'
+            label = 'Sin datos' if int(row.get('samples_received') or row.get('samples') or 0) <= 0 else 'Sin volumen disponible'
         drawing.add(String(label_width + plot_width + 6, y + 1.5, label, fontName='Helvetica', fontSize=6.8, fillColor=colors.HexColor('#475569')))
     return drawing
 
@@ -866,13 +899,13 @@ def build_daily_water_report_pdf(report: dict[str, Any]) -> tuple[bytes, str]:
     card_grid.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'MIDDLE'), ('LEFTPADDING', (0, 0), (-1, -1), 1.5), ('RIGHTPADDING', (0, 0), (-1, -1), 1.5), ('TOPPADDING', (0, 0), (-1, -1), 1.5), ('BOTTOMPADDING', (0, 0), (-1, -1), 1.5)]))
     story.append(card_grid)
     story.append(Spacer(1, 3 * mm))
-    quality_line = (
-        f"<b>Calidad:</b> {escape(str(summary.get('coverage_label') or 'Sin dato'))}. "
-        f"Elementos validados: {int(summary.get('validated_items_count') or 0)}/{int(summary.get('monitored_items_count') or 0)}. "
-        f"En revisión: {int(summary.get('review_count') or 0)}. Sin datos: {int(summary.get('no_data_count') or 0)}."
-    )
+    monitored = int(summary.get('monitored_items_count') or 0)
+    partial = int(summary.get('review_count') or 0)
+    no_data = int(summary.get('no_data_count') or 0)
+    complete = max(monitored - partial - no_data, 0)
+    data_line = f"<b>Estado de datos:</b> {complete} completos · {partial} parciales · {no_data} sin datos."
     note = Table([[Paragraph(
-        escape(str(summary.get('note') or SUMMARY_NOTE)) + '<br/>' + quality_line + '<br/><b>Cero</b>: lectura válida sin flujo. <b>Hueco</b>: intervalo sin registros suficientes. Los gráficos no generan intervalos futuros.',
+        'Los valores corresponden al periodo seleccionado. Cuando un elemento no cuenta con información suficiente se muestra como <b>No disponible</b>.<br/>' + data_line,
         note_style,
     )]], colWidths=[186 * mm])
     note.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#F1F6FA')), ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#C7D8E4')), ('LEFTPADDING', (0, 0), (-1, -1), 8), ('RIGHTPADDING', (0, 0), (-1, -1), 8), ('TOPPADDING', (0, 0), (-1, -1), 7), ('BOTTOMPADDING', (0, 0), (-1, -1), 7)]))
@@ -914,7 +947,7 @@ def build_daily_water_report_pdf(report: dict[str, Any]) -> tuple[bytes, str]:
                 Paragraph(_fmt_volume(item['closing_m3']), right),
                 Paragraph(escape(_report_volume_display(item)), right),
                 Paragraph(escape(str(item['activity'])), center),
-                Paragraph(escape(str(item.get('validation') or 'Sin volumen validado')), center),
+                Paragraph(escape(_report_data_label(item)), center),
                 Paragraph(escape(str(item['communication'])), center),
                 Paragraph(escape(_fmt_date(item['last_update'])), center),
             ])
@@ -930,7 +963,7 @@ def build_daily_water_report_pdf(report: dict[str, Any]) -> tuple[bytes, str]:
             table,
             Paragraph(f'Comportamiento de flujo · {title}', chart_heading),
             _flow_history_drawing(history, width=186 * mm, height=64 * mm, single_day=report.get('start_date') == report.get('end_date')),
-            Paragraph('Volumen validado por elemento', chart_heading),
+            Paragraph(f'{volume_label} por elemento', chart_heading),
             _validated_volume_drawing(section.get('rows', []), width=186 * mm),
         ]
 
@@ -948,9 +981,9 @@ def build_daily_water_report_pdf(report: dict[str, Any]) -> tuple[bytes, str]:
     if report.get('shifts'):
         story.append(PageBreak())
         story.append(Paragraph('Cortes por turno', heading))
-        story.append(Paragraph('Cortes administrativos calculados con las mismas lecturas normalizadas del dashboard.', small))
+        story.append(Paragraph('Volumen registrado por turno para cada proceso.', small))
         story.append(Spacer(1, 2 * mm))
-        shift_rows = [['Turno', 'Horario', 'Pozos', 'Líneas', 'Lavadoras', 'Jarabes', 'Estado']]
+        shift_rows = [['Turno', 'Horario', 'Pozos', 'Líneas', 'Lavadoras', 'Jarabes', 'Corte']]
         for shift in report['shifts']:
             summary_shift = shift.get('summary') or {}
             shift_rows.append([
@@ -1019,9 +1052,8 @@ def build_daily_water_report_excel(report: dict[str, Any]) -> tuple[bytes, str]:
         elif card.get('kind') == 'ratio':
             summary_rows.append((label, f"{int(card.get('value') or 0)}/{int(card.get('total') or 0)}"))
     summary_rows.extend([
-        ('Cobertura del reporte', summary.get('coverage_label')),
+        ('Estado de datos', _report_summary_data_label(summary)),
         ('Estado de comunicación', summary['communication']),
-        ('Criterio de cálculo', summary.get('note') or SUMMARY_NOTE),
     ])
     for label, value in summary_rows:
         ws.append([label, value])
@@ -1072,7 +1104,7 @@ def build_daily_water_report_excel(report: dict[str, Any]) -> tuple[bytes, str]:
                 item['closing_m3'],
                 item['validated_volume_m3'],
                 item['activity'],
-                item.get('validation') or _volume_validation(item)[0],
+                _report_data_label(item),
                 item['communication'],
                 _excel_datetime(item.get('last_update')),
             ])
@@ -1122,11 +1154,11 @@ def build_daily_water_report_excel(report: dict[str, Any]) -> tuple[bytes, str]:
             'Minutos activos',
             'Muestras recibidas',
             'Muestras esperadas',
-            'Cobertura (%)',
+            'Disponibilidad (%)',
             'Totalizador apertura (m³)',
             'Totalizador cierre (m³)',
-            'Volumen validado (m³)',
-            'Estado del intervalo',
+            'Volumen del intervalo (m³)',
+            'Actividad del intervalo',
             'Estado de datos',
         ])
         for series in history.get('series') or []:
@@ -1150,7 +1182,7 @@ def build_daily_water_report_excel(report: dict[str, Any]) -> tuple[bytes, str]:
                     point.get('totalizer_close_m3'),
                     point.get('validated_volume_m3'),
                     point.get('interval_state'),
-                    point.get('data_status'),
+                    _history_data_label(point),
                 ])
         for row in range(2, sheet.max_row + 1):
             for column in (2, 3):
@@ -1170,11 +1202,10 @@ def build_daily_water_report_excel(report: dict[str, Any]) -> tuple[bytes, str]:
 
     if report.get('shifts'):
         detail = wb.create_sheet('Detalle turnos')
-        detail.append(['Turno', 'Grupo', 'Elemento', 'Apertura (m³)', 'Cierre (m³)', 'Volumen validado (m³)', 'Validación', 'Flujo promedio (L/s)', 'Flujo mínimo (L/s)', 'Flujo máximo (L/s)', 'Muestras', 'Actividad', 'Estado'])
+        detail.append(['Turno', 'Grupo', 'Elemento', 'Totalizador apertura (m³)', 'Totalizador al cierre (m³)', 'Volumen del turno (m³)', 'Estado de datos', 'Flujo promedio (L/s)', 'Flujo mínimo (L/s)', 'Flujo máximo (L/s)', 'Muestras', 'Actividad', 'Corte'])
         for shift in report['shifts']:
             for group_key, group_name in [('wells', 'Pozos'), ('lines', 'Líneas')]:
                 for item in shift.get(group_key) or []:
-                    validation, _ = _volume_validation(item)
                     detail.append([
                         shift.get('name'),
                         group_name,
@@ -1182,7 +1213,7 @@ def build_daily_water_report_excel(report: dict[str, Any]) -> tuple[bytes, str]:
                         item.get('period_open_m3'),
                         item.get('period_close_m3'),
                         item.get('validated_volume_m3'),
-                        validation,
+                        _report_data_label(item),
                         item.get('flow_avg'),
                         item.get('flow_min'),
                         item.get('flow_max'),
@@ -1192,7 +1223,6 @@ def build_daily_water_report_excel(report: dict[str, Any]) -> tuple[bytes, str]:
                     ])
             for group_name, allowed in [('Lavadoras', LAVADORA_KEYS), ('Jarabes', JARABES_KEYS)]:
                 for item in [flow for flow in shift.get('flows') or [] if _operational_key(flow) in allowed]:
-                    validation, _ = _volume_validation(item)
                     detail.append([
                         shift.get('name'),
                         group_name,
@@ -1200,7 +1230,7 @@ def build_daily_water_report_excel(report: dict[str, Any]) -> tuple[bytes, str]:
                         item.get('period_open_m3'),
                         item.get('period_close_m3'),
                         item.get('validated_volume_m3'),
-                        validation,
+                        _report_data_label(item),
                         item.get('flow_avg'),
                         item.get('flow_min'),
                         item.get('flow_max'),

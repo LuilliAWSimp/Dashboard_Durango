@@ -140,7 +140,7 @@ class DurangoReportValidatedSummaryTests(unittest.TestCase):
         self.assertIsInstance(wells_sheet['E2'].value, (int, float))
         self.assertAlmostEqual(wells_sheet['E2'].value, 0.67, places=6)
         self.assertEqual(wells_sheet['F2'].value, 'Con actividad')
-        self.assertEqual(wells_sheet['G2'].value, 'Validado')
+        self.assertEqual(wells_sheet['G2'].value, 'Datos completos')
         self.assertEqual(wells_sheet['A1'].value, 'Pozo')
         self.assertEqual(wells_sheet['C1'].value, 'Totalizador apertura (m³)')
         self.assertEqual(wells_sheet['D1'].value, 'Totalizador al cierre (m³)')
