@@ -1,8 +1,44 @@
-import DateRangeControls from './DateRangeControls';
-import ChartEmptyState from './ChartEmptyState';
-import PanelHeader from './PanelHeader';
-import WaterHistoryChart from './WaterHistoryChart';
-import useWaterHistory from '../hooks/useWaterHistory';
-import type { OperationalModule } from './OperationalModuleSection';
-interface Props { module: OperationalModule; sensorId: number | string | null; name: string; flowUnit?: string; }
-export default function ElementHistoryPanel({ module, sensorId, name, flowUnit = 'L/s' }: Props) { const history = useWaterHistory({ module, sensorId }); return <section className={`panel chart-panel fade-up operational-history-panel operational-element-history operational-history-${module}`}><PanelHeader title={`Histórico · ${name}`} subtitle="Flujo promedio como línea y volumen del intervalo como barras"/><DateRangeControls className="history-date-range-panel" draftRange={history.draftRange} activeRange={history.range} onDraftChange={history.setDraftRange} onApply={history.apply} onReset={history.reset} status={history.loading ? 'Cargando histórico...' : undefined} aggregation={history.aggregation} onAggregationChange={history.setAggregation}/>{history.error ? <div className="status-pill alert">{history.error}</div> : null}{history.data?.points?.length ? <WaterHistoryChart points={history.data.points} aggregation={history.aggregation} flowUnit={flowUnit}/> : !history.loading ? <ChartEmptyState message="Sin histórico para el periodo seleccionado."/> : null}</section>; }
+import type { DateRange, HistoryAggregation } from '../types';
+import type { OperationalModule } from '../operationalNavigation';
+import ModuleHistoryPanel from './ModuleHistoryPanel';
+import type { OperationalHistoryView } from './ModuleHistoryPanel';
+
+interface HistoryItem {
+  sensorId: number | null;
+  operationalKey: string;
+  name: string;
+  flowUnit?: string;
+}
+
+interface Props {
+  module: OperationalModule;
+  view: OperationalHistoryView;
+  range: DateRange;
+  aggregation: HistoryAggregation;
+  onAggregationChange: (value: HistoryAggregation) => void;
+  item: HistoryItem;
+}
+
+export default function ElementHistoryPanel({
+  module,
+  view,
+  range,
+  aggregation,
+  onAggregationChange,
+  item,
+}: Props) {
+  return (
+    <ModuleHistoryPanel
+      range={range}
+      fixedModule={module}
+      fixedView={view}
+      aggregation={aggregation}
+      onAggregationChange={onAggregationChange}
+      items={[item]}
+      panelTitle={`Histórico operativo · ${item.name}`}
+      panelSubtitle="Flujo, totalizador y exportaciones del elemento para el rango seleccionado."
+      className={`operational-detail-history operational-element-history operational-history-${module}`}
+      singleElement
+    />
+  );
+}

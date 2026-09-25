@@ -134,10 +134,10 @@ test('Detalles, historicos y turnos exponen scopes semanticos', () => {
   const elementHistory = read('src/pages/pozos/components/ElementHistoryPanel.tsx');
 
   assert.match(detail, /operational-detail-hero operational-detail-\$\{module\}/);
-  assert.match(detail, /className="operational-detail-history"/);
+  assert.match(detail, /<ElementHistoryPanel/);
   assert.match(history, /operational-history-panel operational-history-\$\{fixedView \|\| \(fixedModule \? module : globalView\)\}/);
   assert.match(shifts, /operational-shifts-panel operational-shifts-\$\{group\}/);
-  assert.match(elementHistory, /operational-element-history operational-history-\$\{module\}/);
+  assert.match(elementHistory, /operational-detail-history operational-element-history operational-history-\$\{module\}/);
 });
 
 

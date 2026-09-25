@@ -39,8 +39,10 @@ test('cada historico de seccion tiene fechas propias y conserva nombre fisico en
   assert.match(history, /operational-history-\$\{fixedView \|\| \(fixedModule \? module : globalView\)\}/);
 });
 
-test('el detalle individual permanece fuera de este cambio y conserva su historico actual', () => {
+test('las secciones y el detalle comparten el motor historico sin duplicar su implementacion', () => {
   const detail = read('src/pages/pozos/components/OperationalDetailSection.tsx');
-  assert.match(detail, /<ModuleHistoryPanel[\s\S]*?fixedModule=\{module\}/);
-  assert.doesNotMatch(detail.match(/<ModuleHistoryPanel[\s\S]*?\/>/)?.[0] || '', /independentRange/);
+  const elementHistory = read('src/pages/pozos/components/ElementHistoryPanel.tsx');
+  assert.match(detail, /<ElementHistoryPanel[\s\S]*?module=\{module\}/);
+  assert.match(elementHistory, /<ModuleHistoryPanel[\s\S]*?fixedModule=\{module\}/);
+  assert.doesNotMatch(elementHistory.match(/<ModuleHistoryPanel[\s\S]*?\/>/)?.[0] || '', /independentRange/);
 });

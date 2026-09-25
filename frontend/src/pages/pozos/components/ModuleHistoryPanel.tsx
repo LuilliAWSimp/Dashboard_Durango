@@ -73,6 +73,7 @@ interface Props {
   panelSubtitle?: string;
   className?: string;
   independentRange?: boolean;
+  singleElement?: boolean;
 }
 
 function intervalLabel(startValue: unknown, endValue: unknown, aggregation: HistoryAggregation): string {
@@ -285,7 +286,7 @@ function supportedAggregationForRange(current: HistoryAggregation, startDate: st
   return current;
 }
 
-export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggregation: controlledAggregation, onAggregationChange, colors, items, panelTitle, panelSubtitle, className = '', independentRange = false }: Props) {
+export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggregation: controlledAggregation, onAggregationChange, colors, items, panelTitle, panelSubtitle, className = '', independentRange = false, singleElement = false }: Props) {
   const [globalView, setGlobalView] = useState<OperationalHistoryView>('well');
   const viewConfig = GLOBAL_HISTORY_VIEWS[globalView];
   const lockedViewConfig = fixedView ? GLOBAL_HISTORY_VIEWS[fixedView] : null;
@@ -538,17 +539,19 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
       {metric === 'totalizer' ? <div className="module-history-totalizer-control"><span>Visualización del totalizador</span><div className="module-metric-selector" role="group" aria-label="Visualización del totalizador"><button type="button" className={totalizerDisplay === 'delta' ? 'active' : ''} onClick={() => setTotalizerDisplay('delta')}>Variación del periodo</button><button type="button" className={totalizerDisplay === 'absolute' ? 'active' : ''} onClick={() => setTotalizerDisplay('absolute')}>Valor absoluto</button></div></div> : null}
       {metric === 'both' ? <div className="status-pill module-metric-note">Flujo se muestra como línea en el eje izquierdo y {operationalVolumeLabel(module, { scope: 'period' }).toLowerCase()} como barras en el eje derecho.</div> : null}
       {aggregation === 'minute' ? <div className="status-pill module-metric-note">La vista de 1 minuto admite un máximo de un día por consulta.</div> : null}
-      <div className="module-selection-heading">
-        <span>Elementos visibles</span>
-        <div><button type="button" onClick={() => setSelected(activeIdentities)}>Seleccionar todos</button><button type="button" onClick={() => setSelected([])}>Deseleccionar todos</button></div>
-      </div>
-      <div className="module-history-sensors">
-        {activeItems.map((item) => {
-          const identity = configuredComparisonIdentity(item);
-          const active = selected.includes(identity);
-          return <button type="button" aria-pressed={active} className={`sensor-chip ${active ? 'active' : ''}`} key={identity} onClick={() => toggle(identity)}><span aria-hidden="true">{active ? '✓' : '○'}</span>{item.name}</button>;
-        })}
-      </div>
+      {!singleElement ? <>
+        <div className="module-selection-heading">
+          <span>Elementos visibles</span>
+          <div><button type="button" onClick={() => setSelected(activeIdentities)}>Seleccionar todos</button><button type="button" onClick={() => setSelected([])}>Deseleccionar todos</button></div>
+        </div>
+        <div className="module-history-sensors">
+          {activeItems.map((item) => {
+            const identity = configuredComparisonIdentity(item);
+            const active = selected.includes(identity);
+            return <button type="button" aria-pressed={active} className={`sensor-chip ${active ? 'active' : ''}`} key={identity} onClick={() => toggle(identity)}><span aria-hidden="true">{active ? '✓' : '○'}</span>{item.name}</button>;
+          })}
+        </div>
+      </> : null}
       {refreshing ? <div className="status-pill auto-refresh-status">Actualizando comparativa…</div> : null}
       {error ? <div className="status-pill alert">{error}</div> : null}
       {loading && !data ? <div className="status-pill">Cargando comparativa...</div> : null}

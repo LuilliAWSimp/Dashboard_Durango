@@ -16,10 +16,10 @@ import type { OperationalSectionConfig, OperationalSectionItem } from '../operat
 import { displayOperationalState, isNormalCommunication } from '../operationalDisplay';
 import { operationalVolumeLabel } from '../operationalTerminology';
 import DateRangeControls from './DateRangeControls';
-import FiveMinuteExcelExportButton from './FiveMinuteExcelExportButton';
 import MetricPair from './MetricPair';
 import PanelHeader from './PanelHeader';
-import ModuleHistoryPanel from './ModuleHistoryPanel';
+import ElementHistoryPanel from './ElementHistoryPanel';
+import type { OperationalHistoryView } from './ModuleHistoryPanel';
 import ShiftConsumptionPanel from './ShiftConsumptionPanel';
 import StatusBadge from './StatusBadge';
 import useSqlChartDashboard from '../hooks/useSqlChartDashboard';
@@ -146,9 +146,15 @@ export default function OperationalDetailSection({ module, sensorId, backPath, s
     name,
     flowUnit,
   }], [configuredHistoryItem, flowUnit, item, name, sensorId]);
-  const exportElementId = configuredHistoryItem
-    ? (configuredHistoryItem.sensorId ?? configuredHistoryItem.operationalKey)
-    : sensorId;
+  const historyView: OperationalHistoryView = sectionConfig?.key === 'lavadoras'
+    ? 'washers'
+    : sectionConfig?.key === 'jarabes'
+      ? 'jarabes'
+      : module === 'well'
+        ? 'well'
+        : module === 'line'
+          ? 'line'
+          : 'washers';
 
   useEffect(() => {
     const search = buildOperationalNavigationSearch(current.range, historyAggregation, module);
@@ -232,27 +238,18 @@ export default function OperationalDetailSection({ module, sensorId, backPath, s
         onReset={resetRange}
         status={current.loading ? 'Actualizando periodo...' : undefined}
         title="Rango del detalle"
-        subtitle="El rango actualiza indicadores, histórico y exportación conciliada de 5 minutos."
+        subtitle="El rango actualiza indicadores, histórico y cortes del elemento."
         className={`operational-detail-range operational-detail-${module}`}
-        extraAction={(
-          <FiveMinuteExcelExportButton
-            module={module}
-            elementId={exportElementId}
-            range={current.range}
-          />
-        )}
       />
       {current.error ? <div className="status-pill alert">{current.error}</div> : null}
 
-      <ModuleHistoryPanel
+      <ElementHistoryPanel
+        module={module}
+        view={historyView}
         range={current.range}
-        fixedModule={module}
         aggregation={historyAggregation}
         onAggregationChange={setHistoryAggregation}
-        items={historyItems}
-        panelTitle={`Histórico operativo · ${name}`}
-        panelSubtitle="Flujo y totalizador usan la misma fuente histórica común del módulo; los huecos permanecen como ausencia de registro."
-        className="operational-detail-history"
+        item={historyItems[0]}
       />
 
       <section className={`panel fade-up operational-period-summary operational-detail-summary operational-detail-${module}`}>
