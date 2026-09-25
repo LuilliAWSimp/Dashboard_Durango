@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { Droplets, FlaskConical, GitBranch, Waves } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import KpiCard from '../../../components/KpiCard';
 import { formatSqlDate } from '../dateUtils';
 import {
@@ -71,20 +73,17 @@ function statusType(value: unknown): string {
   return 'idle';
 }
 
+function cardPresentation(module: OperationalModule, sectionConfig?: OperationalSectionConfig): { label: string; icon: LucideIcon; className: string } {
+  if (module === 'well') return { label: 'Pozo', icon: Droplets, className: 'well' };
+  if (module === 'line') return { label: 'Línea', icon: GitBranch, className: 'line' };
+  if (sectionConfig?.key === 'jarabes') return { label: 'Proceso', icon: FlaskConical, className: 'jarabes' };
+  return { label: 'Lavadora', icon: Waves, className: 'washers' };
+}
+
 function rawModuleRows(dashboard: DashboardData | null, module: OperationalModule): FlexibleRecord[] {
   if (module === 'well') return array(dashboard?.wells);
   if (module === 'line') return array(dashboard?.production_lines);
   return array(dashboard?.flows);
-}
-
-function periodMessage(row: FlexibleRecord): string {
-  const status = String(row.period_data_status || row.data_status || '');
-  if (status === 'no_history' || status === 'no_data') {
-    return row.current_reading_available
-      ? 'Sin histórico para el periodo · Lectura actual disponible'
-      : 'Sin registros guardados';
-  }
-  return String(row.period_activity || row.activity || 'Sin histórico para el periodo');
 }
 
 function mergeDuplicateRows(previous: FlexibleRecord | undefined, next: FlexibleRecord): FlexibleRecord {
@@ -277,6 +276,8 @@ export default function OperationalModuleSection({
         : module === 'line'
           ? 'line'
           : 'washers';
+  const cardMeta = cardPresentation(module, sectionConfig);
+  const CardIcon = cardMeta.icon;
 
   return (
     <div className={`operational-module-page operational-module-${module}-page`}>
@@ -315,13 +316,12 @@ export default function OperationalModuleSection({
       )}
 
       <section className="panel fade-up">
-        <PanelHeader title={labels?.cardTitle || `Elementos de ${title.toLowerCase()}`} subtitle="Lectura actual y datos principales; selecciona una tarjeta para abrir su análisis" />
+        <PanelHeader title={labels?.cardTitle || `Elementos de ${title.toLowerCase()}`} subtitle="Selecciona un elemento para abrir su detalle." />
         {controller.error ? <div className="status-pill alert">{controller.error}</div> : null}
 
         <div className={`operational-card-grid ${module === 'well' ? 'operational-well-grid' : ''}`}>
           {rows.map((row, index) => {
             const identity = resolveOperationalIdentity(row, index, module);
-            const activity = periodMessage(row);
             const rawState = String(row.current_state || (currentFlow(row) === null ? 'Sin registros' : currentFlow(row)! > 0 ? 'Activo' : 'Sin flujo'));
             const state = displayOperationalState(rawState);
             const communication = String(row.communication || row.estado_comunicacion || 'Sin lectura');
@@ -330,7 +330,7 @@ export default function OperationalModuleSection({
             const flow = currentFlow(row);
             const totalizer = number(row.current_totalizer_m3 ?? row.totalizador_m3);
             return (
-              <article key={`${module}-${identity}`} className="operational-element-card">
+              <article key={`${module}-${identity}`} className={`operational-element-card operational-element-card-${cardMeta.className}`}>
                 <button
                   type="button"
                   className="operational-card-action"
@@ -339,9 +339,12 @@ export default function OperationalModuleSection({
                 >
                   <div className="operational-card-main">
                     <div className="operational-card-head">
-                      <div>
-                        <span>{title}</span>
-                        <strong>{itemName(row, index)}</strong>
+                      <div className="operational-card-title">
+                        <span className="operational-card-icon" aria-hidden="true"><CardIcon size={19} strokeWidth={2.2} /></span>
+                        <div>
+                          <span className="operational-card-eyebrow">{cardMeta.label}</span>
+                          <strong>{itemName(row, index)}</strong>
+                        </div>
                       </div>
                       <StatusBadge type={statusType(rawState)}>{state}</StatusBadge>
                     </div>
@@ -352,8 +355,8 @@ export default function OperationalModuleSection({
                         label={operationalVolumeLabel(module, { scope: 'period' })}
                         value={volume === null ? 'No disponible' : fmt(volume)}
                         unit={volume === null ? '' : 'm³'}
+                        emphasis
                       />
-                      <MetricPair label="Actividad del periodo" value={activity} />
                     </div>
                   </div>
                   <div className="operational-card-footer">
@@ -361,7 +364,7 @@ export default function OperationalModuleSection({
                       ? <span className="warning"><i />{communication}</span>
                       : <span className="last-reading-label">Última lectura</span>}
                     <strong>{formatSqlDate(row.last_update || row.ultima_lectura)}</strong>
-                    <span className="open-detail-link">Abrir detalle</span>
+                    <span className="open-detail-link">Ver detalle</span>
                   </div>
                 </button>
               </article>

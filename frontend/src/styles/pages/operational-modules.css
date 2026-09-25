@@ -127,3 +127,65 @@
 .pozos-shell.theme-light .open-detail-link {
   color: #0b5f8f;
 }
+
+/* Durango 32 · Cards operativas V2
+   Jerarquia compartida para Pozos, Lineas, Lavadoras y Jarabes.
+   La tarjeta concentra lectura actual + volumen del periodo; el estado vive en la cabecera
+   y la comunicacion solo aparece cuando requiere atencion. */
+.operational-element-card {
+  min-height: 260px;
+}
+
+.operational-card-title {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.operational-card-title > div {
+  min-width: 0;
+}
+
+.operational-card-icon {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  display: inline-grid !important;
+  place-items: center;
+  border: 1px solid rgba(125, 211, 252, .28);
+  border-radius: 12px;
+  background: rgba(14, 116, 144, .18);
+  color: #7dd3fc !important;
+  letter-spacing: 0 !important;
+}
+
+.operational-card-eyebrow {
+  margin: 0;
+}
+
+.operational-metric-grid .metric-pair:last-child {
+  grid-column: 1 / -1;
+}
+
+.operational-metric-grid .metric-pair.emphasis {
+  border-color: rgba(56, 189, 248, .32);
+  background: rgba(8, 47, 73, .54);
+}
+
+.pozos-shell.theme-light .operational-card-icon {
+  color: #0b5f8f !important;
+  background: #eaf6fd !important;
+  border-color: #9fc5da !important;
+}
+
+.pozos-shell.theme-light .operational-metric-grid .metric-pair.emphasis {
+  background: #e1f2fb !important;
+  border-color: #9fcde4 !important;
+}
+
+@media (max-width: 640px) {
+  .operational-metric-grid .metric-pair:last-child {
+    grid-column: auto;
+  }
+}
