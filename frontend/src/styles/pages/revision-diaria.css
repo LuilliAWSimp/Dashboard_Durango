@@ -473,6 +473,7 @@
 
 /* Revision diaria: jerarquia y contraste mas marcados. */
 .pozos-shell.theme-light .daily-review-header-panel,
+.pozos-shell.theme-light .daily-review-comparison-panel,
 .pozos-shell.theme-light .daily-review-detail-panel,
 .pozos-shell.theme-light .shift-consumption-panel {
   background: #ffffff;
@@ -480,17 +481,20 @@
 }
 
 .pozos-shell.theme-light .daily-review-header-panel .panel-title,
+.pozos-shell.theme-light .daily-review-comparison-panel .panel-title,
 .pozos-shell.theme-light .daily-review-detail-panel .panel-title,
 .pozos-shell.theme-light .shift-consumption-panel .panel-title {
   color: #0b1f3a;
 }
 
 .pozos-shell.theme-light .daily-review-header-panel .panel-subtitle,
+.pozos-shell.theme-light .daily-review-comparison-panel .panel-subtitle,
 .pozos-shell.theme-light .daily-review-detail-panel .panel-subtitle,
 .pozos-shell.theme-light .shift-consumption-panel .panel-subtitle {
   color: #4d6a80;
 }
 
+.pozos-shell.theme-light .daily-review-comparison-panel .pozos-table-scroll,
 .pozos-shell.theme-light .daily-review-detail-panel .pozos-table-scroll,
 .pozos-shell.theme-light .shift-overview-table-wrap,
 .pozos-shell.theme-light .shift-detail-table-wrap {
@@ -498,6 +502,7 @@
   background: #ffffff;
 }
 
+.pozos-shell.theme-light .daily-review-comparison-panel .pozos-operacion-table th,
 .pozos-shell.theme-light .daily-review-detail-panel .pozos-operacion-table th,
 .pozos-shell.theme-light .shift-overview-table th,
 .pozos-shell.theme-light .shift-detail-table th {
@@ -506,6 +511,7 @@
   border-bottom-color: #a9ccdf;
 }
 
+.pozos-shell.theme-light .daily-review-comparison-panel .pozos-operacion-table td,
 .pozos-shell.theme-light .daily-review-detail-panel .pozos-operacion-table td,
 .pozos-shell.theme-light .shift-overview-table td,
 .pozos-shell.theme-light .shift-detail-table td {
@@ -514,12 +520,14 @@
   border-bottom-color: #d7e7ef;
 }
 
+.pozos-shell.theme-light .daily-review-comparison-panel .pozos-operacion-table tbody tr:nth-child(even) td,
 .pozos-shell.theme-light .daily-review-detail-panel .pozos-operacion-table tbody tr:nth-child(even) td,
 .pozos-shell.theme-light .shift-overview-table tbody tr:nth-child(even) td,
 .pozos-shell.theme-light .shift-detail-table tbody tr:nth-child(even) td {
   background: #f1f9fd;
 }
 
+.pozos-shell.theme-light .daily-review-comparison-panel .pozos-operacion-table tbody tr:hover td,
 .pozos-shell.theme-light .daily-review-detail-panel .pozos-operacion-table tbody tr:hover td,
 .pozos-shell.theme-light .shift-overview-table tbody tr:hover td,
 .pozos-shell.theme-light .shift-detail-table tbody tr:hover td {
