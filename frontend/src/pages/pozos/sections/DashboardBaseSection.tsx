@@ -243,7 +243,7 @@ export default function DashboardBaseSection() {
         <KpiCard label="Última actualización" value={latest ? formatSqlDate(latest) : 'Sin lectura'} unit="" trend={controller.refreshing ? 'Actualizando información…' : 'Snapshot automático cada 60 s'} accent="teal" />
       </section>
 
-      <ModuleHistoryPanel range={controller.range} />
+      <ModuleHistoryPanel range={controller.range} independentRange />
       <WellsMinuteFlowPanel />
 
       <section className="panel fade-up">

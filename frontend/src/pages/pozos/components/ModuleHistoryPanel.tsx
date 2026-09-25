@@ -26,6 +26,30 @@ import PanelHeader from './PanelHeader';
 const COLORS = ['#FE019A', '#FEE301', '#a78bfa', '#34d399', '#f59e0b', '#fb7185'];
 const TOTALIZER_COLORS = ['#2563eb', '#0ea5e9', '#7c3aed', '#0f766e', '#ea580c', '#be123c'];
 const MODULE_LABELS: Record<ComparisonModule, string> = { well: 'Pozos', line: 'Líneas', flow: 'Flujos' };
+
+type HistoryItem = {
+  sensorId: number | null;
+  operationalKey: string;
+  name: string;
+  flowUnit?: string;
+};
+
+type GlobalHistoryView = 'well' | 'line' | 'washers' | 'jarabes';
+
+const GLOBAL_HISTORY_VIEWS: Record<GlobalHistoryView, { module: ComparisonModule; label: string; items: HistoryItem[] }> = {
+  well: { module: 'well', label: 'Pozos', items: DURANGO_CAPABILITIES.wells.map((item) => ({ ...item })) },
+  line: { module: 'line', label: 'Líneas', items: DURANGO_CAPABILITIES.lines.map((item) => ({ ...item })) },
+  washers: {
+    module: 'flow',
+    label: 'Lavadoras',
+    items: DURANGO_CAPABILITIES.flows.filter((item) => item.operationalKey !== 'jarabes').map((item) => ({ ...item })),
+  },
+  jarabes: {
+    module: 'flow',
+    label: 'Jarabes',
+    items: DURANGO_CAPABILITIES.flows.filter((item) => item.operationalKey === 'jarabes').map((item) => ({ ...item })),
+  },
+};
 const AGGREGATION_LABELS: Record<HistoryAggregation, string> = {
   minute: '1 min',
   quarter_hour: '15 min',
@@ -35,13 +59,6 @@ const AGGREGATION_LABELS: Record<HistoryAggregation, string> = {
 
 type TotalizerDisplay = 'delta' | 'absolute';
 type ExportSeries = { key: string; name: string; metric: 'flow' | 'totalizer'; unit: string; color: string };
-
-type HistoryItem = {
-  sensorId: number | null;
-  operationalKey: string;
-  name: string;
-  flowUnit?: string;
-};
 
 interface Props {
   range: DateRange;
@@ -53,6 +70,7 @@ interface Props {
   panelTitle?: string;
   panelSubtitle?: string;
   className?: string;
+  independentRange?: boolean;
 }
 
 function intervalLabel(startValue: unknown, endValue: unknown, aggregation: HistoryAggregation): string {
@@ -236,14 +254,52 @@ function tick(value: number, aggregation: HistoryAggregation): string {
   return date.toLocaleString('es-MX', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
-export default function ModuleHistoryPanel({ range, fixedModule, aggregation: controlledAggregation, onAggregationChange, colors, items, panelTitle, panelSubtitle, className = '' }: Props) {
-  const [tabModule, setTabModule] = useState<ComparisonModule>(fixedModule || 'well');
-  const module = fixedModule || tabModule;
+function localDateToken(value = new Date()): string {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, '0');
+  const day = String(value.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function normalizeDateRange(startDate?: string, endDate?: string): { startDate: string; endDate: string } {
+  const fallback = localDateToken();
+  const start = String(startDate || fallback).slice(0, 10);
+  const end = String(endDate || start).slice(0, 10);
+  return start <= end ? { startDate: start, endDate: end } : { startDate: end, endDate: start };
+}
+
+function inclusiveRangeDays(startDate: string, endDate: string): number {
+  const start = new Date(`${startDate}T00:00:00`);
+  const end = new Date(`${endDate}T00:00:00`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 1;
+  return Math.max(1, Math.floor((end.getTime() - start.getTime()) / 86400000) + 1);
+}
+
+function supportedAggregationForRange(current: HistoryAggregation, startDate: string, endDate: string): HistoryAggregation {
+  const days = inclusiveRangeDays(startDate, endDate);
+  if (current === 'minute' && days > 1) return days <= 7 ? 'quarter_hour' : days <= 31 ? 'hourly' : 'daily';
+  if (current === 'quarter_hour' && days > 7) return days <= 31 ? 'hourly' : 'daily';
+  if (current === 'hourly' && days > 31) return 'daily';
+  return current;
+}
+
+export default function ModuleHistoryPanel({ range, fixedModule, aggregation: controlledAggregation, onAggregationChange, colors, items, panelTitle, panelSubtitle, className = '', independentRange = false }: Props) {
+  const [globalView, setGlobalView] = useState<GlobalHistoryView>('well');
+  const viewConfig = GLOBAL_HISTORY_VIEWS[globalView];
+  const module = fixedModule || viewConfig.module;
+  const moduleDisplayLabel = fixedModule ? MODULE_LABELS[module] : viewConfig.label;
+  const initialLocalRange = normalizeDateRange(range.startDate, range.endDate);
+  const [draftRange, setDraftRange] = useState(initialLocalRange);
+  const [localRange, setLocalRange] = useState<DateRange>({ ...initialLocalRange, refreshKey: Number(range.refreshKey || 0) });
+  const effectiveRange = independentRange ? localRange : range;
   const palette = colors?.length ? colors : COLORS;
-  const activeItems = useMemo<HistoryItem[]>(() => (items?.length ? items : comparisonModuleItems[module]).map((item) => ({ ...item })), [items, module]);
+  const activeItems = useMemo<HistoryItem[]>(() => {
+    const source = items?.length ? items : fixedModule ? comparisonModuleItems[module] : viewConfig.items;
+    return source.map((item) => ({ ...item }));
+  }, [items, fixedModule, module, viewConfig]);
   const activeIdentities = useMemo(() => activeItems.map(configuredComparisonIdentity), [activeItems]);
   const allowedTokens = useMemo(() => new Set(activeItems.flatMap((item) => [String(configuredComparisonIdentity(item)), item.operationalKey])), [activeItems]);
-  const [internalAggregation, setInternalAggregation] = useState<HistoryAggregation>(() => controlledAggregation || recommendedHistoryAggregation(range));
+  const [internalAggregation, setInternalAggregation] = useState<HistoryAggregation>(() => controlledAggregation || recommendedHistoryAggregation(effectiveRange));
   const aggregation = controlledAggregation || internalAggregation;
   const [metric, setMetric] = useState<ComparisonMetric>('flow');
   const [totalizerDisplay, setTotalizerDisplay] = useState<TotalizerDisplay>('delta');
@@ -261,24 +317,43 @@ export default function ModuleHistoryPanel({ range, fixedModule, aggregation: co
   useEffect(() => {
     setData(null);
     dataRef.current = null;
+  }, [module]);
+
+  useEffect(() => {
     setSelected(activeIdentities);
-  }, [module, activeIdentities]);
+  }, [activeIdentities]);
 
   const setAggregation = (value: HistoryAggregation) => {
     if (onAggregationChange) onAggregationChange(value);
     else setInternalAggregation(value);
   };
 
+  const applyIndependentRange = () => {
+    const next = normalizeDateRange(draftRange.startDate, draftRange.endDate);
+    const supported = supportedAggregationForRange(aggregation, next.startDate, next.endDate);
+    if (supported !== aggregation) setAggregation(supported);
+    setDraftRange(next);
+    setLocalRange({ ...next, refreshKey: Date.now() });
+  };
+
+  const resetIndependentRange = () => {
+    const today = localDateToken();
+    const next = { startDate: today, endDate: today };
+    setDraftRange(next);
+    if (!controlledAggregation) setInternalAggregation('hourly');
+    setLocalRange({ ...next, refreshKey: Date.now() });
+  };
+
   const load = useCallback(async (forceRefresh = false, background = false) => {
-    if (!range.startDate || !range.endDate) return;
-    const identity = `${module}:${range.startDate}:${range.endDate}:${aggregation}`;
+    if (!effectiveRange.startDate || !effectiveRange.endDate) return;
+    const identity = `${module}:${effectiveRange.startDate}:${effectiveRange.endDate}:${aggregation}`;
     if (inFlightIdentityRef.current === identity) return;
     inFlightIdentityRef.current = identity;
     const requestId = ++requestIdRef.current;
     if (!dataRef.current) setLoading(true); else if (background) setRefreshing(true);
     if (!background) setError('');
     try {
-      const response = await fetchWaterModuleHistory({ module, startDate: range.startDate, endDate: range.endDate, aggregation, forceRefresh });
+      const response = await fetchWaterModuleHistory({ module, startDate: String(effectiveRange.startDate), endDate: String(effectiveRange.endDate), aggregation, forceRefresh });
       if (requestId !== requestIdRef.current) return;
       setData(response);
       setError('');
@@ -289,10 +364,10 @@ export default function ModuleHistoryPanel({ range, fixedModule, aggregation: co
       if (requestId === requestIdRef.current) { setLoading(false); setRefreshing(false); }
       if (inFlightIdentityRef.current === identity) inFlightIdentityRef.current = '';
     }
-  }, [module, range.startDate, range.endDate, aggregation]);
+  }, [module, effectiveRange.startDate, effectiveRange.endDate, aggregation]);
 
-  useEffect(() => { void load(Boolean(range.refreshKey), false); }, [load, range.refreshKey]);
-  useAutoRefresh(rangeIncludesToday(range), () => { void load(true, true); });
+  useEffect(() => { void load(Boolean(effectiveRange.refreshKey), false); }, [load, effectiveRange.refreshKey]);
+  useAutoRefresh(rangeIncludesToday(effectiveRange), () => { void load(true, true); });
 
   const filteredData = useMemo<WaterModuleHistoryResponse | null>(() => {
     if (!data) return null;
@@ -341,11 +416,11 @@ export default function ModuleHistoryPanel({ range, fixedModule, aggregation: co
     downloadModuleHistoryExcel({
       rows: exportRows,
       series: exportSeries,
-      moduleLabel: MODULE_LABELS[module],
+      moduleLabel: moduleDisplayLabel,
       metricLabel,
       aggregationLabel: AGGREGATION_LABELS[aggregation],
-      startDate: String(filteredData?.start_date || range.startDate || ''),
-      endDate: String(filteredData?.end_date || range.endDate || ''),
+      startDate: String(filteredData?.start_date || effectiveRange.startDate || ''),
+      endDate: String(filteredData?.end_date || effectiveRange.endDate || ''),
       selectedNames,
     });
   };
@@ -355,14 +430,14 @@ export default function ModuleHistoryPanel({ range, fixedModule, aggregation: co
     setPdfExporting(true);
     try {
       await downloadWaterModuleHistoryPdf({
-        module_label: MODULE_LABELS[module],
+        module_label: moduleDisplayLabel,
         metric_label: metricLabel,
         aggregation_label: AGGREGATION_LABELS[aggregation],
-        start_date: String(filteredData?.start_date || range.startDate || ''),
-        end_date: String(filteredData?.end_date || range.endDate || ''),
+        start_date: String(filteredData?.start_date || effectiveRange.startDate || ''),
+        end_date: String(filteredData?.end_date || effectiveRange.endDate || ''),
         range_label: formatOperationalDateRange({
-          startDate: String(filteredData?.start_date || range.startDate || ''),
-          endDate: String(filteredData?.end_date || range.endDate || ''),
+          startDate: String(filteredData?.start_date || effectiveRange.startDate || ''),
+          endDate: String(filteredData?.end_date || effectiveRange.endDate || ''),
         }),
         selected_names: selectedNames,
         rows: exportRows,
@@ -378,16 +453,30 @@ export default function ModuleHistoryPanel({ range, fixedModule, aggregation: co
   const totalizerAxisLabel = metric === 'both' ? operationalVolumeAxisLabel(module) : effectiveTotalizerDisplay === 'delta' ? 'Variación (m³)' : 'Totalizador (m³)';
 
   return (
-    <section className={`panel chart-panel fade-up module-history-panel operational-module-comparison operational-history-panel operational-history-${module} ${className}`.trim()}>
+    <section className={`panel chart-panel fade-up module-history-panel operational-module-comparison operational-history-panel operational-history-${fixedModule ? module : globalView} ${className}`.trim()}>
       <PanelHeader
-        title={panelTitle || (fixedModule ? `Comparativa de ${MODULE_LABELS[module].toLowerCase()}` : 'Histórico operativo por módulo')}
-        subtitle={panelSubtitle || 'Compara flujo y totalizador; los huecos permanecen como ausencia de registro'}
+        title={panelTitle || (fixedModule ? `Comparativa de ${moduleDisplayLabel.toLowerCase()}` : 'Histórico operativo global')}
+        subtitle={panelSubtitle || (fixedModule ? 'Consulta el comportamiento histórico del módulo seleccionado.' : 'Consulta Pozos, Líneas, Lavadoras y Jarabes desde un único histórico.')}
       />
+      {independentRange ? (
+        <div className="module-history-range-panel" aria-label="Fechas del histórico global">
+          <div className="module-history-range-fields">
+            <label><span>Desde</span><input type="date" value={draftRange.startDate} onChange={(event) => setDraftRange((current) => ({ ...current, startDate: event.target.value }))} /></label>
+            <label><span>Hasta</span><input type="date" value={draftRange.endDate} onChange={(event) => setDraftRange((current) => ({ ...current, endDate: event.target.value }))} /></label>
+          </div>
+          <div className="module-history-range-actions">
+            <button type="button" className="primary-action" onClick={applyIndependentRange}>Actualizar</button>
+            <button type="button" className="ghost-action" onClick={resetIndependentRange}>Restablecer</button>
+          </div>
+          <span className="module-history-range-label">{formatOperationalDateRange(effectiveRange)}</span>
+        </div>
+      ) : null}
       <div className="module-history-toolbar">
         {!fixedModule ? <div className="module-history-tabs" role="tablist">
-          {([['well', 'Pozos'], ['line', 'Líneas'], ['flow', 'Flujos']] as const).map(([value, label]) => (
-            <button type="button" role="tab" aria-selected={module === value} className={`module-history-tab ${module === value ? 'active' : ''}`} key={value} onClick={() => setTabModule(value)}>{label}</button>
-          ))}
+          {(Object.keys(GLOBAL_HISTORY_VIEWS) as GlobalHistoryView[]).map((value) => {
+            const option = GLOBAL_HISTORY_VIEWS[value];
+            return <button type="button" role="tab" aria-selected={globalView === value} className={`module-history-tab ${globalView === value ? 'active' : ''}`} key={value} onClick={() => setGlobalView(value)}>{option.label}</button>;
+          })}
         </div> : null}
         <div className="module-comparison-controls">
           <div className="module-metric-selector" role="group" aria-label="Métrica comparativa">

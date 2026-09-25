@@ -135,7 +135,7 @@ test('Detalles, historicos y turnos exponen scopes semanticos', () => {
 
   assert.match(detail, /operational-detail-hero operational-detail-\$\{module\}/);
   assert.match(detail, /className="operational-detail-history"/);
-  assert.match(history, /operational-history-panel operational-history-\$\{module\}/);
+  assert.match(history, /operational-history-panel operational-history-\$\{fixedModule \? module : globalView\}/);
   assert.match(shifts, /operational-shifts-panel operational-shifts-\$\{group\}/);
   assert.match(elementHistory, /operational-element-history operational-history-\$\{module\}/);
 });

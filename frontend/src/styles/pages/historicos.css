@@ -345,3 +345,104 @@
 .pozos-shell.theme-light .module-history-panel .recharts-bar-rectangle path {
   opacity: .86;
 }
+
+/* Durango 21 · Historico operativo global V2. */
+.module-history-range-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 12px 16px;
+  margin: 0 0 14px;
+  padding: 12px;
+  border: 1px solid rgba(56, 189, 248, .18);
+  border-radius: 14px;
+  background: rgba(3, 21, 34, .48);
+}
+
+.module-history-range-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.module-history-range-fields label {
+  display: grid;
+  gap: 6px;
+  color: #9ddcf2;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.module-history-range-fields input {
+  width: 100%;
+  min-height: 38px;
+  box-sizing: border-box;
+  border: 1px solid rgba(56, 189, 248, .34);
+  border-radius: 10px;
+  padding: 7px 10px;
+  background: #061827;
+  color: #effbff;
+  font: inherit;
+  color-scheme: dark;
+}
+
+.module-history-range-fields input:focus-visible {
+  outline: none;
+  border-color: rgba(56, 189, 248, .85);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, .16);
+}
+
+.module-history-range-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.module-history-range-actions button {
+  min-height: 38px;
+}
+
+.module-history-range-label {
+  grid-column: 1 / -1;
+  color: #a9dff3;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.pozos-shell.theme-light .module-history-range-panel {
+  border-color: #b7d5e6;
+  background: #f7fcff;
+}
+
+.pozos-shell.theme-light .module-history-range-fields label,
+.pozos-shell.theme-light .module-history-range-label {
+  color: #234e70;
+}
+
+.pozos-shell.theme-light .module-history-range-fields input {
+  border-color: #9fc5da;
+  background: #ffffff;
+  color: #163a5f;
+  color-scheme: light;
+}
+
+@media (max-width: 760px) {
+  .module-history-range-panel {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .module-history-range-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .module-history-range-actions {
+    justify-content: stretch;
+  }
+
+  .module-history-range-actions button {
+    flex: 1;
+  }
+}
