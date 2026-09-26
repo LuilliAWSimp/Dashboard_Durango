@@ -6,7 +6,7 @@ if (-not (Test-Path -LiteralPath $manifest -PathType Leaf)) {
     throw 'No se encontro ELIMINAR_ARCHIVOS_INCREMENTAL_43.txt junto al script.'
 }
 
-$rootFull = [System.IO.Path]::GetFullPath($repoRoot).TrimEnd('\\', '/') + [System.IO.Path]::DirectorySeparatorChar
+$rootFull = [System.IO.Path]::GetFullPath($repoRoot).TrimEnd([char[]]@('\','/')) + [System.IO.Path]::DirectorySeparatorChar
 $removed = 0
 $missing = 0
 
