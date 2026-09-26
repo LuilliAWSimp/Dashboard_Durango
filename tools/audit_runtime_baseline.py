@@ -144,7 +144,7 @@ def rel(root: Path, path: Path) -> str:
     return path.resolve().relative_to(root.resolve()).as_posix()
 
 
-def make_markdown(root: Path) -> str:
+def make_markdown(root: Path, incremental: str = "actual") -> str:
     reachable, edges = frontend_graph(root)
     reachable_set = set(reachable)
     duplicates = duplicate_pairs(root, reachable_set)
@@ -159,7 +159,7 @@ def make_markdown(root: Path) -> str:
 
     lines: list[str] = []
     lines += [
-        "# Línea base de runtime — Durango — Incremental 20",
+        f"# Línea base de runtime — Durango — Incremental {incremental}",
         "",
         "> Inventario técnico reproducible. No modifica SQL Server, BOS, sensores, cálculos ni comportamiento hidráulico.",
         "",
@@ -228,16 +228,16 @@ def make_markdown(root: Path) -> str:
         "",
         "## Decisiones de esta línea base",
         "",
-        "1. No eliminar todavía pares `.js/.ts` o `.jsx/.tsx`; se canonizarán después de migrar las funciones modernas.",
-        "2. Para cambios funcionales inmediatos, seguir siempre el archivo que aparece como **runtime alcanzable**.",
-        "3. No retirar todavía routers backend heredados sólo por no verlos en la UI; su consumo se comprobará antes de la limpieza profunda.",
-        "4. `global.css` permanece congelado como base heredada; este incremental no agrega ni mueve estilos.",
-        "5. Esta línea base es el punto de comparación para los incrementales 21–44.",
+        "1. No debe quedar ningún par `.js/.ts` o `.jsx/.tsx` duplicado sin justificación explícita.",
+        "2. Todo archivo de código frontend existente debe ser alcanzable desde `main.jsx` o documentarse como excepción intencional.",
+        "3. Los routers backend se registran según su montaje real; no se infiere que un router sea prescindible sólo porque la UI no lo invoque.",
+        "4. `global.css` permanece como base heredada acotada; las responsabilidades específicas deben vivir en hojas modulares.",
+        "5. Esta línea base es el punto de comparación para mantenimiento posterior al cierre de homologación.",
         "",
         "## Reproducción",
         "",
         "```powershell",
-        "python .\\tools\\audit_runtime_baseline.py --write .\\docs\\RUNTIME_BASELINE_DURANGO_20.md",
+        f"python .\\tools\\audit_runtime_baseline.py --incremental {incremental} --write .\\docs\\RUNTIME_BASELINE_DURANGO_{incremental}.md",
         "```",
         "",
     ]
@@ -247,9 +247,17 @@ def make_markdown(root: Path) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--write", type=Path, help="Write the generated Markdown to this path.")
+    parser.add_argument("--incremental", help="Incremental label used in the report title. If omitted, infer from --write when possible.")
     args = parser.parse_args()
     root = project_root()
-    markdown = make_markdown(root)
+    incremental = str(args.incremental or "").strip()
+    if not incremental and args.write:
+        match = re.search(r"RUNTIME_BASELINE_DURANGO_([^./\\]+)\.md$", args.write.name, re.IGNORECASE)
+        if match:
+            incremental = match.group(1)
+    if not incremental:
+        incremental = "actual"
+    markdown = make_markdown(root, incremental)
     if args.write:
         target = args.write
         if not target.is_absolute():

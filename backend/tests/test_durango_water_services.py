@@ -160,8 +160,7 @@ def _history_fixture(module, start_date, end_date, aggregation, **_):
 
 def test_pdf_excel_and_email_attachment_use_same_report_structure(monkeypatch):
     fixture = _period_fixture()
-    monkeypatch.setattr(report_service, 'get_period_data', lambda *args, **kwargs: fixture)
-    monkeypatch.setattr(report_service, 'get_shift_consumption_data', lambda *args, **kwargs: {'shifts': []})
+    monkeypatch.setattr(report_service, '_daily_review_as_period', lambda *args, **kwargs: (fixture, []))
     monkeypatch.setattr(report_service, 'get_water_history_module', _history_fixture)
     report = report_service.get_daily_water_report('2026-08-01')
     pdf_bytes, pdf_name = report_service.build_daily_water_report_pdf(report)
