@@ -7,6 +7,7 @@ import { downloadWaterModuleHistoryPdf } from '../../../services/waterModuleHist
 import { downloadFiveMinuteModuleHistoryExcel, validateFiveMinuteExportRange } from '../../../services/waterFiveMinuteExportService';
 import { fetchWaterHistory, fetchWaterModuleHistory } from '../../../services/waterService';
 import { formatOperationalDateRange, rangeIncludesToday, recommendedHistoryAggregation } from '../dateUtils';
+import { HISTORY_MAX_RANGE_DAYS, inclusiveHistoryRangeDays } from '../historyRangePolicy';
 import { operationalVolumeAxisLabel, operationalVolumeLabel } from '../operationalTerminology';
 import { withProgressiveVolume, type DetailVolumeDisplay } from '../detailHistoryVolume';
 import { detailHistoryIntervalLabel, summarizeDetailHistory, type DetailHistoryPeriodSummary } from '../detailHistorySummary';
