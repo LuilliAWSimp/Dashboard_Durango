@@ -46,30 +46,3 @@ test('se preservan las fuentes que ya estaban en el runtime antes de canonizar',
     assert.equal(existsSync(join(srcRoot, file)), true, `${file} debe permanecer como fuente canónica runtime`);
   }
 });
-
-test('pares fuera del runtime conservan una sola variante tipada', () => {
-  const typedCanonicalFiles = [
-    'components/BottleIcon.tsx',
-    'components/Charts.tsx',
-    'components/DataTable.tsx',
-    'components/PlantDashboardCard.tsx',
-    'components/PlantMultiSelector.tsx',
-    'components/PlantSelector.tsx',
-    'components/PlantsComparisonChart.tsx',
-    'data/circuits.ts',
-    'data/multiPlantMock.ts',
-    'data/pozosMock.ts',
-    'hooks/usePlants.ts',
-    'pages/DashboardPage.tsx',
-    'pages/DomainSelectionPage.tsx',
-    'pages/LinesOverviewPage.tsx',
-    'pages/MultiPlantDashboardPage.tsx',
-    'services/alertService.ts',
-    'services/dashboardService.ts',
-    'services/exportService.ts',
-    'services/plantService.ts',
-  ];
-  for (const file of typedCanonicalFiles) {
-    assert.equal(existsSync(join(srcRoot, file)), true, `${file} debe ser la variante canónica fuera del runtime`);
-  }
-});

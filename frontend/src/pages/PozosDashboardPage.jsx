@@ -9,7 +9,6 @@ import PozosSection from './pozos/sections/PozosSection';
 import WellDetailSection from './pozos/sections/WellDetailSection';
 import LineasSection from './pozos/sections/LineasSection';
 import FlujosSection from './pozos/sections/FlujosSection';
-import ConcesionSection from './pozos/sections/ConcesionSection';
 import ReportesSection from './pozos/sections/ReportesSection';
 import JarabesSection from './pozos/sections/JarabesSection';
 import UsersPage from './UsersPage';
@@ -51,10 +50,6 @@ const sectionMap = {
   balance: {
     title: 'Balance de Agua',
     render: () => <BalanceSection />,
-  },
-  concesion: {
-    title: 'Concesión',
-    render: () => <ConcesionSection />,
   },
   revision: {
     title: 'Revisión Diaria',

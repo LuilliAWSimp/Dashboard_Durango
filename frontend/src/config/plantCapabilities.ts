@@ -58,7 +58,6 @@ const DURANGO_NAVIGATION: readonly DurangoNavigationItem[] = [
   { key: 'flujos', label: 'Lavadoras', iconKey: 'pozos-flujos', capability: 'washers' },
   { key: 'jarabes', label: 'Jarabes', iconKey: 'jarabes', capability: 'jarabes' },
   { key: 'balance', label: 'Balance de Agua', iconKey: 'pozos-balance', capability: 'balance', pendingLabel: 'Balance de Agua · En validación' },
-  { key: 'concesion', label: 'Concesión', iconKey: 'pozos-concesion', capability: 'concession' },
   { key: 'revision', label: 'Revisión Diaria', iconKey: 'pozos-revision', capability: 'daily_review' },
   { key: 'reportes', label: 'Reportes', iconKey: 'pozos-reportes', capability: 'reports' },
   { key: 'usuarios', label: 'Usuarios', iconKey: 'usuarios', adminOnly: true },
@@ -71,17 +70,9 @@ const SECTION_CAPABILITY: Readonly<Record<string, DurangoCapabilityKey | null>> 
   flujos: 'washers',
   jarabes: 'jarabes',
   balance: 'balance',
-  concesion: 'concession',
   revision: 'daily_review',
   reportes: 'reports',
   usuarios: null,
-  // Secciones heredadas: quedan declaradas explícitamente para que una URL
-  // directa no las reactive por accidente si permanecen archivos legacy.
-  tanques: 'tanks',
-  consumos: 'consumptions',
-  cip: 'cip',
-  uv: 'uv',
-  electric: 'energy',
 };
 
 function normalizeCapabilityState(value: unknown): DurangoCapabilityState | undefined {
