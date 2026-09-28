@@ -518,13 +518,24 @@ def _period_cache_ttl(start_day: date, end_day: date, now_day: date) -> int:
     return PERIOD_TTL_CURRENT_SECONDS if start_day <= now_day <= end_day else PERIOD_TTL_HISTORICAL_SECONDS
 
 
+def _period_cache_key(start_day: date, end_day: date) -> str:
+    """Return a stable cache identity for a requested period.
+
+    Freshness is already controlled by ``_period_cache_ttl``. Including the
+    current effective end minute in the key made otherwise identical requests
+    miss the cache whenever the clock crossed a minute boundary, which caused
+    repeated SQL work while navigating between dashboard sections.
+    """
+    return f"durango:period:{start_day.isoformat()}:{end_day.isoformat()}"
+
+
 def get_period_data(start_date: Any = None, end_date: Any = None, *, force_refresh: bool = False) -> dict[str, Any]:
     start_day, end_day = date_range(start_date, end_date)
     requested_start_dt = datetime.combine(start_day, time.min)
     requested_end_dt = datetime.combine(end_day + timedelta(days=1), time.min)
     now_local = local_now_naive()
     effective_end_dt = effective_local_end(requested_end_dt, now=now_local)
-    cache_key = f"durango:period:{start_day.isoformat()}:{end_day.isoformat()}:{effective_end_dt.isoformat(timespec='minutes')}"
+    cache_key = _period_cache_key(start_day, end_day)
     cached = _PERIOD_CACHE.get(cache_key)
     if not force_refresh and cached and monotonic() < float(cached.get('expires_at') or 0):
         return deepcopy(cached['value'])
