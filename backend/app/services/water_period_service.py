@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, time, timedelta
 import logging
 from time import monotonic
@@ -573,62 +574,84 @@ def _get_period_data_impl(start_date: Any = None, end_date: Any = None, *, force
         ttl = _period_cache_ttl(start_day, end_day, now_local.date())
         _PERIOD_CACHE[cache_key] = {'expires_at': monotonic() + ttl, 'value': deepcopy(payload)}
         return payload
-    try:
-        rows = query_readings_window(sensor_ids, query_start_dt, query_end_dt) if query_end_dt > query_start_dt else []
-    except WaterPeriodError as exc:
-        if start_day != end_day:
-            raise
-        rows = []
-        period_query_status = exc.status
-    previous = (
-        query_previous_closes(sensor_ids, query_start_dt)
-        if period_query_status == 'operational' and requested_start_dt >= DURANGO_SCADA_CUTOVER_LOCAL
-        else {}
-    )
-    grouped: dict[int, list[dict[str, Any]]] = {sensor_id: [] for sensor_id in sensor_ids}
-    for row in rows:
-        sensor_id = int(row.get('sensor_id') or 0)
-        if sensor_id in grouped:
-            row = dict(row)
-            row.setdefault('period_source', 'readings_minute')
-            grouped[sensor_id].append(row)
+    def load_primary_period_items() -> tuple[list[dict[str, Any]], str]:
+        primary_query_status = 'operational'
+        try:
+            rows = query_readings_window(sensor_ids, query_start_dt, query_end_dt) if query_end_dt > query_start_dt else []
+        except WaterPeriodError as exc:
+            if start_day != end_day:
+                raise
+            rows = []
+            primary_query_status = exc.status
 
-    if start_day == end_day and query_end_dt > query_start_dt:
-        for contract in WELLS:
-            sensor_id = int(contract['sensor_id'])
-            if grouped.get(sensor_id):
-                continue
-            fallback_rows = query_bos_well_rows(sensor_id, query_start_dt, query_end_dt)
-            if fallback_rows:
-                grouped[sensor_id] = fallback_rows
-    items = [
-        build_period_item(
-            contract,
-            grouped[int(contract['sensor_id'])],
-            previous.get(int(contract['sensor_id'])),
+        previous = (
+            query_previous_closes(sensor_ids, query_start_dt)
+            if primary_query_status == 'operational' and requested_start_dt >= DURANGO_SCADA_CUTOVER_LOCAL
+            else {}
+        )
+        grouped: dict[int, list[dict[str, Any]]] = {sensor_id: [] for sensor_id in sensor_ids}
+        for row in rows:
+            sensor_id = int(row.get('sensor_id') or 0)
+            if sensor_id in grouped:
+                normalized = dict(row)
+                normalized.setdefault('period_source', 'readings_minute')
+                grouped[sensor_id].append(normalized)
+
+        if start_day == end_day and query_end_dt > query_start_dt:
+            for contract in WELLS:
+                sensor_id = int(contract['sensor_id'])
+                if grouped.get(sensor_id):
+                    continue
+                fallback_rows = query_bos_well_rows(sensor_id, query_start_dt, query_end_dt)
+                if fallback_rows:
+                    grouped[sensor_id] = fallback_rows
+
+        primary_items = [
+            build_period_item(
+                contract,
+                grouped[int(contract['sensor_id'])],
+                previous.get(int(contract['sensor_id'])),
+                end_day,
+                window_start=query_start_dt,
+                window_end=query_end_dt,
+            )
+            for contract in SENSOR_ITEMS
+        ]
+        return primary_items, primary_query_status
+
+    def load_lavadora_items() -> list[dict[str, Any]]:
+        return get_lavadora_period_items(
+            query_start_dt,
+            query_end_dt,
             end_day,
             window_start=query_start_dt,
             window_end=query_end_dt,
         )
-        for contract in SENSOR_ITEMS
-    ]
+
+    def load_jarabes_items() -> list[dict[str, Any]]:
+        return get_jarabes_period_items(
+            query_start_dt,
+            query_end_dt,
+            end_day,
+            window_start=query_start_dt,
+            window_end=query_end_dt,
+        )
+
+    # 46F: these three source families use independent SQL sessions/tables.
+    # Fetch them concurrently on a cold period request and preserve the same
+    # deterministic payload order when joining their results.
     try:
-        items.extend(get_lavadora_period_items(
-            query_start_dt,
-            query_end_dt,
-            end_day,
-            window_start=query_start_dt,
-            window_end=query_end_dt,
-        ))
-        items.extend(get_jarabes_period_items(
-            query_start_dt,
-            query_end_dt,
-            end_day,
-            window_start=query_start_dt,
-            window_end=query_end_dt,
-        ))
+        with ThreadPoolExecutor(max_workers=3, thread_name_prefix='durango-period') as executor:
+            primary_future = executor.submit(load_primary_period_items)
+            lavadoras_future = executor.submit(load_lavadora_items)
+            jarabes_future = executor.submit(load_jarabes_items)
+            primary_items, period_query_status = primary_future.result()
+            lavadora_items = lavadoras_future.result()
+            jarabes_items = jarabes_future.result()
     except SQLAlchemyError as exc:
         raise WaterPeriodError('No fue posible consultar el histórico de flujos operativos.', status='sql_error') from exc
+
+    items = [*primary_items, *lavadora_items, *jarabes_items]
 
     groups: dict[str, list[dict[str, Any]]] = {'well': [], 'line': [], 'flow': []}
     for item in items:
