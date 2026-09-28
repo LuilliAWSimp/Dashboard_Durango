@@ -63,6 +63,12 @@ function itemName(row: FlexibleRecord, index: number): string {
   return String(row.name || row.nombre || `Elemento ${index + 1}`);
 }
 
+function periodMessage(row: FlexibleRecord): string {
+  const value = row.period_activity ?? row.activity;
+  const text = String(value ?? '').trim();
+  return text || '—';
+}
+
 function statusType(value: unknown): string {
   const text = String(value || '').toLowerCase();
   if (text.includes('revisión') || text.includes('atrasada') || text.includes('parcial')) return 'warning';
