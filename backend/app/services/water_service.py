@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from typing import Any
 
@@ -192,13 +193,49 @@ def _cards(payload: dict[str, Any]) -> list[KpiCard]:
     ]
 
 
+def _load_dashboard_sources(start_date: Any = None, end_date: Any = None, *, force_refresh: bool = False) -> tuple[dict[str, Any] | None, dict[str, Any] | None, WaterPeriodError | None]:
+    """Load the current snapshot and requested period with the same semantics.
+
+    Automatic dashboard refreshes need both sources and they use independent
+    SQLAlchemy sessions. Running those two reads concurrently reduces wall time
+    without changing the payload, formulas, cache TTLs, or refresh cadence.
+
+    Explicit manual refreshes keep the previous sequential behavior so a forced
+    refresh does not add extra concurrent load to SQL Server.
+    """
+    def load_current() -> dict[str, Any] | None:
+        return get_bos_water_dashboard_payload(
+            start_date=None, end_date=None, period=None,
+            include_history=False, include_energy_water=False, force_refresh=force_refresh,
+        )
+
+    def load_period() -> tuple[dict[str, Any] | None, WaterPeriodError | None]:
+        if not (start_date or end_date):
+            return None, None
+        try:
+            return get_period_data(start_date, end_date, force_refresh=force_refresh), None
+        except WaterPeriodError as exc:
+            return None, exc
+
+    if force_refresh or not (start_date or end_date):
+        current = load_current()
+        period_payload, period_error = load_period()
+        return current, period_payload, period_error
+
+    with ThreadPoolExecutor(max_workers=2, thread_name_prefix='durango-dashboard') as executor:
+        current_future = executor.submit(load_current)
+        period_future = executor.submit(load_period)
+        current = current_future.result()
+        period_payload, period_error = period_future.result()
+    return current, period_payload, period_error
+
+
 def get_water_dashboard_payload(section: str = 'dashboard', start_date: Any = None, end_date: Any = None, period: Any = None, include_history: bool = False, include_energy_water: bool = False, force_refresh: bool = False) -> WaterDashboardPayload:
     if section == 'concesion':
         return _empty(section, 'not_available', 'No se habilita sin título, volumen autorizado, vigencia y fuente legal confirmados.')
 
-    current = get_bos_water_dashboard_payload(
-        start_date=None, end_date=None, period=None,
-        include_history=False, include_energy_water=False, force_refresh=force_refresh,
+    current, period_payload, period_error = _load_dashboard_sources(
+        start_date, end_date, force_refresh=force_refresh,
     )
     if current and current.get('__sql_error__'):
         return _empty(section, 'sql_error', 'No fue posible consultar la información de planta.')
@@ -212,10 +249,11 @@ def get_water_dashboard_payload(section: str = 'dashboard', start_date: Any = No
     payload['plant_capabilities'] = capability_payload()
     payload['report_modules'] = WATER_REPORT_MODULES
 
-    # Los cálculos del periodo se solicitan de forma separada a la lectura actual.
+    # Los cálculos del periodo se conservan separados de la lectura actual,
+    # pero en refrescos automáticos ambos I/O independientes pueden resolverse
+    # en paralelo para reducir el tiempo total de espera.
     if start_date or end_date:
-        try:
-            period_payload = get_period_data(start_date, end_date, force_refresh=force_refresh)
+        if period_error is None and period_payload is not None:
             payload['wells'] = _merge_period(list(payload.get('wells') or []), period_payload['wells'])
             payload['production_lines'] = _merge_period(list(payload.get('production_lines') or []), period_payload['lines'])
             payload['flows'] = _merge_period(list(payload.get('flows') or []), period_payload['flows'])
@@ -227,10 +265,10 @@ def get_water_dashboard_payload(section: str = 'dashboard', start_date: Any = No
                 'flows': summarize_period_items(payload['flows']),
             }
             payload['period_source_status'] = period_payload['source_status']
-        except WaterPeriodError as exc:
+        elif period_error is not None:
             payload['period_data'] = None
-            payload['period_source_status'] = exc.status
-            payload['period_error'] = str(exc)
+            payload['period_source_status'] = period_error.status
+            payload['period_error'] = str(period_error)
     else:
         payload['operational_summary'] = {
             'wells': summarize_period_items(list(payload.get('wells') or [])),
