@@ -4,6 +4,7 @@ from copy import deepcopy
 from datetime import date, datetime, time, timedelta
 import logging
 from time import monotonic
+from threading import Lock
 from typing import Any, Iterable
 from zoneinfo import ZoneInfo
 
@@ -37,6 +38,8 @@ MAX_ROWS = 200_000
 PERIOD_TTL_CURRENT_SECONDS = 60
 PERIOD_TTL_HISTORICAL_SECONDS = 10 * 60
 _PERIOD_CACHE: dict[str, dict[str, Any]] = {}
+_PERIOD_REQUEST_LOCKS: dict[str, Lock] = {}
+_PERIOD_REQUEST_LOCKS_GUARD = Lock()
 
 
 class WaterPeriodError(RuntimeError):
@@ -529,7 +532,7 @@ def _period_cache_key(start_day: date, end_day: date) -> str:
     return f"durango:period:{start_day.isoformat()}:{end_day.isoformat()}"
 
 
-def get_period_data(start_date: Any = None, end_date: Any = None, *, force_refresh: bool = False) -> dict[str, Any]:
+def _get_period_data_impl(start_date: Any = None, end_date: Any = None, *, force_refresh: bool = False) -> dict[str, Any]:
     start_day, end_day = date_range(start_date, end_date)
     requested_start_dt = datetime.combine(start_day, time.min)
     requested_end_dt = datetime.combine(end_day + timedelta(days=1), time.min)
@@ -658,3 +661,27 @@ def get_period_data(start_date: Any = None, end_date: Any = None, *, force_refre
     ttl = _period_cache_ttl(start_day, end_day, now_local.date())
     _PERIOD_CACHE[cache_key] = {'expires_at': monotonic() + ttl, 'value': deepcopy(payload)}
     return payload
+
+def _period_request_lock(cache_key: str) -> Lock:
+    """Return the shared lock for one requested date range.
+
+    Multiple dashboard endpoints can ask for the same period at the same time
+    (for example Resumen and Revisión diaria). Serializing only identical
+    ranges lets the first request fill the existing TTL cache and prevents the
+    followers from repeating the same SQL work while it is still in flight.
+    """
+    with _PERIOD_REQUEST_LOCKS_GUARD:
+        lock = _PERIOD_REQUEST_LOCKS.get(cache_key)
+        if lock is None:
+            lock = Lock()
+            _PERIOD_REQUEST_LOCKS[cache_key] = lock
+        return lock
+
+
+def get_period_data(start_date: Any = None, end_date: Any = None, *, force_refresh: bool = False) -> dict[str, Any]:
+    start_day, end_day = date_range(start_date, end_date)
+    cache_key = _period_cache_key(start_day, end_day)
+    request_lock = _period_request_lock(cache_key)
+    with request_lock:
+        return _get_period_data_impl(start_date, end_date, force_refresh=force_refresh)
+
