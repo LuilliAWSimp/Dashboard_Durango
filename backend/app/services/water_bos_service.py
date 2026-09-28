@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from datetime import datetime, date, time, timedelta
 import logging
@@ -1489,6 +1490,44 @@ def _cards(wells: list[dict[str, Any]], lines: list[dict[str, Any]], tank_inputs
     ]
 
 
+
+def _load_current_snapshot_sources_parallel(
+    start_date: Any = None,
+    end_date: Any = None,
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None, list[dict[str, Any]], list[dict[str, Any]], int]:
+    """Read the four independent live BOS sources concurrently.
+
+    Each worker owns its SQLAlchemy session; sessions are never shared across
+    threads. The returned objects are the same source rows used by the legacy
+    sequential path, so only wall-clock latency changes.
+    """
+
+    def latest_row(table_name: str) -> tuple[dict[str, Any] | None, int]:
+        errors = {'count': 0}
+        with SessionLocal() as worker_session:
+            row = _safe_latest_row(worker_session, table_name, start_date, end_date, errors)
+        return row, int(errors.get('count') or 0)
+
+    def current_lavadoras() -> list[dict[str, Any]]:
+        with SessionLocal() as worker_session:
+            return get_current_lavadoras(session=worker_session)
+
+    def current_jarabes() -> list[dict[str, Any]]:
+        with SessionLocal() as worker_session:
+            return get_current_jarabes(session=worker_session)
+
+    with ThreadPoolExecutor(max_workers=4, thread_name_prefix='durango-current') as executor:
+        pozo_future = executor.submit(latest_row, 'dbo.SensorsBOS_Pozo')
+        linea_future = executor.submit(latest_row, 'dbo.SensorsBOS_Linea')
+        lavadoras_future = executor.submit(current_lavadoras)
+        jarabes_future = executor.submit(current_jarabes)
+        pozo_row, pozo_errors = pozo_future.result()
+        linea_row, linea_errors = linea_future.result()
+        lavadoras = lavadoras_future.result()
+        jarabes = jarabes_future.result()
+
+    return pozo_row, linea_row, lavadoras, jarabes, pozo_errors + linea_errors
+
 def get_bos_water_dashboard_payload(start_date: Any = None, end_date: Any = None, period: Any = None, include_history: bool = False, include_energy_water: bool = False, force_refresh: bool = False) -> dict[str, Any] | None:
     start_bound, end_bound = _date_bounds(start_date, end_date)
     has_period = bool(start_bound or end_bound)
@@ -1497,14 +1536,31 @@ def get_bos_water_dashboard_payload(start_date: Any = None, end_date: Any = None
         cached_payload = _payload_cache_get(cache_key)
         if cached_payload is not None:
             return cached_payload
+    # Automatic current-only refreshes are the hot path used by Resumen and
+    # module navigation. Their four live sources are independent, so they can
+    # be read concurrently with isolated SQLAlchemy sessions. Manual forced
+    # refreshes and historical payloads retain the conservative sequential path.
+    parallel_current_sources = bool(
+        not force_refresh
+        and not has_period
+        and not include_history
+        and not include_energy_water
+    )
     sql_errors = {'count': 0}
     try:
+        if parallel_current_sources:
+            pozo_row, linea_row, lavadoras, jarabes, source_error_count = _load_current_snapshot_sources_parallel(
+                start_date, end_date,
+            )
+            sql_errors['count'] = source_error_count
+
         with SessionLocal() as session:
             sql_now = _sql_now(session)
-            pozo_row = _safe_latest_row(session, 'dbo.SensorsBOS_Pozo', start_date, end_date, sql_errors)
-            linea_row = _safe_latest_row(session, 'dbo.SensorsBOS_Linea', start_date, end_date, sql_errors)
-            lavadoras = get_current_lavadoras(session=session)
-            jarabes = get_current_jarabes(session=session)
+            if not parallel_current_sources:
+                pozo_row = _safe_latest_row(session, 'dbo.SensorsBOS_Pozo', start_date, end_date, sql_errors)
+                linea_row = _safe_latest_row(session, 'dbo.SensorsBOS_Linea', start_date, end_date, sql_errors)
+                lavadoras = get_current_lavadoras(session=session)
+                jarabes = get_current_jarabes(session=session)
             niveles_row = None
             pozo_start_row = _safe_first_row(session, 'dbo.SensorsBOS_Pozo', start_date, end_date, sql_errors) if has_period else None
             linea_start_row = _safe_first_row(session, 'dbo.SensorsBOS_Linea', start_date, end_date, sql_errors) if has_period else None
