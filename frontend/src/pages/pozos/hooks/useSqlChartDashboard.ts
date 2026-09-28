@@ -73,6 +73,7 @@ export default function useSqlChartDashboard(
         include_history: Boolean(options.includeHistory),
         include_energy_water: Boolean(options.includeEnergyWater),
         force_refresh: kind === 'manual',
+        bypassCache: kind === 'auto',
       });
       if (!mountedRef.current || requestId !== requestIdRef.current) return;
       setDashboard(data);

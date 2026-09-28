@@ -35,7 +35,7 @@ from app.services.water_quality import build_quality_diagnostic, classify_water_
 logger = logging.getLogger(__name__)
 LOCAL_ZONE = ZoneInfo(LOCAL_TIMEZONE)
 MAX_ROWS = 200_000
-PERIOD_TTL_CURRENT_SECONDS = 60
+PERIOD_TTL_CURRENT_SECONDS = 50
 PERIOD_TTL_HISTORICAL_SECONDS = 10 * 60
 _PERIOD_CACHE: dict[str, dict[str, Any]] = {}
 _PERIOD_REQUEST_LOCKS: dict[str, Lock] = {}

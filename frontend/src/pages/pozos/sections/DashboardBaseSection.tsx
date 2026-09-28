@@ -47,19 +47,46 @@ function rowSummary(items: FlexibleRecord[]): FlexibleRecord {
   let total = 0;
   let hasVolume = false;
   let active = 0;
+  let inactive = 0;
   let currentFlow = 0;
+  let coverageAvailable = 0;
+  let qualityIssueCount = 0;
+  let noDataCount = 0;
+  let partialCount = 0;
   items.forEach((item) => {
     const volume = validatedRowVolume(item);
     if (volume !== null) {
       total += volume;
       hasVolume = true;
+      coverageAvailable += 1;
     }
     const activity = String(item.activity || item.period_activity || '').toLowerCase();
     if (activity.includes('con actividad') || Number(item.active_minutes || 0) > 0 || (volume !== null && volume > 0)) active += 1;
+    if (activity.includes('sin actividad')) inactive += 1;
     const flow = number(item.current_flow_lps ?? item.current_flow ?? item.flow_lps ?? item.instant_flow_lps ?? item.flujo_lps);
     if (flow !== null && flow > 0) currentFlow += 1;
+    const dataStatus = String(item.data_status || item.period_data_status || '').toLowerCase();
+    const qualityStatus = String(item.quality_status || '').toLowerCase();
+    if (Boolean(item.has_discontinuities)) partialCount += 1;
+    if (Boolean(item.has_discontinuities) || dataStatus === 'invalid_totalizer' || ['review', 'partial_coverage'].includes(qualityStatus)) qualityIssueCount += 1;
+    if (['no_history', 'no_data'].includes(dataStatus) || qualityStatus === 'no_data') noDataCount += 1;
   });
-  return { total_m3: hasVolume ? total : null, active_count: active, current_flow_count: currentFlow };
+  const validatedTotal = hasVolume ? total : null;
+  return {
+    total_m3: validatedTotal,
+    validated_volume_m3: validatedTotal,
+    subtotal_validated_m3: validatedTotal,
+    active_count: active,
+    inactive_count: inactive,
+    current_flow_count: currentFlow,
+    coverage_available: coverageAvailable,
+    coverage_total: items.length,
+    coverage_complete: items.length > 0 && coverageAvailable === items.length,
+    review_count: qualityIssueCount,
+    no_data_count: noDataCount,
+    no_history_count: noDataCount,
+    partial_count: partialCount,
+  };
 }
 function groupVolume(group: FlexibleRecord): number | null {
   return number(group.subtotal_validated_m3 ?? group.validated_volume_m3 ?? group.total_m3);
@@ -86,10 +113,6 @@ function dailyVolumeTrend(group: FlexibleRecord, total: number, previous: Flexib
   const coverage = coverageText(group, total);
   const comparison = changeText(groupVolume(group), groupVolume(previous));
   return `${coverage} · ${comparison} vs día anterior`;
-}
-function reviewOperationalGroup(review: FlexibleRecord | null, key: string): FlexibleRecord {
-  if (!review) return {};
-  return summaryGroup(asRecord(review.operational_groups), key);
 }
 function comparisonOperationalGroup(review: FlexibleRecord | null, comparisonKey: string, key: string): FlexibleRecord {
   if (!review) return {};
@@ -152,12 +175,11 @@ export default function DashboardBaseSection() {
       if (!cancelled) setDailyLoading(false);
     });
     return () => { cancelled = true; };
-  }, [singleReviewDate, controller.lastRefreshAt]);
+  }, [singleReviewDate]);
 
   const dashboardSummary = (dashboard?.operational_summary || {}) as FlexibleRecord;
   const dashboardWells = summaryGroup(dashboardSummary, 'wells');
   const dashboardLines = summaryGroup(dashboardSummary, 'lines');
-  const dashboardFlows = summaryGroup(dashboardSummary, 'flows');
 
   const wellRows = rows(dashboard?.wells);
   const lineRows = rows(dashboard?.production_lines);
@@ -175,10 +197,13 @@ export default function DashboardBaseSection() {
   const dashboardJarabes = rowSummary(jarabesRows);
 
   const dailyMode = Boolean(singleReviewDate && dailyReview);
-  const wells = dailyMode ? reviewOperationalGroup(dailyReview, 'wells') : dashboardWells;
-  const lines = dailyMode ? reviewOperationalGroup(dailyReview, 'lines') : dashboardLines;
-  const lavadoras = dailyMode ? reviewOperationalGroup(dailyReview, 'lavadoras') : dashboardLavadoras;
-  const jarabes = dailyMode ? reviewOperationalGroup(dailyReview, 'jarabes') : dashboardJarabes;
+  // El volumen/actividad actual proviene del periodo que ya cargó el dashboard.
+  // Revisión diaria queda reservada a referencias históricas (ayer/semana anterior)
+  // y no se vuelve a consultar en cada tick de 60 s.
+  const wells = dashboardWells;
+  const lines = dashboardLines;
+  const lavadoras = dashboardLavadoras;
+  const jarabes = dashboardJarabes;
 
   const previousDay = {
     wells: comparisonOperationalGroup(dailyReview, 'previous_day', 'wells'),
