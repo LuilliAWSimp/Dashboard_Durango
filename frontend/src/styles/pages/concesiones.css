@@ -155,6 +155,10 @@
 .con-v2 .con-well-card-title { min-width: 0; display: grid; gap: 4px; }
 .con-v2 .con-well-card-title strong { font-size: 14px; }
 .con-v2 .con-well-card-title small { font-size: 11px; color: var(--con-muted); overflow-wrap: anywhere; }
+.con-v2 .con-well-card-head,.con-v2 .con-well-card-main,.con-v2 .con-well-card-bottom { width: 100%; min-width: 0; }
+.con-v2 .con-well-card-head { display: grid !important; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; column-gap: 12px; row-gap: 8px; }
+.con-v2 .con-well-card-main { display: grid; gap: 0; min-width: 0; }
+.con-v2 .con-well-card-main .con-bar { width: 100%; }
 .con-v2 .con-status-chip { flex: 0 0 auto; color: #f4c17b; background: rgba(242,164,60,.11); padding: 7px 9px; border-radius: 7px; font-size: 10px; font-weight: 750; }
 .con-v2 .con-well-card-head .con-status-chip { margin-left: auto; }
 .con-v2 .con-well-card-value { display: block; margin-top: 24px; font-size: clamp(24px,2.4vw,34px); font-weight: 850; letter-spacing: -.036em; line-height: 1; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
@@ -222,7 +226,8 @@
 .con-v2 .con-facts-v2 > div { padding-top: 12px; padding-bottom: 12px; }
 .con-v2 .con-facts-v2 span { margin-bottom: 5px; }
 .con-v2 .con-validation-panel.panel { padding: 20px 23px; }
-.con-v2 .con-validation-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.con-v2 .con-validation-heading { display: flex !important; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.con-v2 .con-validation-status { flex: 0 0 auto; }
 .con-v2 .con-validation-heading h3 { margin: 5px 0; font-size: 17px; color: var(--con-text); }
 .con-v2 .con-validation-heading p { margin: 0; font-size: 12px; color: var(--con-muted); }
 .con-v2 .con-validation-steps { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); margin-top: 20px; gap: 15px; }
@@ -290,8 +295,9 @@
 .con-v2 .con-chart-feedback svg { color:var(--con-accent); }
 .con-v2 .con-chart-feedback strong { color:var(--con-text); font-size:14px; }
 .con-v2 .con-chart-feedback span { font-size:12px; line-height:1.6; max-width:370px; }
-.con-v2 .con-month-metrics { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-top:6px; }
-.con-v2 .con-month-metrics > div { display:flex; flex-direction:column; gap:5px; border:1px solid var(--con-line); background:rgba(34,138,178,.075); padding:13px 12px; border-radius:11px; min-width:0; }
+.con-v2 .con-month-metrics { display:grid !important; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-top:6px; }
+.con-v2 .con-month-metrics > div,
+.con-v2 .con-metric-card { display:flex !important; flex-direction:column; gap:5px; border:1px solid var(--con-line); background:rgba(34,138,178,.075); padding:13px 12px; border-radius:11px; min-width:0; }
 .con-v2 .con-month-metrics small { color:var(--con-muted); font-size:10px; }
 .con-v2 .con-month-metrics strong { color:var(--con-text); font-size:clamp(16px,1.9vw,22px); letter-spacing:-.025em; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
 .con-v2 .con-month-metrics strong em { font-size:11px; color:var(--con-muted); font-weight:650; font-style:normal; }
@@ -326,7 +332,8 @@
 
 /* DGO-C04: estado de precálculo persistente de la IPC */
 .con-sync-panel { padding: 22px 24px; display: grid; gap: 10px; }
-.con-sync-title, .con-sync-info, .con-sync-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.con-sync-title, .con-sync-info, .con-sync-footer { display: flex !important; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.con-sync-info strong, .con-sync-info span, .con-sync-footer small { display: block; }
 .con-sync-title h3 { margin: 5px 0; font-size: 17px; }
 .con-sync-title p, .con-sync-footer small { color: var(--con-muted); margin: 0; font-size: 12px; }
 .con-sync-info { font-size: 12px; }
@@ -338,3 +345,24 @@
 .con-sync-bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg,#1887d9,#29c7d5); transition: width .3s; }
 .con-sync-warning { display: flex; align-items: center; gap: 8px; color: #e8b66f; font-size: 12px; }
 @media (max-width: 600px) { .con-sync-panel { padding: 16px; } .con-sync-footer button { width: 100%; justify-content: center; } }
+
+/* DGO-C04A: hotfix de maquetación robusta para navegadores de planta */
+.concessions-page .con-wells-section,
+.concessions-page .con-analytics-grid,
+.concessions-page .con-detail-top,
+.concessions-page .con-detail-share,
+.concessions-page .con-validation-steps { min-width: 0; }
+.concessions-page .con-well-card-head strong,
+.concessions-page .con-well-card-value,
+.concessions-page .con-well-card-progress-label strong,
+.concessions-page .con-month-metrics strong,
+.concessions-page .con-detail-share strong { display: block; }
+.concessions-page .con-well-card-progress-label,
+.concessions-page .con-detail-share { display: flex !important; justify-content: space-between; align-items: center; flex-wrap: wrap; }
+.concessions-page .con-detail-top { display: flex !important; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.concessions-page .con-validation-step > div { min-width: 0; }
+@media (max-width: 960px) {
+  .con-v2 .con-well-card-head { grid-template-columns: auto minmax(0,1fr); }
+  .con-v2 .con-well-card-head .con-status-chip { grid-column: 1 / -1; justify-self: start; margin-left: 56px; }
+  .con-v2 .con-month-metrics { grid-template-columns: 1fr; }
+}

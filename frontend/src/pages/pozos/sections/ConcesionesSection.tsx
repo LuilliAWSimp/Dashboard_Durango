@@ -287,11 +287,20 @@ export default function ConcesionesSection({ currentUser }: { currentUser?: { ro
       <div className="con-section-title-row"><div><span className="con-eyebrow">INVENTARIO / SELECCIÓN</span><h3>Concesiones por pozo</h3><p>Selecciona un pozo para ver su ficha. Las barras muestran su participación en el volumen autorizado total.</p></div><span className="con-counter">{records.length} registrados</span></div>
       <div className="con-well-cards" role="group" aria-label="Seleccionar pozo">
         {widths.map((item, index) => <button key={item.well_key} type="button" aria-pressed={item.well_key === row?.well_key} className={`con-well-card panel ${row?.well_key === item.well_key ? 'selected' : ''}`} onClick={() => { setSelected(item.well_key); setHistoryOpen(false); }}>
-          <span className="con-well-card-head"><span className="con-well-card-icon"><Droplets size={20}/></span><span className="con-well-card-title"><strong>{item.well_name}</strong><small>Título {item.title_number} · BOS {item.sensor_id}</small></span><span className="con-status-chip">{item.has_document ? 'PDF adjunto' : 'Sin PDF'}</span></span>
-          <span className="con-well-card-value">{formatM3(item.annual_volume_m3)} <em>m³/año autorizados*</em></span>
-          <span className="con-well-card-progress-label"><small>Parte del total de la planta</small><strong>{item.relativePercent.toFixed(1)}%</strong></span>
-          <span className="con-bar"><span className={`con-bar-color-${index % 3}`} style={{ width: `${item.relativePercent}%` }}/></span>
-          <span className="con-well-card-bottom"><span><Info size={14}/> Extracción: pendiente</span><span>Remanente: —</span></span>
+          <div className="con-well-card-head">
+            <div className="con-well-card-icon"><Droplets size={20}/></div>
+            <div className="con-well-card-title">
+              <strong>{item.well_name}</strong>
+              <small>Título {item.title_number} · BOS {item.sensor_id}</small>
+            </div>
+            <span className="con-status-chip">{item.has_document ? 'PDF adjunto' : 'Sin PDF'}</span>
+          </div>
+          <div className="con-well-card-main">
+            <div className="con-well-card-value">{formatM3(item.annual_volume_m3)} <em>m³/año autorizados*</em></div>
+            <div className="con-well-card-progress-label"><small>Parte del total de la planta</small><strong>{item.relativePercent.toFixed(1)}%</strong></div>
+            <span className="con-bar"><span className={`con-bar-color-${index % 3}`} style={{ width: `${item.relativePercent}%` }}/></span>
+          </div>
+          <div className="con-well-card-bottom"><span><Info size={14}/> Extracción operativa en construcción</span><span>Remanente legal: pendiente</span></div>
         </button>)}
       </div>
       <div className="con-under-cards"><Info size={14}/>* Volúmenes registrados de manera provisional. Los porcentajes de estas tarjetas son <strong>distribución de autorización, nunca porcentaje consumido.</strong></div>
@@ -319,9 +328,9 @@ export default function ConcesionesSection({ currentUser }: { currentUser?: { ro
           {!historyLoading && !historyError && !analytics.count && <div className="con-chart-feedback"><CalendarDays size={26}/><strong>No hay meses con volumen verificable</strong><span>Los periodos sin lecturas no se muestran como cero. Revisa la cobertura del histórico del año seleccionado.</span></div>}
           {!historyLoading && !historyError && analytics.count > 0 && <>
             <div className="con-month-metrics">
-              <div><small>Acumulado medido</small><strong>{formatM3(analytics.total)} <em>m³</em></strong><span>Periodo disponible · {year}</span></div>
-              <div><small>Promedio de meses con datos</small><strong>{formatM3(analytics.avg)} <em>m³</em></strong><span>No es una cuota mensual legal</span></div>
-              <div><small>Mes de mayor volumen</small><strong>{analytics.max ? months[analytics.max.month-1] : '—'}</strong><span>{formatM3(analytics.max?.volume_m3)} m³ medidos</span></div>
+              <div className="con-metric-card"><small>Acumulado medido</small><strong>{formatM3(analytics.total)} <em>m³</em></strong><span>Periodo disponible · {year}</span></div>
+              <div className="con-metric-card"><small>Promedio de meses con datos</small><strong>{formatM3(analytics.avg)} <em>m³</em></strong><span>No es una cuota mensual legal</span></div>
+              <div className="con-metric-card"><small>Mes de mayor volumen</small><strong>{analytics.max ? months[analytics.max.month-1] : '—'}</strong><span>{formatM3(analytics.max?.volume_m3)} m³ medidos</span></div>
             </div>
             <div className="con-recharts-holder" role="img" aria-label={`Extracción mensual medida de ${row?.well_name ?? 'pozo'}, ${year}`}>
               <ResponsiveContainer width="100%" height="100%"><BarChart data={chartData} margin={{top:25,right:8,bottom:0,left:0}} barCategoryGap="24%">
@@ -378,7 +387,39 @@ export default function ConcesionesSection({ currentUser }: { currentUser?: { ro
       </section>
     </div>
 
-    <section className="panel con-validation-panel"><div className="con-validation-heading"><div><span className="con-eyebrow">RUTA DE VALIDACIÓN</span><h3>Estado de integración</h3><p>Etapas necesarias antes de mostrar consumo contra la concesión.</p></div><span className="con-status-chip">Revisión pendiente</span></div><div className="con-validation-steps"><div className="con-validation-step"><span className="con-step-circle con-step-provisional"><FileCheck2 size={18}/></span><div><strong>1. Captura de referencias</strong><small>Dos cuotas registradas de manera provisional.</small></div></div><div className="con-validation-step"><span className="con-step-circle"><FileText size={18}/></span><div><strong>2. Validación documental</strong><small>Revisar títulos vigentes, prórrogas y periodo aplicable.</small></div></div><div className="con-validation-step"><span className="con-step-circle"><Database size={18}/></span><div><strong>3. Histórico operativo BOS</strong><small>Extracción mensual conectada; auditar cobertura y ciclo antes de calcular remanente legal.</small></div></div></div></section>
+    <section className="panel con-validation-panel">
+      <div className="con-validation-heading">
+        <div>
+          <span className="con-eyebrow">RUTA DE VALIDACIÓN</span>
+          <h3>Estado de integración</h3>
+          <p>Etapas necesarias antes de mostrar consumo contra la concesión.</p>
+        </div>
+        <span className="con-status-chip con-validation-status">Revisión pendiente</span>
+      </div>
+      <div className="con-validation-steps">
+        <div className="con-validation-step">
+          <span className="con-step-circle con-step-provisional"><FileCheck2 size={18}/></span>
+          <div>
+            <strong>1. Captura de referencias</strong>
+            <small>Dos cuotas registradas de manera provisional.</small>
+          </div>
+        </div>
+        <div className="con-validation-step">
+          <span className="con-step-circle"><FileText size={18}/></span>
+          <div>
+            <strong>2. Validación documental</strong>
+            <small>Revisar títulos vigentes, prórrogas y periodo aplicable.</small>
+          </div>
+        </div>
+        <div className="con-validation-step">
+          <span className="con-step-circle"><Database size={18}/></span>
+          <div>
+            <strong>3. Histórico operativo BOS</strong>
+            <small>Extracción mensual conectada; auditar cobertura y ciclo antes de calcular remanente legal.</small>
+          </div>
+        </div>
+      </div>
+    </section>
 
     {editing && row && form && <div className="con-modal-scrim" onMouseDown={(event) => { if (event.target === event.currentTarget && !saveBusy) setEditing(false); }}>
       <section role="dialog" aria-modal="true" aria-label={`Administrar concesión ${row.well_name}`} className="con-modal panel">
