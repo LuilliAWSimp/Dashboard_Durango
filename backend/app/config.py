@@ -74,7 +74,7 @@ class Settings(BaseSettings):
     report_email_scheduler_poll_seconds: int = Field(default=30, alias="REPORT_EMAIL_SCHEDULER_POLL_SECONDS")
     report_email_send_delay_minutes: int = Field(default=10, alias="REPORT_EMAIL_SEND_DELAY_MINUTES")
     report_email_catchup_hours: int = Field(default=36, alias="REPORT_EMAIL_CATCHUP_HOURS")
-    report_email_max_attempts: int = Field(default=3, alias="REPORT_EMAIL_MAX_ATTEMPTS")
+    report_email_max_attempts: int = Field(default=1, alias="REPORT_EMAIL_MAX_ATTEMPTS")
     report_email_retry_minutes: int = Field(default=10, alias="REPORT_EMAIL_RETRY_MINUTES")
 
     concession_database_path: str = Field(default="data/concessions.sqlite3", alias="CONCESSION_DATABASE_PATH")
