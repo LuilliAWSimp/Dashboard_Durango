@@ -360,3 +360,49 @@ async def upload_water_source(file: UploadFile = File(...), activate: bool = Tru
 def activate_water_source(source_id: str):
     source = activate_source(source_id)
     return WaterSourceActivateResponse(active_source=source, message='Fuente hídrica activada')
+
+# H02: exportadores historicos INDIVIDUALES con evaluacion de umbral servidor.
+# No reutilizar el payload PDF por modulo, que viene del navegador.
+@router.get('/history/detail/{format_name}')
+def download_water_history_threshold_detail(
+    format_name: str,
+    module: str = Query(..., pattern='^(well|line|flow)$'),
+    sensor_id: str = Query(..., min_length=1),
+    start_date: str = Query(...),
+    end_date: str = Query(...),
+    aggregation: str = Query(..., pattern='^(minute|quarter_hour|hourly|daily)$'),
+    threshold_enabled: bool = Query(False),
+    threshold_direction: str = Query('below', pattern='^(below|above|both)$'),
+    threshold_basis: str = Query('extreme', pattern='^(extreme|average)$'),
+    threshold_min_value: float | None = Query(None, ge=0),
+    threshold_max_value: float | None = Query(None, ge=0),
+):
+    from app.services.durango_flow_threshold import FlowThreshold
+    from app.services.durango_threshold_export_service import build_threshold_excel, build_threshold_pdf
+
+    if format_name not in {'pdf', 'excel'}:
+        raise HTTPException(status_code=404, detail='Formato de exportacion no disponible.')
+    if not threshold_enabled:
+        raise HTTPException(status_code=422, detail='Activa la revision de umbrales para esta exportacion individual.')
+    rule = FlowThreshold(
+        enabled=threshold_enabled, direction=threshold_direction, basis=threshold_basis,
+        min_value=threshold_min_value, max_value=threshold_max_value,
+    )
+    try:
+        rule.validate()
+        history = get_water_history(
+            module=module, sensor_id=sensor_id, start_date=start_date,
+            end_date=end_date, aggregation=aggregation,
+        )
+        content, filename = (build_threshold_pdf if format_name == 'pdf' else build_threshold_excel)(history, rule)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except WaterHistoryError as exc:
+        raise HTTPException(status_code=504 if exc.status == 'timeout' else 503, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception('Error en exportacion de umbrales H02: %s', exc)
+        raise HTTPException(status_code=500, detail='No fue posible exportar el detalle de umbrales.') from exc
+    media_type = ('application/pdf' if format_name == 'pdf'
+                  else 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    return Response(content=content, media_type=media_type,
+                    headers={'Content-Disposition': f'attachment; filename="{filename}"'})

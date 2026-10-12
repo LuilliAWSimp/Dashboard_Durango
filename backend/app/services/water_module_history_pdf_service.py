@@ -200,7 +200,7 @@ def _chart_drawing(rows: list[dict[str, Any]], series: list[dict[str, Any]], lef
             x = plot_left if row_count == 1 else plot_left + plot_width * index / (row_count - 1)
             y = y_for(value, axis)
             if previous is not None:
-                drawing.add(Line(previous[0], previous[1], x, y, strokeColor=stroke, strokeWidth=1.35 if _text(item.get('metric')).lower() == 'flow' else 1.8))
+                drawing.add(Line(previous[0], previous[1], x, y, strokeColor=stroke, strokeWidth=1.35 if _text(item.get('metric')).lower() == 'flow' else 1.8, **({'strokeDashArray': [6, 4]} if _text(item.get('metric')).lower() == 'threshold' else {})))
             previous = (x, y)
 
     return drawing

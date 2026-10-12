@@ -544,3 +544,28 @@
   .five-minute-export-action { flex-direction: column; align-items: stretch; }
   .five-minute-export-message { max-width: none; }
 }
+
+/* DGO-H02: control de umbral opcional, exclusivo del detalle individual. */
+.dgo-h02-threshold-panel { display:grid; gap: 12px; padding: 15px 17px; margin: 12px 0 16px; border:1px solid var(--border,rgba(125,211,252,.22)); border-radius: 12px; background:var(--surface-secondary,rgba(10,38,56,.4)); color:var(--text-primary,#eaf6fc); }
+.dgo-h02-threshold-toggle { display:flex; align-items:center; flex-wrap:wrap; gap:10px; cursor:pointer; font-size:14px; }
+.dgo-h02-threshold-toggle input { width:17px; height:17px; accent-color:#087BA5; }
+.dgo-h02-threshold-toggle span { font-size:12px; color:var(--text-muted,#93aeba); }
+.dgo-h02-threshold-fields { display:flex; gap:12px; flex-wrap:wrap; }
+.dgo-h02-threshold-fields label { display:grid; gap:5px; flex:1 1 155px; min-width:135px; font-size:12px; font-weight:600; }
+.dgo-h02-threshold-fields select,.dgo-h02-threshold-fields input { min-width:0; width:100%; height:38px; box-sizing:border-box; padding:7px 10px; border:1px solid var(--border,#426173); border-radius:8px; background:var(--surface-primary,#0a2638); color:var(--text-primary,#effbff); font:inherit; }
+.dgo-h02-threshold-fields :is(select,input):focus-visible,.dgo-h02-threshold-toggle input:focus-visible { outline:2px solid #38bdf8; outline-offset:2px; }
+.dgo-h02-threshold-stats { display:flex; flex-wrap:wrap; gap:8px; }
+.dgo-h02-threshold-stats span { border:1px solid var(--border,rgba(125,211,252,.18)); border-radius:8px; padding:8px 11px; font-size:12px; }
+.dgo-h02-threshold-stats strong { font-size:17px; padding-right:4px; font-variant-numeric:tabular-nums; }
+.dgo-h02-threshold-error { margin:0; font-size:12px; color:#fb7185; }
+.dgo-h02-threshold-note { margin:0; font-size:11px; color:var(--text-muted,#aac2cf); }
+@media(max-width:620px) { .dgo-h02-threshold-panel { padding:12px; } .dgo-h02-threshold-fields { flex-direction:column; } .dgo-h02-threshold-fields label { flex:auto; width:100%; } }
+
+/* Contraste explicito del modo claro, sin depender de variables no existentes. */
+.pozos-shell.theme-light .dgo-h02-threshold-panel { background:#F2F8FC; color:#163344; border-color:#CFDEE6; }
+.pozos-shell.theme-light .dgo-h02-threshold-toggle span,
+.pozos-shell.theme-light .dgo-h02-threshold-note { color:#526B7A; }
+.pozos-shell.theme-light .dgo-h02-threshold-fields label { color:#163344; }
+.pozos-shell.theme-light .dgo-h02-threshold-fields :is(select,input) { background:#FFF; color:#163344; border-color:#CFDEE6; }
+.pozos-shell.theme-light .dgo-h02-threshold-stats span { background:#FFF; border-color:#CFDEE6; }
+.pozos-shell.theme-light .dgo-h02-threshold-error { color:#B91C1C; }

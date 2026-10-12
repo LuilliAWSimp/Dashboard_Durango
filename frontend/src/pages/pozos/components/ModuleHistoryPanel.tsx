@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FileSpreadsheet, FileText } from 'lucide-react';
-import { Bar, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Bar, CartesianGrid, ComposedChart, Legend, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { DURANGO_CAPABILITIES } from '../../../config/plantCapabilities';
 import useAutoRefresh from '../../../hooks/useAutoRefresh';
 import { downloadWaterModuleHistoryPdf } from '../../../services/waterModuleHistoryExportService';
+import { downloadWaterThresholdDetail } from '../../../services/waterThresholdExportService';
 import { downloadFiveMinuteModuleHistoryExcel, validateFiveMinuteExportRange } from '../../../services/waterFiveMinuteExportService';
 import { fetchWaterHistory, fetchWaterModuleHistory } from '../../../services/waterService';
 import { formatOperationalDateRange, rangeIncludesToday, recommendedHistoryAggregation } from '../dateUtils';
@@ -11,6 +12,7 @@ import { HISTORY_MAX_RANGE_DAYS, inclusiveHistoryRangeDays, supportedHistoryAggr
 import { operationalVolumeAxisLabel, operationalVolumeLabel } from '../operationalTerminology';
 import { withProgressiveVolume, type DetailVolumeDisplay } from '../detailHistoryVolume';
 import { detailHistoryIntervalLabel, summarizeDetailHistory, type DetailHistoryPeriodSummary } from '../detailHistorySummary';
+import { evaluateFlowThreshold, normalizeThreshold, summarizeFlowThreshold, thresholdValidation, type ThresholdDraft } from '../flowThreshold';
 import {
   buildModuleComparisonRows,
   comparisonAxis,
@@ -222,6 +224,7 @@ function ModuleTooltip({
   palette,
   items,
   module,
+  thresholdStates,
 }: {
   active?: boolean;
   payload?: Array<{ payload?: ComparisonRow }>;
@@ -234,6 +237,7 @@ function ModuleTooltip({
   palette: string[];
   items: HistoryItem[];
   module: ComparisonModule;
+  thresholdStates?: Record<string, string>;
 }) {
   if (!active || !payload?.length) return null;
   const row = payload.find((entry) => entry.payload)?.payload;
@@ -271,6 +275,7 @@ function ModuleTooltip({
                   <span>Mínimo / máximo</span><strong>{meta?.flowMin == null ? 'Sin datos' : `${formatNumber(meta.flowMin)} / ${formatNumber(meta.flowMax)} ${item?.flowUnit || 'L/s'}`}</strong>
                   <span>Tiempo activo</span><strong>{Number(meta?.activeMinutes || 0).toLocaleString('es-MX')} min</strong>
                   <span>Muestras</span><strong>{Number(meta?.samples || 0).toLocaleString('es-MX')}/{Number(meta?.samplesExpected || 0).toLocaleString('es-MX')}</strong>
+                  {singleElement && thresholdStates ? <><span>Umbral</span><strong>{thresholdStates[row.bucketStart] || 'Sin lectura'}</strong></> : null}
                   <span>Cobertura</span><strong>{formatNumber(meta?.coveragePercent)}% · {String(meta?.coverageStatus || 'Sin registros')}</strong>
                   <span>Actividad</span><strong>{String(meta?.intervalState || (status === 'no_data' ? 'Sin registros' : status === 'zero_consumption' ? 'Apagado con datos' : status === 'partial_activity' ? 'Actividad parcial' : 'Activo'))}</strong>
                   <span>Validación</span><strong>{String(meta?.validation || (status === 'invalid_totalizer' ? 'Validación parcial' : status === 'no_data' || status === 'no_history' ? 'Sin volumen validado' : 'Validado'))}</strong>
@@ -336,6 +341,8 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
   const [volumeDisplay, setVolumeDisplay] = useState<DetailVolumeDisplay>('interval');
   const [pdfExporting, setPdfExporting] = useState(false);
   const [fiveMinuteExporting, setFiveMinuteExporting] = useState(false);
+  const [excelExporting, setExcelExporting] = useState(false);
+  const [thresholdDraft, setThresholdDraft] = useState<ThresholdDraft>({ enabled: false, direction: 'below', basis: 'extreme', minText: '', maxText: '' });
   const [data, setData] = useState<WaterModuleHistoryResponse | null>(null);
   const [selected, setSelected] = useState<OperationalIdentity[]>(() => activeIdentities);
   const [loading, setLoading] = useState(false);
@@ -434,6 +441,10 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
   }, [data, allowedTokens]);
   const currentQueryIdentity = queryIdentity;
   const detailSeries = singleElement ? filteredData?.series?.[0] : undefined;
+  const thresholdError = singleElement ? thresholdValidation(thresholdDraft) : '';
+  const threshold = useMemo(() => normalizeThreshold(thresholdDraft), [thresholdDraft]);
+  const thresholdSummary = useMemo(() => summarizeFlowThreshold(detailSeries?.points || [], threshold), [detailSeries?.points, threshold]);
+  const thresholdStates = useMemo(() => threshold.enabled ? Object.fromEntries((detailSeries?.points || []).map((point) => [point.bucket_start, evaluateFlowThreshold(point, threshold)])) : undefined, [detailSeries?.points, threshold]);
   const detailPeriodSummary = useMemo(() => summarizeDetailHistory(detailSeries?.points || []), [detailSeries?.points]);
   const detailPeriodInterval = useMemo(
     () => detailHistoryIntervalLabel(detailSeries?.points || [], effectiveRange),
@@ -508,6 +519,8 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
   const selectedNames = selectedItems.map((item) => item.name);
   const selectedElementIds = selectedItems.map((item) => item.sensorId ?? item.operationalKey);
   const exportDisabled = !exportRows.length || !exportSeries.length || !selectedNames.length;
+  const thresholdExportDisabled = exportDisabled || Boolean(thresholdDraft.enabled && thresholdError);
+  const thresholdSensorId = selectedElementIds.length === 1 ? selectedElementIds[0] : null;
   const metricLabel = metric === 'flow'
     ? 'Flujo'
     : metric === 'totalizer'
@@ -516,8 +529,22 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
         ? `Ambos · ${volumeDisplay === 'cumulative' ? 'Volumen acumulado progresivo' : 'Volumen por intervalo'}`
         : 'Ambos';
 
-  const exportExcel = () => {
-    if (exportDisabled) return;
+  const exportExcel = async () => {
+    if (thresholdExportDisabled || excelExporting) return;
+    if (singleElement && threshold.enabled && thresholdSensorId !== null) {
+      setExcelExporting(true);
+      try {
+        await downloadWaterThresholdDetail('excel', {
+          module, sensorId: thresholdSensorId, startDate: String(effectiveRange.startDate),
+          endDate: String(effectiveRange.endDate), aggregation, config: threshold,
+        });
+      } catch (reason: unknown) {
+        setError((reason as { response?: { data?: { detail?: string } } })?.response?.data?.detail || (reason instanceof Error ? reason.message : 'No fue posible generar el Excel con umbrales.'));
+      } finally {
+        setExcelExporting(false);
+      }
+      return;
+    }
     downloadModuleHistoryExcel({
       rows: exportRows,
       series: exportSeries,
@@ -531,10 +558,15 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
   };
 
   const exportPdf = async () => {
-    if (exportDisabled || pdfExporting) return;
+    if (thresholdExportDisabled || pdfExporting) return;
     setPdfExporting(true);
     try {
-      await downloadWaterModuleHistoryPdf({
+      if (singleElement && threshold.enabled && thresholdSensorId !== null) {
+        await downloadWaterThresholdDetail('pdf', {
+          module, sensorId: thresholdSensorId, startDate: String(effectiveRange.startDate),
+          endDate: String(effectiveRange.endDate), aggregation, config: threshold,
+        });
+      } else await downloadWaterModuleHistoryPdf({
         module_label: moduleDisplayLabel,
         metric_label: metricLabel,
         aggregation_label: AGGREGATION_LABELS[aggregation],
@@ -624,13 +656,33 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
             ))}
           </div>
           <div className="module-history-export-actions">
-            <button type="button" className="report-action-button module-history-excel-button" disabled={exportDisabled} onClick={exportExcel} title="Exporta exactamente los datos visibles de la gráfica."><FileSpreadsheet size={16} aria-hidden="true" /> Excel</button>
+            <button type="button" className="report-action-button module-history-excel-button" disabled={thresholdExportDisabled || excelExporting} onClick={() => void exportExcel()} title="Exporta exactamente los datos visibles de la gráfica."><FileSpreadsheet size={16} aria-hidden="true" /> Excel</button>
             <button type="button" className="report-action-button module-history-excel-button module-history-five-minute-button" disabled={!selectedElementIds.length || fiveMinuteExporting} onClick={() => void exportFiveMinuteExcel()} title="Exportación técnica independiente cada 5 minutos; máximo 3 días calendario."><FileSpreadsheet size={16} aria-hidden="true" /> {fiveMinuteExporting ? 'Generando...' : 'Excel 5 min'}</button>
-            <button type="button" className="ghost-action report-action-button module-history-pdf-button" disabled={exportDisabled || pdfExporting} onClick={() => void exportPdf()} title="Genera un PDF con la misma serie visible."><FileText size={16} aria-hidden="true" /> {pdfExporting ? 'Generando...' : 'PDF'}</button>
+            <button type="button" className="ghost-action report-action-button module-history-pdf-button" disabled={thresholdExportDisabled || pdfExporting} onClick={() => void exportPdf()} title="Genera un PDF con la misma serie visible."><FileText size={16} aria-hidden="true" /> {pdfExporting ? 'Generando...' : 'PDF'}</button>
           </div>
           <label className="module-history-aggregation"><span>Agrupación</span><select value={aggregation} onChange={(event) => setAggregation(event.target.value as HistoryAggregation)}><option value="minute" disabled={rangeDays > HISTORY_MAX_RANGE_DAYS.minute}>1 minuto</option><option value="quarter_hour" disabled={rangeDays > HISTORY_MAX_RANGE_DAYS.quarter_hour}>15 minutos</option><option value="hourly" disabled={rangeDays > HISTORY_MAX_RANGE_DAYS.hourly}>Por hora</option><option value="daily" disabled={rangeDays > HISTORY_MAX_RANGE_DAYS.daily}>Por día</option></select></label>
         </div>
       </div>
+      {singleElement ? <div className="dgo-h02-threshold-panel" aria-label="Revisión de umbrales históricos de flujo">
+        <label className="dgo-h02-threshold-toggle"><input type="checkbox" checked={thresholdDraft.enabled} onChange={(event) => { setThresholdDraft((draft) => ({ ...draft, enabled: event.target.checked })); if (event.target.checked && metric === 'totalizer') setMetric('both'); }} /> <strong>Revisar umbrales</strong><span>Consulta opcional · L/s</span></label>
+        {thresholdDraft.enabled ? <>
+          <div className="dgo-h02-threshold-fields">
+            <label><span>Revisar</span><select aria-label="Sentido del umbral" value={thresholdDraft.direction} onChange={(event) => setThresholdDraft((draft) => ({ ...draft, direction: event.target.value as ThresholdDraft['direction'] }))}><option value="below">Por debajo de</option><option value="above">Por encima de</option><option value="both">Ambos límites</option></select></label>
+            <label><span>Evaluar con</span><select aria-label="Criterio de evaluación" value={thresholdDraft.basis} onChange={(event) => setThresholdDraft((draft) => ({ ...draft, basis: event.target.value as ThresholdDraft['basis'] }))}><option value="extreme">Mín/Máx del intervalo</option><option value="average">Promedio del intervalo</option></select></label>
+            {thresholdDraft.direction !== 'above' ? <label><span>Mínimo (L/s)</span><input aria-label="Límite mínimo L/s" type="number" min="0" step="any" value={thresholdDraft.minText} onChange={(event) => setThresholdDraft((draft) => ({ ...draft, minText: event.target.value }))} /></label> : null}
+            {thresholdDraft.direction !== 'below' ? <label><span>Máximo (L/s)</span><input aria-label="Límite máximo L/s" type="number" min="0" step="any" value={thresholdDraft.maxText} onChange={(event) => setThresholdDraft((draft) => ({ ...draft, maxText: event.target.value }))} /></label> : null}
+          </div>
+          {thresholdError ? <p className="dgo-h02-threshold-error" role="alert">{thresholdError}</p> : null}
+          {!thresholdError && !detailPeriodLoading ? <div className="dgo-h02-threshold-stats" aria-live="polite">
+            <span><strong>{thresholdSummary.breached}</strong> intervalos fuera</span>
+            <span><strong>{thresholdSummary.below}</strong> bajo mínimo</span>
+            <span><strong>{thresholdSummary.above}</strong> sobre máximo</span>
+            <span><strong>{thresholdSummary.within}</strong> dentro</span>
+            <span><strong>{thresholdSummary.noReading}</strong> sin lectura</span>
+          </div> : null}
+          <p className="dgo-h02-threshold-note">Se evalúa cada intervalo, no el minuto exacto de la incidencia. No genera alarmas SCADA. Los límites no se guardan.</p>
+        </> : null}
+      </div> : null}
       {metric === 'totalizer' ? <div className="module-history-totalizer-control"><span>Visualización del totalizador</span><div className="module-metric-selector" role="group" aria-label="Visualización del totalizador"><button type="button" className={totalizerDisplay === 'delta' ? 'active' : ''} onClick={() => setTotalizerDisplay('delta')}>Variación del periodo</button><button type="button" className={totalizerDisplay === 'absolute' ? 'active' : ''} onClick={() => setTotalizerDisplay('absolute')}>Valor absoluto</button></div></div> : null}
       {singleElement && metric === 'both' ? <div className="module-history-totalizer-control operational-detail-volume-control"><span>Volumen</span><div className="module-metric-selector" role="group" aria-label="Modo de visualización del volumen"><button type="button" className={volumeDisplay === 'interval' ? 'active' : ''} aria-pressed={volumeDisplay === 'interval'} onClick={() => setVolumeDisplay('interval')} title="Muestra el volumen conciliado de cada intervalo de agrupación.">Por intervalo</button><button type="button" className={volumeDisplay === 'cumulative' ? 'active' : ''} aria-pressed={volumeDisplay === 'cumulative'} onClick={() => setVolumeDisplay('cumulative')} title="Acumula progresivamente sólo los volúmenes válidos dentro del periodo seleccionado.">Acumulado progresivo</button></div></div> : null}
       {metric === 'both' && !singleElement ? <div className="status-pill module-metric-note">Flujo se muestra como línea en el eje izquierdo y {operationalVolumeLabel(module, { scope: 'period' }).toLowerCase()} como barras en el eje derecho.</div> : null}
@@ -648,6 +700,7 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
           })}
         </div>
       </> : null}
+      {excelExporting ? <div className="status-pill">Preparando Excel con umbrales…</div> : null}
       {refreshing ? <div className="status-pill auto-refresh-status">Actualizando comparativa…</div> : null}
       {error ? <div className="status-pill alert">{error}</div> : null}
       {loading && !data ? <div className="status-pill">Cargando comparativa...</div> : null}
@@ -658,7 +711,9 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
             <XAxis dataKey="timestamp" type="number" scale="time" domain={['dataMin', 'dataMax']} tickFormatter={(value) => tick(Number(value), aggregation)} minTickGap={32} stroke="#b9e7ff" />
             {axes.showFlow ? <YAxis yAxisId="flow" stroke="#7dd3fc" width={62} tickFormatter={(value) => Number(value).toLocaleString('es-MX')} label={{ value: 'L/s', angle: -90, position: 'insideLeft', fill: '#7dd3fc' }} /> : null}
             {axes.showTotalizer ? <YAxis yAxisId="totalizer" orientation={axes.independentAxes ? 'right' : 'left'} stroke="#c4b5fd" width={78} tickFormatter={(value) => Number(value).toLocaleString('es-MX')} label={{ value: totalizerAxisLabel, angle: axes.independentAxes ? 90 : -90, position: axes.independentAxes ? 'insideRight' : 'insideLeft', fill: '#c4b5fd' }} /> : null}
-            <Tooltip content={<ModuleTooltip aggregation={aggregation} selected={visible} metric={metric} totalizerDisplay={effectiveTotalizerDisplay} volumeDisplay={volumeDisplay} singleElement={singleElement} palette={palette} items={activeItems} module={module} />} filterNull={false} allowEscapeViewBox={{ x: true, y: true }} wrapperStyle={{ zIndex: 120, pointerEvents: 'none' }} offset={16} />
+            <Tooltip content={<ModuleTooltip aggregation={aggregation} selected={visible} metric={metric} totalizerDisplay={effectiveTotalizerDisplay} volumeDisplay={volumeDisplay} singleElement={singleElement} palette={palette} items={activeItems} module={module} thresholdStates={thresholdStates} />} filterNull={false} allowEscapeViewBox={{ x: true, y: true }} wrapperStyle={{ zIndex: 120, pointerEvents: 'none' }} offset={16} />
+            {singleElement && threshold.enabled && axes.showFlow && threshold.direction !== 'above' && threshold.minValue !== null ? <ReferenceLine yAxisId="flow" y={threshold.minValue} stroke="#F59E0B" strokeWidth={1.8} strokeDasharray="6 4" label={{ value: `Mín. ${threshold.minValue} L/s`, fill: '#F59E0B', fontSize: 11, position: 'insideTopRight' }} /> : null}
+            {singleElement && threshold.enabled && axes.showFlow && threshold.direction !== 'below' && threshold.maxValue !== null ? <ReferenceLine yAxisId="flow" y={threshold.maxValue} stroke="#FB7185" strokeWidth={1.8} strokeDasharray="6 4" label={{ value: `Máx. ${threshold.maxValue} L/s`, fill: '#FB7185', fontSize: 11, position: 'insideBottomRight' }} /> : null}
             <Legend />
             <Line yAxisId={axes.showFlow ? 'flow' : 'totalizer'} dataKey="tooltipAnchor" stroke="transparent" dot={false} activeDot={false} legendType="none" isAnimationActive={false} />
             {visible.flatMap((identity) => {
