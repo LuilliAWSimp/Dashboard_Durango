@@ -628,110 +628,48 @@
   margin-top: 10px;
 }
 
-/* DGO-H06 · Barra integrada: módulos, métrica, exportaciones, fechas, agrupación y acciones.
- * El selector de fechas mantiene los mismos eventos/limites y pasa a compartir
- * contenedor con el histórico en lugar de ocupar una fila completa aislada. */
-.module-history-panel .module-history-toolbar {
-  display: flex;
-  align-items: end;
-  flex-wrap: wrap;
-  gap: 12px 18px;
-  margin: 12px 0 15px;
-  padding: 14px 16px;
-  border: 1px solid rgba(56,189,248,.2);
-  border-radius: 12px;
-  background: rgba(3,21,34,.55);
-}
-.module-history-panel .module-history-toolbar > .module-history-tabs {
-  flex: 1 0 100%;
-  order: 0;
-  padding-bottom: 10px;
-  border-bottom: 1px solid rgba(56,189,248,.14);
-}
-.module-history-panel .module-history-toolbar > .module-comparison-controls {
-  order: 1;
-  flex: 1 1 440px;
-  justify-content: flex-start;
-  align-self: end;
-}
-.module-history-panel .module-history-toolbar > .module-history-range-panel {
-  order: 2;
-  flex: 1 1 610px;
-  min-width: 0;
+/* DGO-H09: mantener la última gráfica válida mientras se consulta SQL Server.
+   La tarjeta anterior sigue visible, con periodo y métrica explícitos, pero sin exportación. */
+.dgo-h09-history-reference {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) minmax(130px, 155px) auto;
-  gap: 7px 10px;
-  align-items: end;
-  padding: 0;
-  margin: 0;
-  background: transparent;
-  border: 0;
-  border-radius: 0;
-  box-shadow: none;
+  gap: 5px;
+  margin: 12px 0 14px;
+  padding: 11px 14px;
+  border: 1px solid rgba(56,189,248,.36);
+  border-left: 4px solid #38bdf8;
+  border-radius: 12px;
+  background: rgba(7, 48, 70, .44);
+  color: #e4f6fe;
+  font-size: 12px;
+  line-height: 1.45;
 }
-.module-history-panel .module-history-range-fields {
-  grid-template-columns: repeat(2, minmax(105px, 1fr));
-  gap: 9px;
-}
-.module-history-panel .module-history-range-fields input,
-.module-history-panel .module-history-aggregation select {
-  min-height: 38px;
-  height: 38px;
-  border-radius: 8px;
-}
-.module-history-panel .module-history-range-label {
-  grid-column: 1 / -1;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 0;
-  opacity: .85;
-}
-.module-history-panel .module-history-export-actions {
+.dgo-h09-history-reference strong { font-size: 12px; color: #a5e6fa; }
+.dgo-h09-history-reference span { color: #c4dbe7; }
+.dgo-h09-history-progress {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
+  margin: 5px 0 12px;
+  color: #a5def1;
+  font-size: 12px;
+  font-weight: 700;
 }
-.module-history-panel .module-history-range-actions {
-  flex-wrap: nowrap;
-  white-space: nowrap;
+.dgo-h09-spinner {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  border: 2px solid rgba(56,189,248,.24);
+  border-top-color: #38bdf8;
+  border-radius: 50%;
+  animation: dgo-h09-rotate 900ms linear infinite;
 }
-.module-history-panel .module-metric-selector,
-.module-history-panel .module-history-export-actions {
-  min-height: 38px;
-}
-.pozos-shell.theme-light .module-history-panel .module-history-toolbar {
-  background: #f7fcff;
-  border-color: #b7d5e6;
-}
-@media (max-width: 1100px) {
-  .module-history-panel .module-history-toolbar > .module-history-range-panel {
-    flex-basis: 100%;
-  }
-}
-@media (max-width: 760px) {
-  .module-history-panel .module-history-toolbar {
-    align-items: stretch;
-    padding: 12px;
-  }
-  .module-history-panel .module-history-toolbar > .module-comparison-controls {
-    flex-basis: 100%;
-  }
-  .module-history-panel .module-history-toolbar > .module-history-range-panel {
-    grid-template-columns: minmax(0, 1fr) minmax(130px, 180px);
-  }
-  .module-history-panel .module-history-range-actions {
-    grid-column: 1 / -1;
-    justify-content: flex-start;
-  }
-}
-@media (max-width: 480px) {
-  .module-history-panel .module-history-toolbar > .module-history-range-panel {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .module-history-panel .module-history-range-actions,
-  .module-history-panel .module-history-range-label {
-    grid-column: 1;
-  }
-  .module-history-panel .module-history-range-fields {
-    grid-template-columns: 1fr;
-  }
-  .module-history-panel .module-history-range-actions button { flex: 1; }
-}
+@keyframes dgo-h09-rotate { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .dgo-h09-spinner { animation: none; } }
+.dgo-h09-chart-previous,
+.dgo-h09-chart-current { position: relative; min-width: 0; }
+.dgo-h09-chart-previous { opacity: .96; }
+.pozos-shell.theme-light .dgo-h09-history-reference { background: #eaf6fc; border-color: #98cce4; border-left-color: #087ba5; color: #143b52; }
+.pozos-shell.theme-light .dgo-h09-history-reference strong { color: #075f86; }
+.pozos-shell.theme-light .dgo-h09-history-reference span,
+.pozos-shell.theme-light .dgo-h09-history-progress { color: #3c647a; }

@@ -17,6 +17,7 @@ test('caché y jobs diferencian el flujo ligero y la consulta completa', () => {
   assert.match(modular, /options\.flowOnly \? 'flow' : 'complete'/);
   assert.match(modular, /flow_only: Boolean\(options\.flowOnly\)/);
   const chart = read('src/pages/pozos/components/ModuleHistoryPanel.tsx');
-  assert.match(chart, /La gráfica se mostrará cuando termine/);
+  assert.match(chart, /La gráfica aparecerá al terminar/);
+  assert.match(chart, /isPreviousChart && lastChart/);
   assert.doesNotMatch(chart, /La pantalla sigue disponible/);
 });

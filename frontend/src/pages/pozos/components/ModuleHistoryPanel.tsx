@@ -66,6 +66,22 @@ const AGGREGATION_LABELS: Record<HistoryAggregation, string> = {
 type TotalizerDisplay = 'delta' | 'absolute';
 type ExportSeries = { key: string; name: string; metric: 'flow' | 'totalizer'; unit: string; color: string };
 
+/** Último resultado *confirmado*. Es solo una referencia visual cuando cambia la consulta. */
+type HistoryChartSnapshot = {
+  response: WaterModuleHistoryResponse;
+  identity: string;
+  module: ComparisonModule;
+  viewLabel: string;
+  aggregation: HistoryAggregation;
+  metric: ComparisonMetric;
+  totalizerDisplay: TotalizerDisplay;
+  volumeDisplay: DetailVolumeDisplay;
+  flowOnly: boolean;
+  items: HistoryItem[];
+  selected: OperationalIdentity[];
+  palette: string[];
+};
+
 interface Props {
   range: DateRange;
   fixedModule?: ComparisonModule;
@@ -347,6 +363,7 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
   const [excelExporting, setExcelExporting] = useState(false);
   const [thresholdDraft, setThresholdDraft] = useState<ThresholdDraft>({ enabled: false, direction: 'below', basis: 'extreme', minText: '', maxText: '' });
   const [data, setData] = useState<WaterModuleHistoryResponse | null>(null);
+  const [lastChart, setLastChart] = useState<HistoryChartSnapshot | null>(null);
   const [selected, setSelected] = useState<OperationalIdentity[]>(() => activeIdentities);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -363,16 +380,28 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
   const queryIdentity = `${module}:${singleIdentity === null ? 'module' : identityText(singleIdentity)}:${effectiveRange.startDate}:${effectiveRange.endDate}:${aggregation}:${flowOnly ? 'flow' : 'complete'}`;
 
   useEffect(() => { dataRef.current = data; }, [data]);
+  // El detalle individual conserva su aislamiento estricto entre sensores.
+  // Solo el histórico modular puede mostrar temporalmente la gráfica anterior.
   useEffect(() => {
+    if (!singleElement) return;
     setData(null);
+    setLastChart(null);
     dataRef.current = null;
     setResolvedQueryIdentity('');
     lastResolvedIdentityRef.current = '';
-  }, [module, singleIdentity]);
+  }, [singleElement, module, singleIdentity]);
 
   useEffect(() => {
     setSelected(activeIdentities);
   }, [activeIdentities]);
+
+  // Si se cambia la selección mientras se observa la gráfica vigente,
+  // la instantánea conserva exactamente los elementos visibles al consultarla después.
+  useEffect(() => {
+    if (lastChart?.identity !== queryIdentity) return;
+    if (lastChart.selected.length === selected.length && lastChart.selected.every((identity, index) => identity === selected[index])) return;
+    setLastChart((previous) => previous?.identity === queryIdentity ? { ...previous, selected: [...selected] } : previous);
+  }, [lastChart, queryIdentity, selected]);
 
   const setAggregation = (value: HistoryAggregation) => {
     if (onAggregationChange) onAggregationChange(value);
@@ -401,14 +430,15 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
     if (inFlightIdentityRef.current === identity) return;
     inFlightIdentityRef.current = identity;
     const requestId = ++requestIdRef.current;
-    // Nunca presentar el periodo anterior como si perteneciera al rango nuevo.
+    // En consultas distintas se mantiene exclusivamente la última gráfica validada,
+    // identificada con sus propias fechas/métrica. Nunca alimenta KPI ni exportaciones.
     const hasCurrentData = lastResolvedIdentityRef.current === identity && Boolean(dataRef.current);
     if (!hasCurrentData) {
-      dataRef.current = null;
-      setData(null);
-      setResolvedQueryIdentity('');
       setLoading(true);
-    } else if (background) setRefreshing(true);
+    } else {
+      // Incluso Actualizar manualmente debe mostrar que hay una consulta en curso.
+      setRefreshing(true);
+    }
     setHistoryJobStatus('');
     if (!background) setError('');
     try {
@@ -436,6 +466,20 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
       setData(response);
       lastResolvedIdentityRef.current = identity;
       setResolvedQueryIdentity(identity);
+      setLastChart({
+        response,
+        identity,
+        module,
+        viewLabel: moduleDisplayLabel,
+        aggregation,
+        metric,
+        totalizerDisplay,
+        volumeDisplay,
+        flowOnly,
+        items: activeItems.map((item) => ({ ...item })),
+        selected: [...selected],
+        palette: [...palette],
+      });
       setError('');
     } catch (reason: unknown) {
       if (requestId !== requestIdRef.current) return;
@@ -447,7 +491,7 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
       if (requestId === requestIdRef.current) { setLoading(false); setRefreshing(false); setHistoryJobStatus(''); }
       if (inFlightIdentityRef.current === identity) inFlightIdentityRef.current = '';
     }
-  }, [module, singleIdentity, queryIdentity, effectiveRange.startDate, effectiveRange.endDate, aggregation, flowOnly]);
+  }, [module, moduleDisplayLabel, singleIdentity, queryIdentity, effectiveRange.startDate, effectiveRange.endDate, aggregation, flowOnly]);
 
   useEffect(() => {
     const refreshKey = Number(effectiveRange.refreshKey || 0);
@@ -494,6 +538,39 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
     onPeriodSummaryChange,
     singleElement,
   ]);
+  // La vista anterior tiene parámetros propios: jamás se reinterpreta su serie de
+  // solo flujo como si incluyera volumen ni se etiqueta con las fechas nuevas.
+  const isPreviousChart = !singleElement && Boolean(lastChart && lastChart.identity !== queryIdentity);
+  const chartData = isPreviousChart && lastChart ? lastChart.response : filteredData;
+  const chartItems = isPreviousChart && lastChart ? lastChart.items : activeItems;
+  const chartModule = isPreviousChart && lastChart ? lastChart.module : module;
+  const chartMetric = isPreviousChart && lastChart ? lastChart.metric : metric;
+  const chartAggregation = isPreviousChart && lastChart ? lastChart.aggregation : aggregation;
+  const chartFlowOnly = isPreviousChart && lastChart ? lastChart.flowOnly : flowOnly;
+  const chartTotalizerDisplay = isPreviousChart && lastChart ? lastChart.totalizerDisplay : totalizerDisplay;
+  const chartVolumeDisplay = isPreviousChart && lastChart ? lastChart.volumeDisplay : volumeDisplay;
+  const chartPalette = isPreviousChart && lastChart ? lastChart.palette : palette;
+  const chartSelection = isPreviousChart && lastChart ? lastChart.selected : selected;
+  const chartAllowedTokens = new Set(chartItems.flatMap((item) => [String(configuredComparisonIdentity(item)), item.operationalKey]));
+  const chartFilteredData = chartData
+    ? { ...chartData, series: chartData.series.filter((series) => seriesMatchesAllowed(series, chartAllowedTokens)) }
+    : null;
+  const chartRowsBase = useMemo(() => buildModuleComparisonRows(chartFilteredData), [chartData, chartItems]);
+  const chartIdentity = singleElement && chartItems.length === 1 ? configuredComparisonIdentity(chartItems[0]) : null;
+  const chartRows = useMemo(() => chartIdentity === null
+    ? chartRowsBase
+    : withProgressiveVolume(chartRowsBase, chartIdentity), [chartRowsBase, chartIdentity]);
+  const chartVisible = chartSelection.filter((identity) => chartFilteredData?.series?.some((series) => comparisonSeriesIdentity(series) === identity));
+  const chartHasData = chartFilteredData?.series?.some((series) => series.has_data) || false;
+  const chartAxes = comparisonAxis(chartMetric);
+  const chartEffectiveTotalizerDisplay = chartMetric === 'both' ? 'delta' : chartTotalizerDisplay;
+  const chartTotalizerAxisLabel = chartMetric === 'both'
+    ? (singleElement && chartVolumeDisplay === 'cumulative' ? 'Volumen acumulado (m³)' : operationalVolumeAxisLabel(chartModule))
+    : chartEffectiveTotalizerDisplay === 'delta' ? 'Variación (m³)' : 'Totalizador (m³)';
+  const chartThreshold = isPreviousChart ? { ...threshold, enabled: false } : threshold;
+  const chartThresholdStates = isPreviousChart ? undefined : thresholdStates;
+  const chartPending = loading || refreshing;
+
   const rows = useMemo(() => buildModuleComparisonRows(filteredData), [filteredData]);
   const progressiveIdentity = singleElement && activeIdentities.length === 1 ? activeIdentities[0] : null;
   const displayRows = useMemo(
@@ -680,7 +757,7 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
           </div>
           <div className="module-history-export-actions">
             <button type="button" className="report-action-button module-history-excel-button" disabled={thresholdExportDisabled || excelExporting} onClick={() => void exportExcel()} title="Exporta exactamente los datos visibles de la gráfica."><FileSpreadsheet size={16} aria-hidden="true" /> Excel</button>
-            <button type="button" className="report-action-button module-history-excel-button module-history-five-minute-button" disabled={!selectedElementIds.length || fiveMinuteExporting} onClick={() => void exportFiveMinuteExcel()} title="Exportación técnica independiente cada 5 minutos; máximo 3 días calendario."><FileSpreadsheet size={16} aria-hidden="true" /> {fiveMinuteExporting ? 'Generando...' : 'Excel 5 min'}</button>
+            <button type="button" className="report-action-button module-history-excel-button module-history-five-minute-button" disabled={isPreviousChart || !selectedElementIds.length || fiveMinuteExporting} onClick={() => void exportFiveMinuteExcel()} title="Exportación técnica independiente cada 5 minutos; máximo 3 días calendario."><FileSpreadsheet size={16} aria-hidden="true" /> {fiveMinuteExporting ? 'Generando...' : 'Excel 5 min'}</button>
             <button type="button" className="ghost-action report-action-button module-history-pdf-button" disabled={thresholdExportDisabled || pdfExporting} onClick={() => void exportPdf()} title="Genera un PDF con la misma serie visible."><FileText size={16} aria-hidden="true" /> {pdfExporting ? 'Generando...' : 'PDF'}</button>
           </div>
           <label className="module-history-aggregation"><span>Agrupación</span><select value={aggregation} onChange={(event) => setAggregation(event.target.value as HistoryAggregation)}><option value="minute" disabled={rangeDays > HISTORY_MAX_RANGE_DAYS.minute}>1 minuto</option><option value="quarter_hour" disabled={rangeDays > HISTORY_MAX_RANGE_DAYS.quarter_hour}>15 minutos</option><option value="hourly" disabled={rangeDays > HISTORY_MAX_RANGE_DAYS.hourly}>Por hora</option><option value="daily" disabled={rangeDays > HISTORY_MAX_RANGE_DAYS.daily}>Por día</option></select></label>
@@ -724,40 +801,47 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
         </div>
       </> : null}
       {excelExporting ? <div className="status-pill">Preparando Excel con umbrales…</div> : null}
-      {refreshing ? <div className="status-pill auto-refresh-status">Actualizando comparativa…</div> : null}
-      {error ? <div className="status-pill alert">{error}</div> : null}
-      {loading && !filteredData ? <div className="status-pill" role="status">
-        {historyJobStatus === 'queued' ? 'Histórico en cola: esperando turno para consultar SQL Server…' :
-          historyJobStatus === 'running' ? 'Consultando SQL Server para el período seleccionado… La gráfica se mostrará cuando termine.' :
-            'Preparando histórico operativo…'}
+      {isPreviousChart && lastChart ? <div className="dgo-h09-history-reference" role="status" aria-live="polite">
+        <strong>Vista anterior · {lastChart.viewLabel} · {formatOperationalDateRange({ startDate: lastChart.response.start_date, endDate: lastChart.response.end_date })} · {AGGREGATION_LABELS[lastChart.aggregation]} · {lastChart.metric === 'both' ? 'Ambos' : lastChart.metric === 'flow' ? 'Flujo' : 'Totalizador'}</strong>
+        <span>{chartPending ? 'La nueva consulta sigue en proceso. Esta gráfica es solo referencia y no corresponde a los controles actuales.' : 'El resultado solicitado no está disponible; se mantiene la última gráfica válida como referencia.'} PDF y Excel se habilitan cuando llegue el resultado solicitado.</span>
       </div> : null}
-      {rows.length && hasAny && visible.length ? (
+      {chartPending ? <div className="dgo-h09-history-progress" role="status" aria-live="polite">
+        <span className="dgo-h09-spinner" aria-hidden="true" />
+        {historyJobStatus === 'queued' ? 'Consulta SQL en cola…' :
+          historyJobStatus === 'running' ? 'Consultando SQL Server y validando intervalos…' :
+            'Preparando histórico operativo…'}
+        {!isPreviousChart && chartHasData ? ' Se mantiene visible la gráfica actual.' : !chartHasData ? ' La gráfica aparecerá al terminar.' : ''}
+      </div> : null}
+      {error ? <div className="status-pill alert">{error}</div> : null}
+      {chartRows.length && chartHasData && chartVisible.length ? (
+        <div className={isPreviousChart ? 'dgo-h09-chart-previous' : 'dgo-h09-chart-current'} data-history-view={isPreviousChart ? 'previous' : 'current'}>
         <ResponsiveContainer width="100%" height={410}>
-          <ComposedChart data={displayRows} margin={{ top: 16, right: axes.showTotalizer ? 40 : 18, bottom: 18, left: 8 }}>
+          <ComposedChart data={chartRows} margin={{ top: 16, right: chartAxes.showTotalizer ? 40 : 18, bottom: 18, left: 8 }}>
             <CartesianGrid stroke="rgba(56,189,248,.14)" strokeDasharray="3 3" />
-            <XAxis dataKey="timestamp" type="number" scale="time" domain={['dataMin', 'dataMax']} tickFormatter={(value) => tick(Number(value), aggregation)} minTickGap={32} stroke="#b9e7ff" />
-            {axes.showFlow ? <YAxis yAxisId="flow" stroke="#7dd3fc" width={62} tickFormatter={(value) => Number(value).toLocaleString('es-MX')} label={{ value: 'L/s', angle: -90, position: 'insideLeft', fill: '#7dd3fc' }} /> : null}
-            {axes.showTotalizer ? <YAxis yAxisId="totalizer" orientation={axes.independentAxes ? 'right' : 'left'} stroke="#c4b5fd" width={78} tickFormatter={(value) => Number(value).toLocaleString('es-MX')} label={{ value: totalizerAxisLabel, angle: axes.independentAxes ? 90 : -90, position: axes.independentAxes ? 'insideRight' : 'insideLeft', fill: '#c4b5fd' }} /> : null}
-            <Tooltip content={<ModuleTooltip aggregation={aggregation} selected={visible} metric={metric} totalizerDisplay={effectiveTotalizerDisplay} volumeDisplay={volumeDisplay} singleElement={singleElement} flowOnly={flowOnly} palette={palette} items={activeItems} module={module} thresholdStates={thresholdStates} />} filterNull={false} allowEscapeViewBox={{ x: true, y: true }} wrapperStyle={{ zIndex: 120, pointerEvents: 'none' }} offset={16} />
-            {singleElement && threshold.enabled && axes.showFlow && threshold.direction !== 'above' && threshold.minValue !== null ? <ReferenceLine yAxisId="flow" y={threshold.minValue} stroke="#F59E0B" strokeWidth={1.8} strokeDasharray="6 4" label={{ value: `Mín. ${threshold.minValue} L/s`, fill: '#F59E0B', fontSize: 11, position: 'insideTopRight' }} /> : null}
-            {singleElement && threshold.enabled && axes.showFlow && threshold.direction !== 'below' && threshold.maxValue !== null ? <ReferenceLine yAxisId="flow" y={threshold.maxValue} stroke="#FB7185" strokeWidth={1.8} strokeDasharray="6 4" label={{ value: `Máx. ${threshold.maxValue} L/s`, fill: '#FB7185', fontSize: 11, position: 'insideBottomRight' }} /> : null}
+            <XAxis dataKey="timestamp" type="number" scale="time" domain={['dataMin', 'dataMax']} tickFormatter={(value) => tick(Number(value), chartAggregation)} minTickGap={32} stroke="#b9e7ff" />
+            {chartAxes.showFlow ? <YAxis yAxisId="flow" stroke="#7dd3fc" width={62} tickFormatter={(value) => Number(value).toLocaleString('es-MX')} label={{ value: 'L/s', angle: -90, position: 'insideLeft', fill: '#7dd3fc' }} /> : null}
+            {chartAxes.showTotalizer ? <YAxis yAxisId="totalizer" orientation={chartAxes.independentAxes ? 'right' : 'left'} stroke="#c4b5fd" width={78} tickFormatter={(value) => Number(value).toLocaleString('es-MX')} label={{ value: chartTotalizerAxisLabel, angle: chartAxes.independentAxes ? 90 : -90, position: chartAxes.independentAxes ? 'insideRight' : 'insideLeft', fill: '#c4b5fd' }} /> : null}
+            <Tooltip content={<ModuleTooltip aggregation={chartAggregation} selected={chartVisible} metric={chartMetric} totalizerDisplay={chartEffectiveTotalizerDisplay} volumeDisplay={chartVolumeDisplay} singleElement={singleElement} flowOnly={chartFlowOnly} palette={chartPalette} items={chartItems} module={chartModule} thresholdStates={chartThresholdStates} />} filterNull={false} allowEscapeViewBox={{ x: true, y: true }} wrapperStyle={{ zIndex: 120, pointerEvents: 'none' }} offset={16} />
+            {singleElement && chartThreshold.enabled && chartAxes.showFlow && chartThreshold.direction !== 'above' && chartThreshold.minValue !== null ? <ReferenceLine yAxisId="flow" y={chartThreshold.minValue} stroke="#F59E0B" strokeWidth={1.8} strokeDasharray="6 4" label={{ value: `Mín. ${chartThreshold.minValue} L/s`, fill: '#F59E0B', fontSize: 11, position: 'insideTopRight' }} /> : null}
+            {singleElement && chartThreshold.enabled && chartAxes.showFlow && chartThreshold.direction !== 'below' && chartThreshold.maxValue !== null ? <ReferenceLine yAxisId="flow" y={chartThreshold.maxValue} stroke="#FB7185" strokeWidth={1.8} strokeDasharray="6 4" label={{ value: `Máx. ${chartThreshold.maxValue} L/s`, fill: '#FB7185', fontSize: 11, position: 'insideBottomRight' }} /> : null}
             <Legend />
-            <Line yAxisId={axes.showFlow ? 'flow' : 'totalizer'} dataKey="tooltipAnchor" stroke="transparent" dot={false} activeDot={false} legendType="none" isAnimationActive={false} />
-            {visible.flatMap((identity) => {
-              const itemIndex = activeItems.findIndex((item) => configuredComparisonIdentity(item) === identity);
-              const series = filteredData?.series.find((item) => comparisonSeriesIdentity(item) === identity);
-              const color = palette[Math.max(itemIndex, 0) % palette.length];
+            <Line yAxisId={chartAxes.showFlow ? 'flow' : 'totalizer'} dataKey="tooltipAnchor" stroke="transparent" dot={false} activeDot={false} legendType="none" isAnimationActive={false} />
+            {chartVisible.flatMap((identity) => {
+              const itemIndex = chartItems.findIndex((item) => configuredComparisonIdentity(item) === identity);
+              const series = chartFilteredData?.series.find((item) => comparisonSeriesIdentity(item) === identity);
+              const color = chartPalette[Math.max(itemIndex, 0) % chartPalette.length];
               const totalizerColor = TOTALIZER_COLORS[Math.max(itemIndex, 0) % TOTALIZER_COLORS.length];
               const chartSeries = [];
-              if (axes.showFlow) chartSeries.push(<Line key={`flow-${identity}`} yAxisId="flow" type="linear" dataKey={`flow_${identity}`} name={`${series?.name || identity} · Flujo (L/s)`} stroke={color} strokeWidth={2.7} dot={false} activeDot={{ r: 4 }} connectNulls={false} isAnimationActive={false} />);
-              if (axes.showTotalizer && metric === 'both' && (!singleElement || volumeDisplay === 'interval')) chartSeries.push(<Bar key={`totalizer-bar-${identity}`} yAxisId="totalizer" dataKey={`volume_${identity}`} name={`${series?.name || identity} · ${operationalVolumeLabel(module, { scope: 'period' })} (m³)`} fill={totalizerColor} fillOpacity={0.72} barSize={16} radius={[4, 4, 0, 0]} isAnimationActive={false} />);
-              if (axes.showTotalizer && metric === 'both' && singleElement && volumeDisplay === 'cumulative') chartSeries.push(<Line key={`volume-cumulative-${identity}`} yAxisId="totalizer" type="linear" dataKey={`volume_cumulative_${identity}`} name={`${series?.name || identity} · Volumen acumulado del periodo (m³)`} stroke={totalizerColor} strokeWidth={2.8} dot={displayRows.length <= 24 ? { r: 2.8 } : false} activeDot={{ r: 4 }} connectNulls={false} isAnimationActive={false} />);
-              if (axes.showTotalizer && metric !== 'both') chartSeries.push(<Line key={`totalizer-${identity}-${effectiveTotalizerDisplay}`} yAxisId="totalizer" type="linear" dataKey={effectiveTotalizerDisplay === 'delta' ? `totalizer_delta_${identity}` : `totalizer_${identity}`} name={`${series?.name || identity} · ${effectiveTotalizerDisplay === 'delta' ? 'Variación totalizador' : 'Totalizador'} (m³)`} stroke={totalizerColor} strokeWidth={2.4} dot={false} activeDot={{ r: 4 }} connectNulls={false} isAnimationActive={false} />);
+              if (chartAxes.showFlow) chartSeries.push(<Line key={`flow-${identity}`} yAxisId="flow" type="linear" dataKey={`flow_${identity}`} name={`${series?.name || identity} · Flujo (L/s)`} stroke={color} strokeWidth={2.7} dot={false} activeDot={{ r: 4 }} connectNulls={false} isAnimationActive={false} />);
+              if (chartAxes.showTotalizer && chartMetric === 'both' && (!singleElement || chartVolumeDisplay === 'interval')) chartSeries.push(<Bar key={`totalizer-bar-${identity}`} yAxisId="totalizer" dataKey={`volume_${identity}`} name={`${series?.name || identity} · ${operationalVolumeLabel(chartModule, { scope: 'period' })} (m³)`} fill={totalizerColor} fillOpacity={0.72} barSize={16} radius={[4, 4, 0, 0]} isAnimationActive={false} />);
+              if (chartAxes.showTotalizer && chartMetric === 'both' && singleElement && chartVolumeDisplay === 'cumulative') chartSeries.push(<Line key={`volume-cumulative-${identity}`} yAxisId="totalizer" type="linear" dataKey={`volume_cumulative_${identity}`} name={`${series?.name || identity} · Volumen acumulado del periodo (m³)`} stroke={totalizerColor} strokeWidth={2.8} dot={chartRows.length <= 24 ? { r: 2.8 } : false} activeDot={{ r: 4 }} connectNulls={false} isAnimationActive={false} />);
+              if (chartAxes.showTotalizer && chartMetric !== 'both') chartSeries.push(<Line key={`totalizer-${identity}-${chartEffectiveTotalizerDisplay}`} yAxisId="totalizer" type="linear" dataKey={chartEffectiveTotalizerDisplay === 'delta' ? `totalizer_delta_${identity}` : `totalizer_${identity}`} name={`${series?.name || identity} · ${chartEffectiveTotalizerDisplay === 'delta' ? 'Variación totalizador' : 'Totalizador'} (m³)`} stroke={totalizerColor} strokeWidth={2.4} dot={false} activeDot={{ r: 4 }} connectNulls={false} isAnimationActive={false} />);
               return chartSeries;
             })}
           </ComposedChart>
         </ResponsiveContainer>
-      ) : !loading ? <ChartEmptyState message={!selected.length ? 'Selecciona al menos un elemento para comparar.' : hasFuture ? 'El rango incluye intervalos futuros; todavía no existe información operativa para ellos.' : 'Sin registros guardados para el periodo seleccionado.'} /> : null}
+        </div>
+      ) : !chartPending ? <ChartEmptyState message={!selected.length ? 'Selecciona al menos un elemento para comparar.' : hasFuture ? 'El rango incluye intervalos futuros; todavía no existe información operativa para ellos.' : 'Sin registros guardados para el periodo seleccionado.'} /> : null}
     </section>
   );
 }

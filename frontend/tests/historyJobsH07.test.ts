@@ -13,11 +13,15 @@ test('histórico modular usa jobs y sondeos cortos en lugar del GET de 30s', () 
   assert.doesNotMatch(modular, /timeout: 30000/);
 });
 
-test('cambio de fechas no mantiene gráfica antigua durante error o recarga', () => {
+test('H09 conserva una instantánea identificada por periodo y no la exporta como el nuevo rango', () => {
   const component = read('src/pages/pozos/components/ModuleHistoryPanel.tsx');
   assert.match(component, /lastResolvedIdentityRef\.current === identity/);
-  assert.match(component, /setData\(null\)/);
   assert.match(component, /resolvedQueryIdentity !== queryIdentity/);
-  assert.match(component, /Histórico en cola/);
-  assert.match(component, /Consultando SQL Server para el período seleccionado/);
+  assert.match(component, /lastChart\.identity !== queryIdentity/);
+  assert.match(component, /Vista anterior/);
+  assert.match(component, /data-history-view=\{isPreviousChart/);
+  assert.match(component, /Consulta SQL en cola/);
+  assert.match(component, /setRefreshing\(true\)/);
+  assert.match(component, /const exportDisabled = !exportRows\.length/);
+  assert.match(component, /disabled=\{isPreviousChart \|\| !selectedElementIds/);
 });

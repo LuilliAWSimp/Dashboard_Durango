@@ -1108,6 +1108,9 @@ def get_water_history_module(*, module: str, start_date: str, end_date: str, agg
     cached = _CACHE.get(cache_key)
     if not force_refresh and cached and monotonic() < cached['expires_at']:
         return cached['value']
+    # DGO-H09: medir sin alterar consultas SQL ni conciliación de totalizadores.
+    history_started = monotonic()
+    validation_query_seconds = 0.0
     identities = list(SENSORS_BY_MODULE[module])
     query_start_dt, query_end_dt, legacy_only, crosses_cutover = clamp_to_validated_segment(
         requested_start_dt, effective_end_dt
@@ -1174,11 +1177,19 @@ def get_water_history_module(*, module: str, start_date: str, end_date: str, agg
                 if row_sensor in grouped:
                     grouped[row_sensor].append(row)
         if module == 'well' and not flow_only and aggregation != 'minute' and query_end_dt > query_start_dt:
-            for row in _query_physical_validation_rows_chunked(numeric_ids, query_start_dt, query_end_dt):
-                validation_sensor = int(row.get('sensor_id') or 0)
-                if validation_sensor in validation_grouped:
-                    validation_grouped[validation_sensor].append(row)
+            validation_query_started = monotonic()
+            try:
+                for row in _query_physical_validation_rows_chunked(numeric_ids, query_start_dt, query_end_dt):
+                    validation_sensor = int(row.get('sensor_id') or 0)
+                    if validation_sensor in validation_grouped:
+                        validation_grouped[validation_sensor].append(row)
+            finally:
+                validation_query_seconds += monotonic() - validation_query_started
 
+    # 'sql_fuentes_s' incluye lecturas especializadas y agrupados; excluye
+    # expresamente la segunda lectura física de totalizadores de Pozos.
+    source_query_seconds = max(0.0, monotonic() - history_started - validation_query_seconds)
+    points_started = monotonic()
     series = []
     for identity in identities:
         sensor_rows = grouped[identity]
@@ -1217,6 +1228,13 @@ def get_water_history_module(*, module: str, start_date: str, end_date: str, agg
             'has_future_intervals': any(point.get('data_status') == 'future_interval' for point in points),
             'points': points,
         })
+    logger.info(
+        'DGO-H09 historico modulo=%s rango=%s..%s agrupacion=%s modo=%s '
+        'sql_fuentes_s=%.2f sql_validacion_totalizador_s=%.2f procesamiento_s=%.2f total_s=%.2f',
+        module, start.isoformat(), end.isoformat(), aggregation,
+        'flujo' if flow_only else 'completo', source_query_seconds,
+        validation_query_seconds, monotonic() - points_started, monotonic() - history_started,
+    )
     if query_error is not None and query_error.status not in {'no_history_source'} and not any(item['has_data'] for item in series):
         raise query_error
     payload = {
