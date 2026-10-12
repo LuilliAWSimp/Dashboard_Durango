@@ -6,6 +6,7 @@ import re
 import secrets
 
 from argon2 import PasswordHasher
+from email_validator import EmailNotValidError, validate_email
 from argon2.exceptions import InvalidHashError, VerifyMismatchError
 
 _PASSWORD_HASHER = PasswordHasher()
@@ -18,10 +19,26 @@ class PasswordPolicyError(ValueError):
 
 
 def normalize_username(username: str) -> str:
-    value = username.strip().lower()
+    """Identificador único: usuario heredado (3-64) o correo valido (<=254).
+
+    La normalización es común a creación, edición y autenticación. No se
+    comprueba entregabilidad/DNS: el correo se usa como identificador local.
+    """
+    value = str(username or '').strip().lower()
+    if '@' in value:
+        if len(value) > 254:
+            raise ValueError("El correo electrónico no puede superar 254 caracteres.")
+        try:
+            parsed = validate_email(value, check_deliverability=False, allow_smtputf8=False)
+        except EmailNotValidError as exc:
+            raise ValueError("El correo electrónico no es válido.") from exc
+        normalized = parsed.normalized.lower()
+        if len(normalized) > 254:
+            raise ValueError("El correo electrónico no puede superar 254 caracteres.")
+        return normalized
     if not _USERNAME_RE.fullmatch(value):
         raise ValueError(
-            "El usuario debe tener entre 3 y 64 caracteres y usar letras, números, punto, guion o guion bajo."
+            "Ingresa un usuario de 3 a 64 caracteres (letras, números, punto, guion o guion bajo) o un correo electrónico válido."
         )
     return value
 

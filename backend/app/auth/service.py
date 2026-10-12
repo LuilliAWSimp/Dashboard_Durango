@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -202,9 +203,9 @@ class AuthService:
                 )
                 connection.commit()
                 row = connection.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
-        except Exception as exc:
+        except sqlite3.IntegrityError as exc:
             if "UNIQUE constraint failed" in str(exc):
-                raise DuplicateUserError("El nombre de usuario ya existe.") from exc
+                raise DuplicateUserError("El usuario o correo ya existe.") from exc
             raise
         return self._serialize_user(row)
 
@@ -224,6 +225,7 @@ class AuthService:
         self,
         user_id: int,
         *,
+        username: str | None = None,
         display_name: str | None = None,
         role: str | None = None,
         is_active: bool | None = None,
@@ -232,55 +234,65 @@ class AuthService:
     ) -> dict[str, Any]:
         if role is not None and role not in ROLES:
             raise ValueError("Rol no válido.")
-        with self.database.connect() as connection:
-            connection.execute("BEGIN IMMEDIATE")
-            current = connection.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
-            if not current:
-                connection.rollback()
-                raise UserNotFoundError("Usuario no encontrado.")
-
-            next_role = role if role is not None else current["role"]
-            next_active = int(is_active) if is_active is not None else int(current["is_active"])
-            if current["role"] == "admin" and current["is_active"] and (next_role != "admin" or not next_active):
-                if self._active_admin_count(connection) <= 1:
+        normalized_username = normalize_username(username) if username is not None else None
+        try:
+            with self.database.connect() as connection:
+                connection.execute("BEGIN IMMEDIATE")
+                current = connection.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+                if not current:
                     connection.rollback()
-                    raise LastAdministratorError("Debe permanecer al menos un administrador activo.")
+                    raise UserNotFoundError("Usuario no encontrado.")
 
-            fields: list[str] = []
-            values: list[Any] = []
-            audit_changes: dict[str, Any] = {}
-            if display_name is not None:
-                clean_name = display_name.strip()
-                if not clean_name:
-                    connection.rollback()
-                    raise ValueError("El nombre visible es obligatorio.")
-                fields.append("display_name = ?")
-                values.append(clean_name)
-                audit_changes["display_name_changed"] = clean_name != current["display_name"]
-            if role is not None:
-                fields.append("role = ?")
-                values.append(role)
-                audit_changes["role"] = role
-            if is_active is not None:
-                fields.append("is_active = ?")
-                values.append(int(is_active))
-                audit_changes["is_active"] = bool(is_active)
-            fields.append("updated_at = ?")
-            values.append(iso(utc_now()))
-            values.append(user_id)
-            connection.execute(f"UPDATE users SET {', '.join(fields)} WHERE id = ?", values)
-            if is_active is False:
-                self._revoke_sessions(connection, user_id)
-            self._audit(
-                connection,
-                action="user_updated",
-                actor_user_id=actor_user_id,
-                target_user_id=user_id,
-                ip_address=ip_address,
-                details=audit_changes,
-            )
-            connection.commit()
-            row = connection.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+                next_role = role if role is not None else current["role"]
+                next_active = int(is_active) if is_active is not None else int(current["is_active"])
+                if current["role"] == "admin" and current["is_active"] and (next_role != "admin" or not next_active):
+                    if self._active_admin_count(connection) <= 1:
+                        connection.rollback()
+                        raise LastAdministratorError("Debe permanecer al menos un administrador activo.")
+
+                fields: list[str] = []
+                values: list[Any] = []
+                audit_changes: dict[str, Any] = {}
+                if normalized_username is not None and normalized_username != str(current['username']).lower():
+                    fields.append("username = ?")
+                    values.append(normalized_username)
+                    audit_changes["username_changed"] = True
+                if display_name is not None:
+                    clean_name = display_name.strip()
+                    if not clean_name:
+                        connection.rollback()
+                        raise ValueError("El nombre visible es obligatorio.")
+                    fields.append("display_name = ?")
+                    values.append(clean_name)
+                    audit_changes["display_name_changed"] = clean_name != current["display_name"]
+                if role is not None:
+                    fields.append("role = ?")
+                    values.append(role)
+                    audit_changes["role"] = role
+                if is_active is not None:
+                    fields.append("is_active = ?")
+                    values.append(int(is_active))
+                    audit_changes["is_active"] = bool(is_active)
+                fields.append("updated_at = ?")
+                values.append(iso(utc_now()))
+                values.append(user_id)
+                connection.execute(f"UPDATE users SET {', '.join(fields)} WHERE id = ?", values)
+                if is_active is False:
+                    self._revoke_sessions(connection, user_id)
+                self._audit(
+                    connection,
+                    action="user_updated",
+                    actor_user_id=actor_user_id,
+                    target_user_id=user_id,
+                    ip_address=ip_address,
+                    details=audit_changes,
+                )
+                connection.commit()
+                row = connection.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+        except sqlite3.IntegrityError as exc:
+            if "UNIQUE constraint failed" in str(exc):
+                raise DuplicateUserError("El usuario o correo ya existe.") from exc
+            raise
         return self._serialize_user(row)
 
 
@@ -428,7 +440,11 @@ class AuthService:
         ip_address: str | None = None,
         user_agent: str | None = None,
     ) -> SessionResult:
-        attempted = username.strip().lower()
+        try:
+            attempted = normalize_username(username)
+        except ValueError as exc:
+            # El login no revela si existe una cuenta: misma respuesta generica.
+            raise InvalidCredentialsError("Usuario o contraseña incorrectos.") from exc
         now = utc_now()
         with self.database.connect() as connection:
             connection.execute("BEGIN IMMEDIATE")

@@ -56,10 +56,10 @@ export default function LoginPage({ onSuccess }) {
         </div>
 
         <form className="login-form" onSubmit={handleSubmit}>
-          <label className="field-label" htmlFor="login-username">Usuario</label>
+          <label className="field-label" htmlFor="login-username">Usuario o correo</label>
           <div className="field-wrap">
             <User size={16} />
-            <input id="login-username" value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" disabled={loading} required />
+            <input id="login-username" value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" maxLength={254} disabled={loading} required />
           </div>
           <label className="field-label" htmlFor="login-password">Contraseña</label>
           <div className="field-wrap login-password-wrap">
