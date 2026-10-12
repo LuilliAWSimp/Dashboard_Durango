@@ -160,15 +160,14 @@ def _history_fixture(module, start_date, end_date, aggregation, **_):
 
 def test_pdf_excel_and_email_attachment_use_same_report_structure(monkeypatch):
     fixture = _period_fixture()
-    monkeypatch.setattr(report_service, 'get_period_data', lambda *args, **kwargs: fixture)
-    monkeypatch.setattr(report_service, 'get_shift_consumption_data', lambda *args, **kwargs: {'shifts': []})
+    monkeypatch.setattr(report_service, '_daily_review_as_period', lambda *args, **kwargs: (fixture, []))
     monkeypatch.setattr(report_service, 'get_water_history_module', _history_fixture)
     report = report_service.get_daily_water_report('2026-08-01')
     pdf_bytes, pdf_name = report_service.build_daily_water_report_pdf(report)
     excel_bytes, excel_name = report_service.build_daily_water_report_excel(report)
     assert pdf_bytes.startswith(b'%PDF')
-    assert pdf_name == 'reporte-diario-control-hidrico-durango-2026-08-01.pdf'
-    assert excel_name == 'reporte-diario-control-hidrico-durango-2026-08-01.xlsx'
+    assert pdf_name.startswith('reporte-control-hidrico-durango-2026-08-01_generado-') and pdf_name.endswith('.pdf')
+    assert excel_name.startswith('reporte-control-hidrico-durango-2026-08-01_generado-') and excel_name.endswith('.xlsx')
     workbook = load_workbook(BytesIO(excel_bytes), data_only=True)
     assert workbook.sheetnames[:8] == ['Resumen', 'Pozos', 'Líneas', 'Lavadoras', 'Jarabes', 'Turnos', 'Histórico Pozos', 'Histórico Líneas']
     assert workbook['Pozos'].max_row == 3

@@ -134,10 +134,10 @@ test('Detalles, historicos y turnos exponen scopes semanticos', () => {
   const elementHistory = read('src/pages/pozos/components/ElementHistoryPanel.tsx');
 
   assert.match(detail, /operational-detail-hero operational-detail-\$\{module\}/);
-  assert.match(detail, /className="operational-detail-history"/);
-  assert.match(history, /operational-history-panel operational-history-\$\{module\}/);
+  assert.match(detail, /<ElementHistoryPanel/);
+  assert.match(history, /operational-history-panel operational-history-\$\{fixedView \|\| \(fixedModule \? module : globalView\)\}/);
   assert.match(shifts, /operational-shifts-panel operational-shifts-\$\{group\}/);
-  assert.match(elementHistory, /operational-element-history operational-history-\$\{module\}/);
+  assert.match(elementHistory, /operational-detail-history operational-element-history operational-history-\$\{module\}/);
 });
 
 
@@ -170,4 +170,17 @@ test('Shell, Login y Usuarios tienen frontera modular y tema transversal', () =>
   assert.match(loginCss, /Pantalla de precarga inicial Durango/);
   assert.match(usersCss, /users-table/);
   assert.match(themeCss, /theme-light/);
+});
+
+test('cierre CSS V2 mantiene fuera del global los modulos deshabilitados y responsabilidades migradas', () => {
+  const globalCss = read('src/styles/global.css');
+  assert.doesNotMatch(globalCss, /\.concession-|\.concesion-/);
+  assert.doesNotMatch(globalCss, /\.tanque-|\.tanques-/);
+  assert.doesNotMatch(globalCss, /\.uv-/);
+  assert.doesNotMatch(globalCss, /\.water-balance-hero/);
+  assert.doesNotMatch(globalCss, /\.operational-element-card/);
+  assert.doesNotMatch(globalCss, /\.operational-sibling-navigation/);
+  assert.doesNotMatch(globalCss, /\.five-minute-export-action/);
+  assert.doesNotMatch(globalCss, /\.email-report-modal/);
+  assert.doesNotMatch(globalCss, /\.toast-viewport/);
 });

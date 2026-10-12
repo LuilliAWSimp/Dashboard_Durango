@@ -238,3 +238,11 @@
   background: #fde7e7;
   border-color: #eab1b1;
 }
+
+/* Durango 42 · responsividad de alertas operativas migrada desde global.css. */
+@media (max-width: 760px) {
+  .operational-alerts-heading { align-items: flex-start; flex-direction: column; }
+  .operational-alerts-grid { grid-template-columns: 1fr; }
+  .operational-alert-card { grid-template-columns: 1fr; }
+  .operational-alert-action { grid-column: 1; justify-self: start; }
+}

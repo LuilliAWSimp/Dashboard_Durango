@@ -84,6 +84,34 @@ export function resolveOperationalReturnTarget(state: unknown, fallback: string)
   return candidate;
 }
 
+export function operationalReturnLabel(target: string): string {
+  const pathname = String(target || '').split('?')[0].replace(/\/+$/, '') || '/';
+  if (pathname === '/pozos/dashboard') return 'Volver al Resumen';
+  if (pathname === '/pozos/pozos') return 'Volver a Pozos';
+  if (pathname === '/pozos/lineas') return 'Volver a Líneas';
+  if (pathname === '/pozos/flujos') return 'Volver a Lavadoras';
+  if (pathname === '/pozos/jarabes') return 'Volver a Jarabes';
+  return 'Volver';
+}
+
+export function clearOperationalReturnState(state: unknown): Record<string, unknown> | undefined {
+  if (!state || typeof state !== 'object' || Array.isArray(state)) return undefined;
+  const cleaned = { ...(state as Record<string, unknown>) };
+  delete cleaned.returnTo;
+  delete cleaned.fromOperationalModule;
+  return Object.keys(cleaned).length ? cleaned : undefined;
+}
+
+export function buildOperationalSiblingPath(
+  backPath: string,
+  identity: OperationalIdentity,
+  search = '',
+): string {
+  const route = String(backPath || '').replace(/\/+$/, '');
+  const query = search ? (search.startsWith('?') ? search : `?${search}`) : '';
+  return `${route}/${encodeURIComponent(String(identity))}${query}`;
+}
+
 export interface OperationalNavigationContext {
   range: DateRange;
   aggregation: HistoryAggregation;

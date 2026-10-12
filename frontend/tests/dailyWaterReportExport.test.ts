@@ -1,8 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { buildDailyWaterReportHtml } from '../src/services/dailyWaterReportExportService.ts';
-import { buildDailyWaterReportHtml as buildDailyWaterReportHtmlJs } from '../src/services/dailyWaterReportExportService.js';
+import { buildDailyWaterReportHtml } from '../src/services/dailyWaterReportExportService.js';
 
 function row(name: string, volume: number | null = 1) {
   return {
@@ -90,11 +89,12 @@ test('HTML usa clasificación operativa y omite nombres técnicos', () => {
 
 test('HTML conserva cero medido, huecos y excluye intervalos futuros', () => {
   const html = buildDailyWaterReportHtml(report);
-  assert.match(html, /Cero:<\/strong> lectura válida/);
-  assert.match(html, /Hueco:<\/strong> intervalo sin registros/);
+  assert.match(html, /<td>0\.00 L\/s<\/td>/);
+  assert.match(html, /M 62\.00 228\.00 M 936\.00 40\.50/);
   assert.doesNotMatch(html, /10:45/);
 });
 
-test('las implementaciones JS y TypeScript generan el mismo HTML', () => {
-  assert.equal(buildDailyWaterReportHtmlJs(report), buildDailyWaterReportHtml(report));
+test('la exportación HTML usa una sola fuente canónica', () => {
+  const html = buildDailyWaterReportHtml(report);
+  assert.match(html, /Reporte de Control Hídrico/);
 });

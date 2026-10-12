@@ -6,6 +6,8 @@ export interface ModuleHistoryPdfSeries {
   metric: 'flow' | 'totalizer';
   unit: string;
   color: string;
+  chart_type: 'line' | 'bar';
+  axis: 'left' | 'right';
 }
 
 export interface ModuleHistoryPdfPayload {
@@ -18,6 +20,8 @@ export interface ModuleHistoryPdfPayload {
   selected_names: string[];
   rows: Record<string, unknown>[];
   series: ModuleHistoryPdfSeries[];
+  left_axis_label: string;
+  right_axis_label?: string;
 }
 
 function downloadBlobResponse(response: { data: Blob; headers?: Record<string, unknown> }, fallbackFilename: string): void {

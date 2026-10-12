@@ -128,23 +128,31 @@ class DurangoReportValidatedSummaryTests(unittest.TestCase):
         workbook = load_workbook(BytesIO(content), data_only=False)
         summary_sheet = workbook['Resumen']
         summary_values = {summary_sheet.cell(row, 1).value: summary_sheet.cell(row, 2).value for row in range(2, summary_sheet.max_row + 1)}
-        self.assertAlmostEqual(summary_values['Volumen bombeado validado de pozos (m³)'], 175.65, places=6)
-        self.assertAlmostEqual(summary_values['Volumen consumido validado de líneas (m³)'], 24.21, places=6)
-        self.assertEqual(summary_values['Volumen consumido validado de lavadoras (m³)'], 0)
-        self.assertAlmostEqual(summary_values['Volumen consumido validado de Jarabes (m³)'], 11.43, places=6)
-        self.assertAlmostEqual(summary_values['Subtotal validado operativo (m³)'], 211.29, places=6)
+        self.assertAlmostEqual(summary_values['Volumen bombeado de pozos (m³)'], 175.65, places=6)
+        self.assertAlmostEqual(summary_values['Volumen consumido de líneas (m³)'], 24.21, places=6)
+        self.assertEqual(summary_values['Volumen consumido de lavadoras (m³)'], 0)
+        self.assertAlmostEqual(summary_values['Volumen consumido de Jarabes (m³)'], 11.43, places=6)
+        self.assertNotIn('Subtotal validado operativo (m³)', summary_values)
+        self.assertNotIn('Total validado operativo (m³)', summary_values)
+        self.assertEqual(summary_values['Con actividad'], '4/7')
+        self.assertEqual(summary_values['Con atención'], '0/7')
         wells_sheet = workbook['Pozos']
         self.assertIsInstance(wells_sheet['E2'].value, (int, float))
         self.assertAlmostEqual(wells_sheet['E2'].value, 0.67, places=6)
-        self.assertEqual(wells_sheet['F2'].value, 'Validado')
-        self.assertEqual(wells_sheet['G2'].value, 'Con actividad')
+        self.assertEqual(wells_sheet['F2'].value, 'Con actividad')
+        self.assertEqual(wells_sheet['G2'].value, 'Datos completos')
+        self.assertEqual(wells_sheet['A1'].value, 'Pozo')
+        self.assertEqual(wells_sheet['C1'].value, 'Totalizador apertura (m³)')
+        self.assertEqual(wells_sheet['D1'].value, 'Totalizador al cierre (m³)')
+        self.assertEqual(wells_sheet['G1'].value, 'Estado de datos')
+        self.assertEqual(wells_sheet['I1'].value, 'Última lectura')
         self.assertEqual(workbook.sheetnames[:6], ['Resumen', 'Pozos', 'Líneas', 'Lavadoras', 'Jarabes', 'Turnos'])
 
     def test_pdf_is_generated_from_same_report_object(self) -> None:
         report = self.build_report()
         content, filename = build_daily_water_report_pdf(report)
         self.assertTrue(content.startswith(b'%PDF'))
-        self.assertEqual(filename, 'reporte-diario-control-hidrico-durango-2026-08-04.pdf')
+        self.assertRegex(filename, r'^reporte-control-hidrico-durango-2026-08-04_generado-\d{2}-\d{2}-\d{2}\.pdf$')
 
     def test_preview_skips_histories_and_shifts(self) -> None:
         with patch('app.services.water_daily_report_service.get_daily_water_review', return_value=self.review_payload()) as review, patch(

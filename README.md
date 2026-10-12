@@ -1,384 +1,234 @@
-# Dashboard ARCA
+# Dashboard ARCA — Planta Durango
 
-Sistema de monitoreo operativo y analítico para infraestructura hidráulica e industrial.
+Dashboard operativo para monitoreo hidráulico de Planta Durango. El proyecto usa React + Vite en frontend y FastAPI en backend, con lecturas operativas provenientes de SQL Server / Blue Open Studio (BOS).
 
-El proyecto integra visualización de datos, reportes, análisis operativo y monitoreo de activos como:
+## Estado funcional al cierre de homologación
 
-* Pozos
-* Líneas
-* Tanques
-* Balance hidráulico
-* Concesión
-* Revisión diaria
-* Lámparas UV
-* Consumos
-* Reportes operativos
+Módulos activos:
 
-El frontend está desarrollado con React + Vite y actualmente se encuentra en proceso de migración y modularización gradual hacia TypeScript.
+- Resumen.
+- Pozos.
+- Líneas.
+- Lavadoras.
+- Jarabes.
+- Revisión diaria.
+- Reportes.
+- Turnos.
+- Usuarios, sólo para rol `admin`.
 
----
+Módulo visible con contrato protegido:
 
-# Características principales
+- Balance de Agua — **En validación física**. Presenta los grupos por separado y no publica una diferencia oficial hasta confirmar la topología física.
 
-## Dashboard operativo
+Módulos deshabilitados para Durango:
 
-Visualización centralizada de:
+- Tanques.
+- CIP.
+- Lámparas UV.
+- Consumos heredados.
+- Energía.
+- Concesión.
 
-* Producción de agua
-* Consumo energético
-* KPIs operativos
-* Estados de comunicación
-* Tendencias históricas
-* Métricas por periodo
-* Comparativas entre activos
+Concesión permanece deshabilitada mientras no existan título, volumen autorizado, vigencia/ciclo y relación legal título ↔ pozo confirmados.
 
-## Módulo de Pozos
+## Mapeo operativo confirmado
 
-Incluye:
+### Pozos
 
-* Tarjetas operativas
-* Tabla comparativa
-* Detalle individual de pozo
-* Gráficas de agua y energía por periodo
-* Timeline histórico
-* Métricas derivadas
-* Soporte para rangos de fecha
+- Pozo 1 — sensor `1001`, `POZO_FLOW_OUT[0]`.
+- Pozo 2 — sensor `1051`, `POZO_FLOW_OUT[1]`.
 
-## Módulo de Líneas
+Pozo 1 conserva la regla temporal de calibración: antes del `2026-08-11 12:15` local el flujo raw se normaliza desde m³/h; desde ese corte se usa L/s directo.
 
-Incluye:
+### Líneas
 
-* Monitoreo de líneas
-* Estados operativos
-* Detalle de línea
-* Históricos y tendencias
-* Comparativas
+- Línea 1 — sensor `2002`.
+- Línea 3 — sensor `2006`.
+- Línea 4 — sensor `2008`.
+- Línea 5 — sensor `2010`.
 
-## Módulo de Tanques
+### Lavadoras
 
-Incluye:
+- Lavadora Línea 2 — sensor `2004`, `LINEA_FLOW_IN[1]`.
+- Lavadora Vidrio — `operational_key=lavadora_vidrio`, fuente `LAVADORAS_0`.
+- Lavadora Ref Pet — `operational_key=lavadora_ref_pet`, fuente `LAVADORAS_1`.
 
-* Nivel y capacidad
-* Distribución
-* Estado operativo
-* Tendencias
+### Jarabes
 
-## Balance hidráulico
+- Jarabes — sensor actual `3004`, `TANQUE_FLOW_IN[1]`.
+- Se conserva el corte histórico del canal anterior `3010` para no relabelar datos previos incorrectamente.
 
-Visualización de:
+Corte general de configuración SCADA validada: `2026-08-04 18:16` hora local.
 
-* Entrada
-* Distribución
-* Consumo
-* Balance operativo
+## Turnos
 
-## Revisión diaria
+- Turno 1: `00:00–07:00`.
+- Turno 2: `07:00–15:00`.
+- Turno 3: `15:00–00:00` del día siguiente.
 
-Incluye:
+La interfaz distingue el estado temporal del corte de la calidad/disponibilidad de datos. Un cero válido no se trata como ausencia de información.
 
-* Prioridades de inspección
-* Eventos operativos
-* Indicadores del día
-* Seguimiento operativo
+## Históricos y exportaciones
 
-## Lámparas UV
+Los históricos compartidos soportan:
 
-Vista operativa basada en flujo asociado.
+- agrupación `1m`, `15m`, `1h`, `1d` según el rango permitido;
+- Flujo, Totalizador o Ambos;
+- totalizador por variación o valor absoluto;
+- volumen por intervalo o acumulado progresivo en detalle;
+- Excel;
+- PDF;
+- Excel 5 min.
 
-Importante:
-
-La vista UV NO simula diagnóstico técnico completo de lámparas.
-
-Actualmente se basa únicamente en:
-
-* Flujo asociado
-* Estado inferido
-* Comunicación
-* Tendencia operativa
-
-No se inventan métricas no disponibles en la base de datos como:
-
-* intensidad UV
-* vida útil
-* horas acumuladas
-* desinfección garantizada
+El contrato de exportación sigue la regla **lo que se ve = lo que se exporta** para módulo, elementos, rango, agrupación, métrica y modo visible.
 
 ## Reportes
 
-Incluye exportación de:
+Reportes soportados:
 
-* PDF
-* Excel
-* HTML
-* Vista previa operativa
+- Vista previa operativa.
+- PDF.
+- Excel.
+- HTML.
+- Correo manual.
+- Correo programado con hora exacta.
 
-Características:
+La estructura canónica es:
 
-* Logo integrado en PDF
-* Manejo de rangos de fecha
-* Generación dinámica
-* Compatibilidad con Chromium
-* Correcciones para exportación segura de PDF
+1. Resumen.
+2. Pozos.
+3. Líneas.
+4. Lavadoras.
+5. Jarabes.
+6. Turnos/anexos cuando correspondan.
 
----
+Los nombres de archivo incluyen fecha o rango y hora de generación compatible con Windows.
 
-# Stack tecnológico
+## Autenticación
 
-## Frontend
+La autenticación de Durango es local e independiente mediante SQLite. Usa:
 
-* React 18
-* Vite
-* TypeScript (migración gradual)
-* Recharts
-* Axios
-* CSS personalizado
+- cookies HTTP-only de sesión;
+- `browser_session`;
+- CSRF;
+- roles `admin`, `operator` y `viewer`;
+- expiración y revocación de sesiones.
 
-## Backend
+No incluir `.env`, credenciales, contraseñas ni bases SQLite de producción en los incrementales o commits.
 
-* FastAPI
-* SQLAlchemy
-* Pandas
-* ReportLab
-* PyODBC
-* SQL Server
+## Stack
 
----
+### Frontend
 
-# Estructura actual del proyecto
+- React 18.
+- Vite.
+- JavaScript/TypeScript canónico sin pares duplicados JS/TS.
+- Recharts.
+- Axios.
+- CSS modular por área.
+
+### Backend
+
+- FastAPI.
+- SQLAlchemy.
+- SQL Server / PyODBC.
+- Pandas.
+- OpenPyXL.
+- ReportLab.
+- SQLite para autenticación y programación persistente de correos.
+
+## Estructura principal
 
 ```text
 frontend/
   src/
     components/
+    config/
     hooks/
-    services/
-    data/
     pages/
       pozos/
         components/
         hooks/
         sections/
-        chartBuilders.ts
-        dateUtils.ts
-        normalizers.ts
-        types.ts
-      PozosDashboardPage.jsx
+    services/
+    styles/
 
 backend/
   app/
-  exports/
+    api/
+    auth/
+    services/
+  tests/
+
+tools/
+  audit_runtime_baseline.py
 ```
 
----
+Al cierre del Incremental 45, los **64 archivos de código frontend existentes están alcanzables desde `main.jsx`**, sin pares JS/TS duplicados ni imports relativos sin resolver.
 
-# Estado actual de la arquitectura
+## Instalación frontend
 
-El proyecto originalmente concentraba gran parte de la lógica operativa en:
-
-```text
-PozosDashboardPage.jsx
-```
-
-Actualmente esa lógica ya fue modularizada en:
-
-* sections/
-* hooks/
-* components/
-* utilidades compartidas
-
-Beneficios:
-
-* menor riesgo al modificar secciones
-* mantenimiento más sencillo
-* mejor separación de responsabilidades
-* mejor base para TypeScript
-* menos cambios colaterales
-* mejor colaboración entre desarrolladores
-
----
-
-# Migración gradual a TypeScript
-
-La migración a TypeScript es incremental.
-
-Actualmente:
-
-* existe configuración TS
-* existe separación modular
-* ya hay archivos `.tsx`
-* existen tipos y utilidades compartidas
-
-La migración se realiza por fases para evitar romper:
-
-* reportes
-* exportaciones
-* gráficas
-* lógica SQL
-* navegación
-
----
-
-# Requisitos
-
-## Requisitos recomendados
-
-* Node.js 20+
-* Python 3.11 o 3.12
-* SQL Server
-* ODBC Driver 17 o 18 for SQL Server
-
-Importante:
-
-Python 3.14 actualmente NO es recomendado para este proyecto debido a incompatibilidades con:
-
-* pyodbc
-* Pillow
-* pydantic-core
-
----
-
-# Instalación frontend
-
-```bash
+```powershell
 cd frontend
 npm install
 npm run dev
 ```
 
----
+Validaciones recomendadas con dependencias instaladas:
 
-# Instalación backend
-
-```bash
-cd backend
-py -3.12 -m venv .venv
-.venv\Scripts\activate
-
-python -m pip install --upgrade pip setuptools wheel
-pip install -r requirements.txt
+```powershell
+npm test
+npm run typecheck
+npm run build
 ```
 
-Ejecutar backend:
+## Instalación backend
 
-```bash
+```powershell
+cd backend
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip setuptools wheel
+pip install -r requirements.txt
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
----
+Python 3.11/3.12 es la referencia recomendada para despliegue por compatibilidad con PyODBC y dependencias binarias.
 
-# Inicio rápido con .bat
+## Pruebas
 
-El proyecto puede iniciarse mediante un archivo `.bat` que:
+Frontend:
 
-* levanta backend
-* levanta frontend
-* abre automáticamente el navegador
-
-Ejemplo:
-
-```bat
-@echo off
-title Dashboard ARCA
-
-set PROJECT_DIR=C:\Ruta\Dashboard-arca
-
-start "Backend ARCA" cmd /k "cd /d %PROJECT_DIR%\backend && .venv\Scripts\activate && uvicorn app.main:app --reload --host 127.0.0.1 --port 8000"
-
-start "Frontend ARCA" cmd /k "cd /d %PROJECT_DIR%\frontend && npm run dev"
-
-timeout /t 8 /nobreak > nul
-start http://localhost:5173
+```powershell
+cd frontend
+npm test
 ```
 
----
+Backend aislado de SQL Server, cuando se quiera validar lógica sin conectar a planta:
 
-# Base de datos
-
-Actualmente el sistema trabaja principalmente con:
-
-* SQL Server
-* procedimientos almacenados
-* lecturas BOS
-* datos históricos de sensores
-
-El proyecto también incluye:
-
-* fallbacks
-* mocks
-* degradación controlada
-
-para permitir desarrollo sin acceso completo a SQL Server.
-
----
-
-# Exportaciones
-
-El sistema soporta:
-
-* PDF
-* Excel
-* HTML
-* Imagen
-
-Las exportaciones PDF fueron ajustadas para evitar problemas de Chromium relacionados con:
-
-```js
-window.open + noopener
+```powershell
+$env:DB_MODE="sqlite"
+$env:DATABASE_URL="sqlite:///./test_dashboard.db"
+python -m pytest -q tests
 ```
 
-Ahora utilizan:
+Las pruebas aisladas no sustituyen la validación final contra SQL Server/BOS real de planta.
 
-* Blob
-* URL.createObjectURL
-* flujo de impresión más seguro
+## Auditor de runtime
 
----
-
-# Desarrollo
-
-## Validaciones recomendadas
-
-```bash
-npm run typecheck
-npm run build
-npm run dev
+```powershell
+python .\tools\audit_runtime_baseline.py --incremental 45 --write .\docs\RUNTIME_BASELINE_DURANGO_45.md
 ```
 
----
+El auditor registra imports frontend, CSS alcanzable, rutas React, literales API y routers FastAPI sin consultar SQL Server ni BOS.
 
-# Notas importantes
+## Pendientes externos al cierre técnico
 
-## Conteo incorrecto de HTML en GitHub
+- Confirmar físicamente qué grupos forman el Balance oficial antes de habilitar aritmética de balance.
+- Mantener Concesión deshabilitada hasta disponer de evidencia legal completa.
+- Hacer smoke test en la PC de planta contra SQL Server/BOS después del despliegue.
+- Probar un envío SMTP real y una ejecución programada en el entorno productivo.
 
-GitHub puede mostrar un porcentaje alto de HTML debido a:
-
-```text
-backend/exports/
-```
-
-Esto corresponde a reportes generados/exportados y no al frontend principal.
-
-Se recomienda usar:
-
-```gitattributes
-backend/exports/** linguist-vendored
-frontend/dist/** linguist-generated
-```
-
----
-
-# Estado del proyecto
-
-El sistema actualmente se encuentra:
-
-* funcional
-* modularizado
-* preparado para continuar migración TS
-* preparado para futuras integraciones SQL reales
-* preparado para crecimiento de módulos
-
----
-
-# Licencia
+## Licencia
 
 Uso interno / privado.

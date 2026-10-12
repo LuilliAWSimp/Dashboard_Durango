@@ -4,6 +4,9 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { formatSqlDate } from '../dateUtils';
 import {
   buildOperationalNavigationSearch,
+  buildOperationalSiblingPath,
+  clearOperationalReturnState,
+  operationalReturnLabel,
   resolveOperationalReturnTarget,
   configuredOperationalIdentity,
   configuredOperationalItems,
@@ -16,10 +19,13 @@ import type { OperationalSectionConfig, OperationalSectionItem } from '../operat
 import { displayOperationalState, isNormalCommunication } from '../operationalDisplay';
 import { operationalVolumeLabel } from '../operationalTerminology';
 import DateRangeControls from './DateRangeControls';
-import FiveMinuteExcelExportButton from './FiveMinuteExcelExportButton';
 import MetricPair from './MetricPair';
 import PanelHeader from './PanelHeader';
-import ModuleHistoryPanel from './ModuleHistoryPanel';
+import ElementHistoryPanel from './ElementHistoryPanel';
+import DetailHistoryPeriodMetric from './DetailHistoryPeriodMetric';
+import type { DetailHistoryPeriodSummary } from '../detailHistorySummary';
+import { supportedHistoryAggregation } from '../historyRangePolicy';
+import type { OperationalHistoryView } from './ModuleHistoryPanel';
 import ShiftConsumptionPanel from './ShiftConsumptionPanel';
 import StatusBadge from './StatusBadge';
 import useSqlChartDashboard from '../hooks/useSqlChartDashboard';
@@ -93,12 +99,12 @@ export default function OperationalDetailSection({ module, sensorId, backPath, s
   const [initialContext] = useState(() => readOperationalNavigationContext(location.search, module));
   const initialRangeFactory = useCallback(() => ({ ...initialContext.range }), [initialContext.range]);
   const current = useSqlChartDashboard('dashboard', initialRangeFactory, {
-    forceRefresh: true,
     includeHistory: false,
     includeEnergyWater: false,
     autoRefresh: true,
   });
   const [historyAggregation, setHistoryAggregation] = useState<HistoryAggregation>(initialContext.aggregation);
+  const [periodSummary, setPeriodSummary] = useState<DetailHistoryPeriodSummary | null>(null);
   const dashboard = current.dashboard as DashboardData | null;
   const allowedItems = sectionConfig?.items;
   const rows = moduleRows(dashboard, module).filter((row, index) => rowMatchesItems(row, index, module, allowedItems));
@@ -124,20 +130,12 @@ export default function OperationalDetailSection({ module, sensorId, backPath, s
   const configuredName = currentIndex >= 0 ? navigationItems[currentIndex]?.name : null;
   const name = String(item?.name || item?.nombre || configuredName || `Elemento ${sensorId}`);
   const flowUnit = String(item?.flow_unit || configuredHistoryItem?.flowUnit || 'L/s');
-  const activity = String(item?.period_activity || item?.activity || 'Sin registros');
   const rawCurrentState = String(item?.current_state || (num(item?.current_flow ?? item?.flow_lps) === null ? 'Sin registros' : Number(item?.current_flow ?? item?.flow_lps) > 0 ? 'Activo' : 'Sin flujo'));
   const currentState = displayOperationalState(rawCurrentState);
   const communication = String(item?.communication || item?.estado_comunicacion || 'Sin lectura');
   const communicationNeedsAttention = !isNormalCommunication(communication);
   const detailOpen = item?.reconciled_open_m3 ?? item?.period_open_m3;
   const detailClose = item?.reconciled_close_m3 ?? item?.period_close_m3;
-  const detailVolume = item?.reconciled_validated_volume_m3 ?? item?.validated_volume_m3 ?? item?.period_m3;
-  const reconciledReliable = item?.reconciled_volume_reliable;
-  const detailVolumeReliable = typeof reconciledReliable === 'boolean'
-    ? reconciledReliable
-    : Boolean(item?.quality_volume_reliable ?? item?.volume_reliable);
-  const qualityLabel = String(item?.quality_label || item?.validation || item?.coverage_status || activity);
-  const qualityReason = String(item?.quality_reason || '').trim();
   const labels = sectionConfig?.labels;
   const navigationLabel = labels?.navigationLabel || (module === 'well' ? 'pozos' : module === 'line' ? 'líneas' : 'flujos');
   const historyItems = useMemo(() => [{
@@ -146,9 +144,15 @@ export default function OperationalDetailSection({ module, sensorId, backPath, s
     name,
     flowUnit,
   }], [configuredHistoryItem, flowUnit, item, name, sensorId]);
-  const exportElementId = configuredHistoryItem
-    ? (configuredHistoryItem.sensorId ?? configuredHistoryItem.operationalKey)
-    : sensorId;
+  const historyView: OperationalHistoryView = sectionConfig?.key === 'lavadoras'
+    ? 'washers'
+    : sectionConfig?.key === 'jarabes'
+      ? 'jarabes'
+      : module === 'well'
+        ? 'well'
+        : module === 'line'
+          ? 'line'
+          : 'washers';
 
   useEffect(() => {
     const search = buildOperationalNavigationSearch(current.range, historyAggregation, module);
@@ -156,15 +160,36 @@ export default function OperationalDetailSection({ module, sensorId, backPath, s
     navigate({ pathname: location.pathname, search }, { replace: true, state: location.state });
   }, [current.range, historyAggregation, location.pathname, location.search, location.state, module, navigate]);
 
+  useEffect(() => {
+    setPeriodSummary(null);
+  }, [sensorId]);
+
+  const markPeriodSummaryLoading = () => {
+    setPeriodSummary((summary) => summary ? { ...summary, loading: true, error: '' } : summary);
+  };
+
+  const changeHistoryAggregation = (value: HistoryAggregation) => {
+    markPeriodSummaryLoading();
+    setHistoryAggregation(value);
+  };
+
   const updateDraftRange = (range: DateRange) => {
     current.setDraftRange(range);
   };
 
   const applyRange = () => {
+    markPeriodSummaryLoading();
+    const supportedAggregation = supportedHistoryAggregation(
+      historyAggregation,
+      String(current.draftRange.startDate || ''),
+      String(current.draftRange.endDate || ''),
+    );
+    if (supportedAggregation !== historyAggregation) setHistoryAggregation(supportedAggregation);
     current.apply();
   };
 
   const resetRange = () => {
+    markPeriodSummaryLoading();
     const nextRange = { ...initialContext.range };
     current.setDraftRange(nextRange);
     current.setRange((previousRange) => ({
@@ -175,16 +200,20 @@ export default function OperationalDetailSection({ module, sensorId, backPath, s
   };
 
   const activeSearch = buildOperationalNavigationSearch(current.range, historyAggregation, module);
+  const fallbackReturnTarget = `${backPath}${activeSearch}`;
+  const returnTarget = resolveOperationalReturnTarget(location.state, fallbackReturnTarget);
+  const returnLabel = operationalReturnLabel(returnTarget);
   const navigateToSibling = (identity: OperationalIdentity) => {
-    navigate(`${backPath}/${encodeURIComponent(String(identity))}${activeSearch}`, {
+    navigate(buildOperationalSiblingPath(backPath, identity, activeSearch), {
       replace: true,
       state: location.state,
     });
   };
   const goBack = () => {
-    const fallback = `${backPath}${activeSearch}`;
-    const target = resolveOperationalReturnTarget(location.state, fallback);
-    navigate(target, { state: location.state });
+    navigate(returnTarget, {
+      replace: true,
+      state: clearOperationalReturnState(location.state),
+    });
   };
 
   return (
@@ -192,32 +221,30 @@ export default function OperationalDetailSection({ module, sensorId, backPath, s
       <section className={`well-detail-hero panel fade-up operational-detail-hero operational-detail-${module}`}>
         <div className="well-detail-main-head">
           <button type="button" className="back-inline-button" onClick={goBack}>
-            <ArrowLeft size={16} /> Volver
+            <ArrowLeft size={16} /> {returnLabel}
           </button>
           <nav className="operational-sibling-navigation" aria-label={`Navegación entre ${navigationLabel}`}>
             {previous ? (
-              <button type="button" onClick={() => navigateToSibling(previous.identity)}>
+              <button type="button" aria-label={`Anterior: ${previous.name}`} onClick={() => navigateToSibling(previous.identity)}>
                 <ChevronLeft size={15} /> {previous.name}
               </button>
             ) : <span />}
             <strong>{name}</strong>
             {next ? (
-              <button type="button" onClick={() => navigateToSibling(next.identity)}>
+              <button type="button" aria-label={`Siguiente: ${next.name}`} onClick={() => navigateToSibling(next.identity)}>
                 {next.name} <ChevronRight size={15} />
               </button>
             ) : <span />}
           </nav>
-          <div className="eyebrow">Detalle operativo</div>
           <div className="well-detail-title-row">
             <h2>{name}</h2>
             <StatusBadge type={statusType({ ...item, current_state: rawCurrentState })}>{currentState}</StatusBadge>
           </div>
-          <p>{labels?.detailSubtitle || 'Análisis individual del elemento para el periodo seleccionado.'}</p>
         </div>
         <div className="well-detail-hero-metrics">
           <article><span>Flujo actual</span><strong>{fmt(item?.current_flow ?? item?.flow_lps)} <small>{flowUnit}</small></strong></article>
           <article><span>Totalizador actual</span><strong>{fmt(item?.current_totalizer_m3 ?? item?.totalizador_m3)} <small>m³</small></strong></article>
-          <article><span>{operationalVolumeLabel(module, { scope: 'period' })}</span><strong>{detailVolumeReliable && num(detailVolume) !== null ? fmt(detailVolume) : qualityLabel} <small>{detailVolumeReliable && num(detailVolume) !== null ? 'm³' : ''}</small></strong>{!detailVolumeReliable && qualityReason ? <small className="quality-reason-inline">{qualityReason}</small> : null}</article>
+          <article className="detail-period-kpi"><span>Periodo seleccionado</span><DetailHistoryPeriodMetric summary={periodSummary} identity={sensorId} flowUnit={flowUnit} volumeLabel={operationalVolumeLabel(module, { scope: 'period' })} /></article>
           <article><span>Estado actual</span><strong>{currentState}</strong></article>
           <article><span>Última lectura</span><strong>{formatSqlDate(item?.last_update || item?.ultima_lectura)}</strong></article>
           {communicationNeedsAttention ? <article className="attention"><span>Comunicación</span><strong>{communication}</strong></article> : null}
@@ -232,36 +259,27 @@ export default function OperationalDetailSection({ module, sensorId, backPath, s
         onReset={resetRange}
         status={current.loading ? 'Actualizando periodo...' : undefined}
         title="Rango del detalle"
-        subtitle="El rango actualiza indicadores, histórico y exportación conciliada de 5 minutos."
+        subtitle=""
         className={`operational-detail-range operational-detail-${module}`}
-        extraAction={(
-          <FiveMinuteExcelExportButton
-            module={module}
-            elementId={exportElementId}
-            range={current.range}
-          />
-        )}
       />
       {current.error ? <div className="status-pill alert">{current.error}</div> : null}
 
-      <ModuleHistoryPanel
+      <ElementHistoryPanel
+        module={module}
+        view={historyView}
         range={current.range}
-        fixedModule={module}
         aggregation={historyAggregation}
-        onAggregationChange={setHistoryAggregation}
-        items={historyItems}
-        panelTitle={`Histórico operativo · ${name}`}
-        panelSubtitle="Flujo y totalizador usan la misma fuente histórica común del módulo; los huecos permanecen como ausencia de registro."
-        className="operational-detail-history"
+        onAggregationChange={changeHistoryAggregation}
+        item={historyItems[0]}
+        onPeriodSummaryChange={setPeriodSummary}
       />
 
       <section className={`panel fade-up operational-period-summary operational-detail-summary operational-detail-${module}`}>
-        <PanelHeader title="Resumen del periodo" subtitle="Lecturas principales del elemento en el rango seleccionado" />
+        <PanelHeader title="Resumen del periodo" />
         <div className="metric-pairs-grid">
           <MetricPair label="Totalizador inicial" value={fmt(detailOpen)} unit={num(detailOpen) === null ? '' : 'm³'} />
           <MetricPair label="Totalizador final" value={fmt(detailClose)} unit={num(detailClose) === null ? '' : 'm³'} />
-          <MetricPair label="Flujo promedio" value={fmt(item?.flow_active_avg)} unit={num(item?.flow_active_avg) === null ? '' : flowUnit} />
-          <MetricPair label="Actividad del periodo" value={activity} />
+          <MetricPair label="Flujo promedio" value={periodSummary?.loading ? 'Calculando…' : fmt(periodSummary?.flowAverage)} unit={!periodSummary?.loading && num(periodSummary?.flowAverage) !== null ? flowUnit : ''} />
           {communicationNeedsAttention ? <MetricPair label="Comunicación" value={communication} /> : null}
         </div>
       </section>

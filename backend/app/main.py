@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes.auth import router as auth_router
+from app.api.routes.concessions import router as concessions_router
 from app.api.routes.dashboard import router as dashboard_router
 from app.api.routes.email import router as email_router
 from app.api.routes.export import router as export_router
@@ -20,6 +21,11 @@ from app.auth.service import AuthPolicy, AuthService
 from app.config import get_settings
 from app.database import Base, SessionLocal, engine
 from app.services.seed_service import seed_if_empty
+from app.services.concession_service import initialize_concessions
+from app.services.concession_backup_service import start_concession_backup, stop_concession_backup
+from app.services.concession_cache_service import (
+    initialize_consumption_storage, start_consumption_sync, stop_consumption_sync,
+)
 from app.services.report_email_scheduler_service import (
     initialize_report_email_scheduler_storage,
     start_report_email_scheduler,
@@ -75,6 +81,7 @@ app.add_middleware(
 )
 
 app.include_router(auth_router, prefix=settings.api_v1_prefix)
+app.include_router(concessions_router, prefix=settings.api_v1_prefix)
 app.include_router(dashboard_router, prefix=settings.api_v1_prefix)
 app.include_router(export_router, prefix=settings.api_v1_prefix)
 app.include_router(email_router, prefix=settings.api_v1_prefix)
@@ -86,6 +93,10 @@ app.include_router(water_router, prefix=settings.api_v1_prefix)
 @app.on_event('startup')
 def on_startup():
     app.state.auth_service.initialize()
+    initialize_concessions()
+    initialize_consumption_storage()
+    start_consumption_sync()
+    start_concession_backup()
     initialize_report_email_scheduler_storage()
     start_report_email_scheduler()
     if settings.db_mode.lower() == 'demo':
@@ -99,6 +110,8 @@ def on_startup():
 
 @app.on_event('shutdown')
 def on_shutdown():
+    stop_consumption_sync()
+    stop_concession_backup()
     stop_report_email_scheduler()
 
 

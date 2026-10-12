@@ -66,7 +66,6 @@ function WaterAlertsCoordinator() {
       const data = await fetchWaterDashboard('dashboard', {
         include_history: false,
         include_energy_water: false,
-        force_refresh: true,
       });
       notifyOperationalAlerts(evaluateDurangoWaterAlerts(data as DashboardData));
     } catch {

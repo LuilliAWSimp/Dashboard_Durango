@@ -11,7 +11,7 @@ from app.schemas.water import WaterDashboardPayload, WaterSourceActivateResponse
 from app.services.email_service import EmailDeliveryError, EmailNotConfiguredError, ensure_smtp_configured, send_email_with_bytes_attachments
 from app.services.water_daily_report_service import ReportDataUnavailableError, build_daily_water_report_excel, build_daily_water_report_pdf, get_daily_water_report
 from app.services.water_daily_review_service import DailyReviewError, get_daily_water_review
-from app.services.water_five_minute_export_service import FiveMinuteExportError, build_five_minute_excel, get_five_minute_export_data
+from app.services.water_five_minute_export_service import FiveMinuteExportError, build_five_minute_excel, export_five_minute_module_excel, get_five_minute_export_data
 from app.services.water_history_service import WaterHistoryError, get_water_history, get_water_history_module, get_wells_minute_flow
 from app.services.water_historical_export_service import HistoricalExportError, build_full_historical_excel, build_full_historical_pdf
 from app.services.water_module_history_pdf_service import build_module_history_pdf
@@ -93,6 +93,39 @@ def download_water_history_five_minute_excel(
     except Exception as exc:
         logger.exception('No fue posible generar el Excel conciliado de 5 minutos: %s', exc)
         raise HTTPException(status_code=500, detail='No fue posible generar el Excel conciliado de 5 minutos.') from exc
+    return Response(
+        content=content,
+        media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get('/history/five-minute/module/excel')
+def download_water_history_five_minute_module_excel(
+    module: str = Query(..., pattern='^(well|line|flow)$'),
+    element_ids: str = Query(..., min_length=1),
+    start_date: str = Query(...),
+    end_date: str = Query(...),
+    view_label: Optional[str] = Query(None, max_length=40),
+):
+    selected = [token.strip() for token in element_ids.split(',') if token.strip()]
+    if not selected:
+        raise HTTPException(status_code=422, detail='Selecciona al menos un elemento para exportar.')
+    try:
+        content, filename = export_five_minute_module_excel(
+            module=module,
+            element_ids=selected,
+            start_date=start_date,
+            end_date=end_date,
+            view_label=view_label,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except FiveMinuteExportError as exc:
+        raise HTTPException(status_code=504 if exc.status == 'timeout' else 503, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception('No fue posible generar el Excel conciliado de 5 minutos por modulo: %s', exc)
+        raise HTTPException(status_code=500, detail='No fue posible generar el Excel de 5 minutos por modulo.') from exc
     return Response(
         content=content,
         media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

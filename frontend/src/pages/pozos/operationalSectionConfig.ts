@@ -33,7 +33,6 @@ export interface OperationalSectionConfig {
     emptyState: string;
     cardTitle: string;
     navigationLabel: string;
-    detailSubtitle: string;
   };
 }
 
@@ -73,7 +72,6 @@ export const LAVADORAS_SECTION_CONFIG: OperationalSectionConfig = {
     emptyState: 'Sin registros de lavadoras para el periodo seleccionado.',
     cardTitle: 'Lavadoras monitoreadas',
     navigationLabel: 'lavadoras',
-    detailSubtitle: 'Análisis individual de la lavadora para el periodo seleccionado.',
   },
 };
 
@@ -101,7 +99,6 @@ export const JARABES_SECTION_CONFIG: OperationalSectionConfig = {
     emptyState: 'Sin registros de Jarabes para el periodo seleccionado.',
     cardTitle: 'Elementos de Jarabes',
     navigationLabel: 'Jarabes',
-    detailSubtitle: 'Análisis individual de Jarabes para el periodo seleccionado.',
   },
 };
 

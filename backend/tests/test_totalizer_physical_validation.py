@@ -152,7 +152,8 @@ class TotalizerPhysicalValidationTests(unittest.TestCase):
         self.assertFalse(report_row['volume_reliable'])
         self.assertTrue(report_row['has_discontinuities'])
         self.assertEqual(report_row['activity'], 'Sin actividad')
-        self.assertEqual(report_row['validation'], 'Validado')
+        self.assertEqual(report_row['validation'], 'Dato en revisión')
+        self.assertEqual(report_row['validation_status'], 'review')
         self.assertEqual(_report_volume_display(report_row), '0.00 m³')
 
 

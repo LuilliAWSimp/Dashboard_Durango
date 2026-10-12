@@ -46,31 +46,33 @@ class FrontendAuthContractTests(unittest.TestCase):
 
     def test_app_restaura_sesion_y_menu_usuarios_es_admin(self):
         source = self.read('frontend/src/App.jsx')
+        capabilities = self.read('frontend/src/config/plantCapabilities.ts')
         self.assertIn('restoreCurrentSessionWithRetry()', source)
         self.assertIn('getCurrentSession()', source)
         self.assertIn('maxAttempts = 3', source)
         self.assertIn("window.addEventListener('arca-auth-expired'", source)
-        self.assertIn("user?.role === 'admin'", source)
-        self.assertIn("key: 'usuarios'", source)
+        self.assertIn('buildDurangoNavigation(runtimeCapabilities, user?.role)', source)
+        self.assertIn("key: 'usuarios'", capabilities)
+        self.assertIn("role !== 'admin'", capabilities)
 
     def test_reportes_oculta_correo_a_viewer(self):
         source = self.read('frontend/src/pages/pozos/sections/ReportesSection.tsx')
         self.assertIn("currentUser?.role === 'admin' || currentUser?.role === 'operator'", source)
         self.assertIn('canEmail ?', source)
 
-    def test_servicios_ts_conservan_contrato_del_runtime_sin_reexports_circulares(self):
-        auth_ts = self.read('frontend/src/services/authService.ts')
-        api_ts = self.read('frontend/src/services/api.ts')
+    def test_servicios_auth_tienen_fuente_canonica_unica(self):
+        auth_js = self.read('frontend/src/services/authService.js')
+        api_js = self.read('frontend/src/services/api.js')
+        self.assertFalse((ROOT / 'frontend/src/services/authService.ts').exists())
+        self.assertFalse((ROOT / 'frontend/src/services/api.ts').exists())
         for symbol in (
             'getSetupStatus', 'login', 'getCurrentSession', 'logout', 'changeOwnPassword',
             'listUsers', 'createUser', 'updateUser', 'resetUserPassword', 'revokeUserSessions',
         ):
-            self.assertIn(f'function {symbol}', auth_ts)
-        self.assertIn('withCredentials: true', api_ts)
-        self.assertIn('X-ARCA-Browser-Session', api_ts)
-        self.assertIn('X-CSRF-Token', api_ts)
-        self.assertNotIn("export { default } from './api.js'", api_ts)
-        self.assertNotIn("export * from './authService.js'", auth_ts)
+            self.assertIn(f'function {symbol}', auth_js)
+        self.assertIn('withCredentials: true', api_js)
+        self.assertIn('X-ARCA-Browser-Session', api_js)
+        self.assertIn('X-CSRF-Token', api_js)
 
     def test_sidebar_muestra_autoservicio_de_sesion(self):
         app_source = self.read('frontend/src/App.jsx')
@@ -102,9 +104,9 @@ class FrontendAuthContractTests(unittest.TestCase):
         self.assertNotIn('Object.keys(tabs).length === 0', source)
         self.assertIn('nunca invalida una sesión real', source)
 
-    def test_api_js_ts_conservan_mismo_contrato_de_pestanas(self):
+    def test_api_canonica_conserva_contrato_de_pestanas(self):
         js = self.read('frontend/src/services/api.js')
-        ts = self.read('frontend/src/services/api.ts')
+        self.assertFalse((ROOT / 'frontend/src/services/api.ts').exists())
         for token in (
             "arca_dgo_active_tabs",
             'ACTIVE_TAB_TTL_MS = 120_000',
@@ -113,7 +115,6 @@ class FrontendAuthContractTests(unittest.TestCase):
             'TAB_RELOAD_MARKER_SESSION_STORAGE_KEY',
         ):
             self.assertIn(token, js)
-            self.assertIn(token, ts)
 
 
 if __name__ == '__main__':
