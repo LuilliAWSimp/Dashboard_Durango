@@ -86,3 +86,38 @@ export async function fetchConcessionAudit(key: string): Promise<Array<{ action:
   const response = await api.get(`/concessions/${encodeURIComponent(key)}/audit`);
   return response.data;
 }
+
+export type ConcessionMonthlyBucket = {
+  month: number;
+  volume_m3: number | null;
+  days_with_volume: number;
+  days_without_data: number;
+  days_excluded: number;
+  coverage_percent: number | null;
+  status: 'available' | 'partial' | 'no_data' | 'outside_window';
+};
+
+export type ConcessionOperationalWell = {
+  well_key: string;
+  well_name: string;
+  sensor_id: number;
+  months: ConcessionMonthlyBucket[];
+  operational_total_m3: number | null;
+  months_with_data: number;
+  has_partial_coverage: boolean;
+};
+
+export type ConcessionMonthlyHistory = {
+  year: number;
+  period_start: string;
+  period_end: string;
+  source: string;
+  legal_period_verified: false;
+  historical_scope_notice: string;
+  wells: ConcessionOperationalWell[];
+};
+
+export async function fetchConcessionMonthlyHistory(year: number): Promise<ConcessionMonthlyHistory> {
+  const response = await api.get('/concessions/history/monthly', { params: { year } });
+  return response.data;
+}

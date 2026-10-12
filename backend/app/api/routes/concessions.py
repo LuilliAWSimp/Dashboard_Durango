@@ -1,15 +1,21 @@
 """Concesiones: lectura autenticada y cambios exclusivos de admin."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+import logging
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from app.auth.dependencies import current_user, require_roles
+from app.services.concession_history_service import get_concession_monthly_history
+from app.services.water_history_service import WaterHistoryError
 from app.services.concession_service import (
     ConcessionError, attach_document, document_for, inspect_pdf, list_audit,
     list_concessions, update_concession,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix='/concessions', tags=['concessions'], dependencies=[Depends(current_user)])
 
@@ -33,6 +39,21 @@ def _bad(exc: ConcessionError):
 @router.get('')
 def get_concessions():
     return list_concessions()
+
+
+@router.get('/history/monthly')
+def read_monthly_history(year: int = Query(..., ge=2026, le=2100)):
+    """Datos operativos con controles de totalizador, no cierre legal de concesión."""
+    try:
+        return get_concession_monthly_history(year)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except WaterHistoryError as exc:
+        raise HTTPException(status_code=504 if exc.status == 'timeout' else 503,
+                            detail='El histórico BOS no está disponible. Inténtelo más tarde.') from exc
+    except Exception as exc:
+        logger.exception('Error consultando extracciones mensuales de concesiones')
+        raise HTTPException(status_code=500, detail='No se pudo consultar la extracción mensual.') from exc
 
 
 @router.patch('/{well_key}')

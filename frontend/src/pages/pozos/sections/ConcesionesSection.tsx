@@ -9,7 +9,10 @@ import {
   downloadConcessionPdf, fetchConcessionAudit, fetchConcessions, previewConcessionPdf,
   saveConcessionPdf, updateConcession,
 } from '../../../services/concessionService';
-import type { ConcessionPayload, ConcessionRecord, PdfPreview } from '../../../services/concessionService';
+import type { ConcessionPayload, ConcessionRecord, PdfPreview, ConcessionMonthlyHistory } from '../../../services/concessionService';
+import { fetchConcessionMonthlyHistory } from '../../../services/concessionService';
+import { buildOperationalChart, summarizeOperationalChart, CONCESSION_MONTH_LABELS } from '../../../utils/durangoConcessionOperational';
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { buildConcessionVisualSummary } from '../../../utils/durangoConcessionVisual';
 
 const integer = new Intl.NumberFormat('es-MX', { maximumFractionDigits: 2 });
@@ -33,6 +36,13 @@ function StateLabel({ row }: { row: ConcessionRecord }) {
   </span>;
 }
 
+function OperationalTooltip({ active, payload, mode }: { active?: boolean; payload?: any[]; mode: 'monthly' | 'cumulative' }) {
+  if (!active || !payload?.length) return null;
+  const row = payload[0]?.payload;
+  if (!row || (mode === 'monthly' ? row.volume_m3 : row.cumulative_m3) == null) return null;
+  return <div className="con-operational-tooltip"><strong>{row.name}</strong><span>{mode === 'monthly' ? 'Volumen verificado' : 'Acumulado observado'}: <b>{formatM3(mode === 'monthly' ? row.volume_m3 : row.cumulative_m3)} m³</b></span><small>{row.days_with_volume} días con volumen · Cobertura {row.coverage_percent == null ? 'sin dato' : `${row.coverage_percent}%`}</small>{row.status === 'partial' && <small>Periodo parcial: {row.days_without_data} días sin lecturas, {row.days_excluded} excluidos</small>}</div>;
+}
+
 export default function ConcesionesSection({ currentUser }: { currentUser?: { role?: string } }) {
   const isAdmin = currentUser?.role === 'admin';
   const [records, setRecords] = useState<ConcessionRecord[]>([]);
@@ -48,7 +58,11 @@ export default function ConcesionesSection({ currentUser }: { currentUser?: { ro
   const [modalError, setModalError] = useState('');
   const [notice, setNotice] = useState('');
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [chartMode, setChartMode] = useState<'quota' | 'monthly'>('quota');
+  const [chartMode, setChartMode] = useState<'quota' | 'monthly'>('monthly');
+  const [year, setYear] = useState(new Date().getFullYear());
+  const [operational, setOperational] = useState<ConcessionMonthlyHistory | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyError, setHistoryError] = useState('');
   const [audit, setAudit] = useState<Array<{ action: string; actor: string; created_at: string; details: Record<string, unknown> }>>([]);
   const [historyBusy, setHistoryBusy] = useState(false);
   const mounted = useRef(true);
@@ -81,6 +95,42 @@ export default function ConcesionesSection({ currentUser }: { currentUser?: { ro
       window.removeEventListener('focus', focus);
     };
   }, [refresh, editing]);
+
+  const loadOperational = useCallback(async (yearToLoad: number, showLoading = true) => {
+    if (showLoading) setHistoryLoading(true);
+    try {
+      const payload = await fetchConcessionMonthlyHistory(yearToLoad);
+      if (!mounted.current) return;
+      setOperational(payload);
+      setHistoryError('');
+    } catch (err) {
+      if (mounted.current) {
+        setHistoryError(errorMessage(err));
+        setOperational(null);
+      }
+    } finally {
+      if (mounted.current) setHistoryLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    setOperational(null);
+    setHistoryLoading(true);
+    const read = async () => {
+      try {
+        const payload = await fetchConcessionMonthlyHistory(year);
+        if (active) { setOperational(payload); setHistoryError(''); }
+      } catch (err) {
+        if (active) { setHistoryError(errorMessage(err)); setOperational(null); }
+      } finally {
+        if (active) setHistoryLoading(false);
+      }
+    };
+    void read();
+    const timer = window.setInterval(() => { if (!document.hidden) void read(); }, 5 * 60 * 1000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [year]);
 
   const row = records.find((item) => item.well_key === selected) || records[0];
   const { total, largest, shares: widths, documentsPending } = buildConcessionVisualSummary(records);
@@ -162,8 +212,16 @@ export default function ConcesionesSection({ currentUser }: { currentUser?: { ro
 
   const chartMax = Math.max(1, Math.ceil(largest / 100000) * 100000);
   const chartTicks = [4, 3, 2, 1, 0].map((part) => chartMax * part / 4);
-  const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+  const months = CONCESSION_MONTH_LABELS;
   const selectedShare = widths.find((item) => item.well_key === row?.well_key);
+  const selectedOperational = operational?.wells.find((item) => item.well_key === row?.well_key);
+  const chartData = buildOperationalChart(selectedOperational?.months || []);
+  const analytics = summarizeOperationalChart(selectedOperational?.months || []);
+  const totalObserved = operational?.wells.reduce((sum, item) => sum + (item.operational_total_m3 ?? 0), 0);
+  const anyObserved = operational?.wells.some((item) => item.operational_total_m3 !== null);
+  const operationalShare = row && selectedOperational?.operational_total_m3 != null && row.annual_volume_m3 > 0
+    ? (selectedOperational.operational_total_m3 / row.annual_volume_m3) * 100 : null;
+  const endYear = new Date().getFullYear();
 
   return <div className="concessions-page con-v2">
     <section className="con-hero panel fade-up">
@@ -178,7 +236,7 @@ export default function ConcesionesSection({ currentUser }: { currentUser?: { ro
       </div>
       <div className="con-hero-bottom">
         <div className="con-source-note"><Info size={16}/><span>Datos de referencia tomados del correo. <strong>Vigencia y volúmenes pendientes de cotejar contra los títulos vigentes.</strong></span></div>
-        <button type="button" className="con-button con-button-muted" onClick={() => void refresh(true)} disabled={loading}><RefreshCw size={15} className={loading ? 'con-spinning' : ''} /> Actualizar datos</button>
+        <button type="button" className="con-button con-button-muted" onClick={() => { void refresh(true); void loadOperational(year); }} disabled={loading || historyLoading}><RefreshCw size={15} className={loading ? 'con-spinning' : ''} /> Actualizar datos</button>
       </div>
     </section>
 
@@ -188,11 +246,11 @@ export default function ConcesionesSection({ currentUser }: { currentUser?: { ro
     <section className="con-kpi-grid" aria-label="Resumen de concesiones">
       <article className="con-kpi panel"><span className="con-kpi-icon"><Waves size={19}/></span><small>Pozos con título registrado</small><strong>{loading && !records.length ? '—' : records.length}</strong><span>Inventario de la planta</span></article>
       <article className="con-kpi panel con-kpi-accent"><span className="con-kpi-icon"><Droplets size={19}/></span><small>Volumen autorizado de referencia</small><strong>{records.length ? formatM3(total) : '—'} <em>m³/año</em></strong><span>Suma de los registros provisionales</span></article>
-      <article className="con-kpi panel"><span className="con-kpi-icon"><TrendingUp size={19}/></span><small>Extracción anual conciliada</small><strong>— <em>m³</em></strong><span>Sin lectura anual validada</span></article>
+      <article className="con-kpi panel"><span className="con-kpi-icon"><TrendingUp size={19}/></span><small>Extracción observada · {year}</small><strong>{historyLoading ? '...' : anyObserved ? formatM3(totalObserved) : '—'} <em>m³</em></strong><span>Acumulado operativo del periodo disponible</span></article>
       <article className="con-kpi panel"><span className="con-kpi-icon"><ClipboardCheck size={19}/></span><small>Expedientes por validar</small><strong>{records.length ? documentsPending : '—'}</strong><span>No implica cumplimiento legal</span></article>
     </section>
 
-    <section className="con-status-banner" aria-label="Estado del monitoreo"><AlertCircle size={19}/><div><strong>Seguimiento de cuota pendiente de conciliación</strong><p>Las cuotas documentales sí se comparan. La extracción, el porcentaje utilizado, el remanente y las proyecciones se habilitarán sólo al validar el periodo legal y los históricos BOS.</p></div><span className="con-status-tag">Sin datos de extracción</span></section>
+    <section className={`con-status-banner ${anyObserved ? 'con-operational-active' : ''}`} aria-label="Estado del monitoreo"><Info size={19}/><div><strong>{anyObserved ? 'Extracciones operativas disponibles desde BOS' : historyLoading ? 'Consultando históricos de los pozos' : 'Extracción operativa no disponible'}</strong><p>{anyObserved ? `Las barras presentan incrementos verificados por el histórico de la planta desde ${operational?.period_start}. Los meses sin cobertura son parciales o no disponibles. No representan el saldo legal de la concesión.` : historyError || 'El monitoreo mostrará lecturas reales en cuanto el histórico de BOS responda.'}</p></div><span className="con-status-tag">{anyObserved ? 'Datos operativos' : historyLoading ? 'Consultando' : 'Sin histórico'}</span></section>
 
     <section className="con-wells-section">
       <div className="con-section-title-row"><div><span className="con-eyebrow">INVENTARIO / SELECCIÓN</span><h3>Concesiones por pozo</h3><p>Selecciona un pozo para ver su ficha. Las barras muestran su participación en el volumen autorizado total.</p></div><span className="con-counter">{records.length} registrados</span></div>
@@ -210,8 +268,8 @@ export default function ConcesionesSection({ currentUser }: { currentUser?: { ro
 
     <div className="con-analytics-grid">
       <section className="panel con-analytics-panel">
-        <div className="con-panel-heading"><div><span className="con-eyebrow">ANÁLISIS DE CONCESIONES</span><h3>{chartMode === 'quota' ? 'Comparativo de volúmenes autorizados' : `Extracción mensual · ${row?.well_name || 'Pozo'}`}</h3><p>{chartMode === 'quota' ? 'Comparación entre títulos, en metros cúbicos de referencia por año.' : 'Histórico mensual reservado para extracciones conciliadas de BOS.'}</p></div><span className="con-unit-tag">m³ {chartMode === 'quota' ? '/ año' : '/ mes'}</span></div>
-        <div className="con-chart-tabs" role="group" aria-label="Tipo de gráfico"><button type="button" className={chartMode === 'quota' ? 'active' : ''} aria-pressed={chartMode === 'quota'} onClick={() => setChartMode('quota')}><BarChart3 size={15}/> Cuotas autorizadas</button><button type="button" className={chartMode === 'monthly' ? 'active' : ''} aria-pressed={chartMode === 'monthly'} onClick={() => setChartMode('monthly')}><CalendarDays size={15}/> Extracción mensual</button></div>
+        <div className="con-panel-heading"><div><span className="con-eyebrow">ANÁLISIS DE CONCESIONES</span><h3>{chartMode === 'quota' ? 'Comparativo de volúmenes autorizados' : `Extracción mensual · ${row?.well_name || 'Pozo'}`}</h3><p>{chartMode === 'quota' ? 'Comparación entre títulos, en metros cúbicos de referencia por año.' : `Incrementos diarios del totalizador agrupados por mes · ${year}.`}</p></div><span className="con-unit-tag">m³ {chartMode === 'quota' ? '/ año' : '/ mes'}</span></div>
+        <div className="con-chart-controls"><div className="con-chart-tabs" role="group" aria-label="Tipo de gráfico"><button type="button" className={chartMode === 'quota' ? 'active' : ''} aria-pressed={chartMode === 'quota'} onClick={() => setChartMode('quota')}><BarChart3 size={15}/> Cuotas autorizadas</button><button type="button" className={chartMode === 'monthly' ? 'active' : ''} aria-pressed={chartMode === 'monthly'} onClick={() => setChartMode('monthly')}><CalendarDays size={15}/> Extracción mensual</button></div>{chartMode === 'monthly' && <label className="con-year-select">Año <select aria-label="Año de la extracción" value={year} onChange={(event) => setYear(Number(event.target.value))}>{Array.from({ length: Math.max(1, endYear - 2026 + 1) }, (_, index) => 2026 + index).map((option) => <option key={option} value={option}>{option}</option>)}</select></label>}</div>
         {chartMode === 'quota' ? <div className="con-quota-figure" role="img" aria-label={`Comparativo documental del volumen autorizado: ${widths.map((item) => `${item.well_name} ${formatM3(item.annual_volume_m3)} metros cúbicos por año`).join(', ')}`}>
           <div className="con-chart-main">
             <div className="con-y-ticks">{chartTicks.map((tick, index) => <span key={index}>{integer.format(tick)}</span>)}</div>
@@ -224,11 +282,40 @@ export default function ConcesionesSection({ currentUser }: { currentUser?: { ro
             </div>
           </div>
           <div className="con-figure-legend"><span><i className="con-legend-swatch"/> Volumen autorizado registrado</span><span><i className="con-legend-dot"/> No representa extracción</span></div>
-        </div> : <div className="con-empty-monthly">
-          <div className="con-month-grid" aria-hidden="true"><div className="con-month-guides"><i/><i/><i/><i/></div>{months.map((month) => <div key={month} className="con-empty-month"><span className="con-no-data-marker">—</span><small>{month}</small></div>)}</div>
-          <div className="con-empty-overlay"><CalendarDays size={24}/><strong>Sin histórico mensual conciliado</strong><p>Aún no se muestran barras de consumo. Se necesita verificar el ciclo de la concesión y los incrementos válidos del totalizador.</p></div>
+        </div> : <div className="con-monthly-analysis">
+          {historyLoading && <div className="con-chart-feedback"><RefreshCw size={23} className="con-spinning"/><strong>Consultando totalizadores de BOS...</strong><span>Se están procesando las lecturas diarias de ambos pozos.</span></div>}
+          {!historyLoading && historyError && <div className="con-chart-feedback"><AlertCircle size={24}/><strong>No fue posible consultar el histórico</strong><span>{historyError}</span><button type="button" className="con-button con-button-muted" onClick={() => void loadOperational(year)}>Reintentar consulta</button></div>}
+          {!historyLoading && !historyError && !analytics.count && <div className="con-chart-feedback"><CalendarDays size={26}/><strong>No hay meses con volumen verificable</strong><span>Los periodos sin lecturas no se muestran como cero. Revisa la cobertura del histórico del año seleccionado.</span></div>}
+          {!historyLoading && !historyError && analytics.count > 0 && <>
+            <div className="con-month-metrics">
+              <div><small>Acumulado medido</small><strong>{formatM3(analytics.total)} <em>m³</em></strong><span>Periodo disponible · {year}</span></div>
+              <div><small>Promedio de meses con datos</small><strong>{formatM3(analytics.avg)} <em>m³</em></strong><span>No es una cuota mensual legal</span></div>
+              <div><small>Mes de mayor volumen</small><strong>{analytics.max ? months[analytics.max.month-1] : '—'}</strong><span>{formatM3(analytics.max?.volume_m3)} m³ medidos</span></div>
+            </div>
+            <div className="con-recharts-holder" role="img" aria-label={`Extracción mensual medida de ${row?.well_name ?? 'pozo'}, ${year}`}>
+              <ResponsiveContainer width="100%" height="100%"><BarChart data={chartData} margin={{top:25,right:8,bottom:0,left:0}} barCategoryGap="24%">
+                <CartesianGrid stroke="rgba(102,163,190,.18)" strokeDasharray="3 5" vertical={false}/>
+                <XAxis dataKey="name" tick={{fill:'var(--con-muted)',fontSize:11}} tickLine={false} axisLine={false}/>
+                <YAxis width={60} tickFormatter={(value:number)=>integer.format(value)} tick={{fill:'var(--con-muted)',fontSize:10}} tickLine={false} axisLine={false}/>
+                <Tooltip cursor={{fill:'rgba(82,175,222,.08)'}} content={<OperationalTooltip mode="monthly"/>}/>
+                {analytics.avg !== null && <ReferenceLine y={analytics.avg} stroke="#f0b35c" strokeDasharray="6 4"/>}
+                <Bar dataKey="volume_m3" maxBarSize={47} radius={[6,6,0,0]}>{chartData.map((entry) => <Cell key={entry.month} fill={entry.status === 'partial' ? '#36a5e5' : '#17c6da'}/>)}</Bar>
+              </BarChart></ResponsiveContainer>
+            </div>
+            <div className="con-month-legend"><span><i className="con-key-teal"/> Extracción mensual registrada</span><span><i className="con-key-orange"/> Media de meses con datos</span><span><i className="con-key-empty"/> Sin lectura = sin barra</span></div>
+            <div className="con-cumulative-heading"><div><span className="con-eyebrow">TENDENCIA OPERATIVA</span><h4>Extracción acumulada · {year}</h4></div><small>Sin extrapolación de meses faltantes</small></div>
+            <div className="con-cumulative-holder" role="img" aria-label="Evolución de extracción acumulada, sólo meses con lecturas"><ResponsiveContainer width="100%" height="100%"><AreaChart data={chartData} margin={{top:8,right:8,bottom:0,left:0}}>
+              <defs><linearGradient id="conCumulativeFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stopColor="#27c5e9" stopOpacity={0.32}/><stop offset="100%" stopColor="#27c5e9" stopOpacity={0}/></linearGradient></defs>
+              <CartesianGrid stroke="rgba(102,163,190,.12)" strokeDasharray="3 5" vertical={false}/>
+              <XAxis dataKey="name" tick={{fill:'var(--con-muted)',fontSize:10}} tickLine={false} axisLine={false}/>
+              <YAxis width={60} tickFormatter={(value:number)=>integer.format(value)} tick={{fill:'var(--con-muted)',fontSize:10}} tickLine={false} axisLine={false}/>
+              <Tooltip content={<OperationalTooltip mode="cumulative"/>}/>
+              <Area connectNulls={false} type="monotone" dataKey="cumulative_m3" stroke="#2cc9e7" strokeWidth={2.6} fill="url(#conCumulativeFill)" dot={{r:3}} activeDot={{r:5}}/>
+            </AreaChart></ResponsiveContainer></div>
+            <div className="con-history-coverage"><Info size={16}/><span>Histórico disponible: {operational?.period_start} a {operational?.period_end}. Los periodos anteriores al corte SCADA y cualquier intervalo sin lectura no se suman como cero ni se extrapolan.</span></div>
+          </>}
         </div>}
-        <div className="con-chart-insight"><Info size={17}/><span>{chartMode === 'quota' ? 'Comparativo calculado exclusivamente con los volúmenes autorizados registrados. No existe un límite mensual legal deducible dividiendo la cuota anual entre 12.' : 'No se usarán barras ilustrativas ni lecturas simuladas como consumos reales. El histórico aparecerá cuando se concilien los sensores BOS.'}</span></div>
+        <div className="con-chart-insight"><Info size={17}/><span>{chartMode === 'quota' ? 'Comparativo calculado exclusivamente con los volúmenes autorizados registrados. No existe un límite mensual legal deducible dividiendo la cuota anual entre 12.' : 'La gráfica utiliza sólo volúmenes de intervalos con totalizador verificado. Pueden faltar meses o días. El saldo legal requiere confirmar la vigencia y el ciclo de cada título.'}</span></div>
       </section>
 
       <section className="panel con-detail-panel">
@@ -246,20 +333,21 @@ export default function ConcesionesSection({ currentUser }: { currentUser?: { ro
             <div><span>Inicio de vigencia</span><strong>{row.valid_from || 'Por verificar'}</strong></div>
             <div><span>Fin de vigencia</span><strong>{row.valid_to || 'Por verificar'}</strong></div>
             <div><span>Uso autorizado</span><strong className="con-pending">Por verificar en título</strong></div>
-            <div><span>Extracción acumulada</span><strong className="con-pending">Sin conciliar</strong></div>
-            <div><span>Volumen restante</span><strong className="con-pending">No calculado</strong></div>
+            <div><span>Extracción operativa {year}</span><strong>{formatM3(selectedOperational?.operational_total_m3)} m³</strong></div>
+            <div><span>Comparativo medido / cuota*</span><strong>{operationalShare === null ? 'Sin datos' : `${operationalShare.toFixed(1)}%`}</strong></div>
+            <div><span>Saldo legal disponible</span><strong className="con-pending">Pendiente de validar</strong></div>
           </div>
           <div className="con-document-box"><FileText size={21}/><div><strong>{row.document_name || 'No se ha adjuntado el título o prórroga'}</strong><span>{row.has_document ? 'Original archivado para cotejo documental' : 'Un administrador puede cargar un PDF desde Administrar'}</span></div>
             {row.has_document && <button type="button" title="Descargar PDF original" aria-label="Descargar PDF original" onClick={() => void download()}><ArrowDownToLine size={19}/></button>}
           </div>
           {row.notes && <div className="con-notes"><strong>Observaciones</strong><p>{row.notes}</p></div>}
-          <div className="con-detail-actions"><small>Versión {row.version} · Actualizado por {row.updated_by}</small>{isAdmin && <button type="button" onClick={() => void showAudit()}><History size={15}/> Historial de cambios</button>}</div>
+          <div className="con-legal-explain">* Indicador operativo parcial: compara el volumen observado con el volumen documental anual, pero <strong>no mide cumplimiento legal</strong> ni calcula remanente.</div><div className="con-detail-actions"><small>Versión {row.version} · Actualizado por {row.updated_by}</small>{isAdmin && <button type="button" onClick={() => void showAudit()}><History size={15}/> Historial de cambios</button>}</div>
           {historyOpen && isAdmin && <div className="con-history"><div className="con-history-title"><strong>Últimas modificaciones</strong><button type="button" aria-label="Cerrar historial" onClick={() => setHistoryOpen(false)}><X size={15}/></button></div>{historyBusy ? 'Cargando...' : audit.length ? audit.map((event, index) => <div key={index}><strong>{event.action === 'attach_pdf' ? 'Documento actualizado' : 'Datos editados'}</strong><small>{event.actor} · {new Date(event.created_at).toLocaleString('es-MX')}</small></div>) : <p>Aún no existen modificaciones.</p>}</div>}
         </> : <p>{loading ? 'Cargando concesiones...' : 'No hay registros de concesiones.'}</p>}
       </section>
     </div>
 
-    <section className="panel con-validation-panel"><div className="con-validation-heading"><div><span className="con-eyebrow">RUTA DE VALIDACIÓN</span><h3>Estado de integración</h3><p>Etapas necesarias antes de mostrar consumo contra la concesión.</p></div><span className="con-status-chip">Revisión pendiente</span></div><div className="con-validation-steps"><div className="con-validation-step"><span className="con-step-circle con-step-provisional"><FileCheck2 size={18}/></span><div><strong>1. Captura de referencias</strong><small>Dos cuotas registradas de manera provisional.</small></div></div><div className="con-validation-step"><span className="con-step-circle"><FileText size={18}/></span><div><strong>2. Validación documental</strong><small>Revisar títulos vigentes, prórrogas y periodo aplicable.</small></div></div><div className="con-validation-step"><span className="con-step-circle"><Database size={18}/></span><div><strong>3. Conciliación BOS</strong><small>Validar totalizadores, reinicios y cobertura antes de calcular remanente.</small></div></div></div></section>
+    <section className="panel con-validation-panel"><div className="con-validation-heading"><div><span className="con-eyebrow">RUTA DE VALIDACIÓN</span><h3>Estado de integración</h3><p>Etapas necesarias antes de mostrar consumo contra la concesión.</p></div><span className="con-status-chip">Revisión pendiente</span></div><div className="con-validation-steps"><div className="con-validation-step"><span className="con-step-circle con-step-provisional"><FileCheck2 size={18}/></span><div><strong>1. Captura de referencias</strong><small>Dos cuotas registradas de manera provisional.</small></div></div><div className="con-validation-step"><span className="con-step-circle"><FileText size={18}/></span><div><strong>2. Validación documental</strong><small>Revisar títulos vigentes, prórrogas y periodo aplicable.</small></div></div><div className="con-validation-step"><span className="con-step-circle"><Database size={18}/></span><div><strong>3. Histórico operativo BOS</strong><small>Extracción mensual conectada; auditar cobertura y ciclo antes de calcular remanente legal.</small></div></div></div></section>
 
     {editing && row && form && <div className="con-modal-scrim" onMouseDown={(event) => { if (event.target === event.currentTarget && !saveBusy) setEditing(false); }}>
       <section role="dialog" aria-modal="true" aria-label={`Administrar concesión ${row.well_name}`} className="con-modal panel">

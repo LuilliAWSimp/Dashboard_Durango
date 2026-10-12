@@ -39,12 +39,13 @@ test('DGO-C02: datos nulos/erróneos no fabrican porcentajes ni divisiones invá
   assert.deepEqual(zero.shares.map((row) => row.relativePercent), [0, 0]);
 });
 
-test('DGO-C02: el histórico mensual es un estado sin mediciones simuladas', () => {
-  assert.match(page, /Sin histórico mensual conciliado/);
-  assert.match(page, /sin datos mensuales|Sin histórico mensual/i);
+test('DGO-C03: la vista mensual se alimenta de históricos reales y conserva sus avisos', () => {
+  assert.match(page, /fetchConcessionMonthlyHistory/);
+  assert.match(page, /buildOperationalChart/);
+  assert.match(page, /volume_m3/);
+  assert.match(page, /Sin extrapolación de meses faltantes/);
   assert.match(page, /chartMode === 'quota'/);
   assert.match(page, /buildConcessionVisualSummary\(records\)/);
-  assert.match(page, /No se usarán barras ilustrativas ni lecturas simuladas/);
   assert.doesNotMatch(page, /420[_,]?000|222[_,]?000|537[_,]?895/);
 });
 

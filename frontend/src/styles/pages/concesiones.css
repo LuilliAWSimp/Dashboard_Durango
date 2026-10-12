@@ -277,3 +277,49 @@
   .con-v2 .con-empty-month small { font-size: 9px; writing-mode: vertical-rl; }
 }
 @media (prefers-reduced-motion: reduce) { .con-v2 .con-well-card, .con-v2 .con-spinning { transition: none; animation: none; } }
+
+/* DGO-C03: análisis operativo real de extracción y tendencia, sin lecturas simuladas. */
+.con-v2 .con-operational-active { border-color: rgba(37,193,211,.35); background: linear-gradient(105deg,rgba(19,155,177,.1),rgba(5,40,66,.15)); }
+.con-v2 .con-operational-active .con-status-tag { color:#58e1dc; background:rgba(25,179,161,.13);border-color:rgba(24,192,165,.22); }
+.con-v2 .con-chart-controls { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+.con-v2 .con-year-select { display:flex; align-items:center; gap:9px; font-size:11px; font-weight:750; color:var(--con-muted); }
+.con-v2 .con-year-select select { color:var(--con-text); background:var(--con-surface); border:1px solid var(--con-line); border-radius:9px; font-weight:750; min-width:78px; padding:8px; cursor:pointer; }
+.con-v2 .con-year-select select:focus-visible { outline:2px solid var(--con-accent); }
+.con-v2 .con-monthly-analysis { min-height:330px; }
+.con-v2 .con-chart-feedback { min-height:296px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:11px; color:var(--con-muted); text-align:center; padding:28px; }
+.con-v2 .con-chart-feedback svg { color:var(--con-accent); }
+.con-v2 .con-chart-feedback strong { color:var(--con-text); font-size:14px; }
+.con-v2 .con-chart-feedback span { font-size:12px; line-height:1.6; max-width:370px; }
+.con-v2 .con-month-metrics { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-top:6px; }
+.con-v2 .con-month-metrics > div { display:flex; flex-direction:column; gap:5px; border:1px solid var(--con-line); background:rgba(34,138,178,.075); padding:13px 12px; border-radius:11px; min-width:0; }
+.con-v2 .con-month-metrics small { color:var(--con-muted); font-size:10px; }
+.con-v2 .con-month-metrics strong { color:var(--con-text); font-size:clamp(16px,1.9vw,22px); letter-spacing:-.025em; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.con-v2 .con-month-metrics strong em { font-size:11px; color:var(--con-muted); font-weight:650; font-style:normal; }
+.con-v2 .con-month-metrics span { color:var(--con-muted); font-size:10px; }
+.con-v2 .con-recharts-holder { height:270px; width:100%; min-width:0; margin-top:22px; }
+.con-v2 .con-cumulative-holder { height:155px; width:100%; min-width:0; margin-top:10px; }
+.con-v2 .con-month-legend { display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:9px 18px; font-size:10px; color:var(--con-muted); margin:8px 0 0; }
+.con-v2 .con-month-legend span { display:inline-flex; align-items:center; gap:6px; }
+.con-v2 .con-month-legend i { display:inline-block; width:12px; height:10px; border-radius:2px; }
+.con-v2 .con-key-teal { background:#17c6da; }
+.con-v2 .con-key-orange { border-top:2px dashed #f0b35c; }
+.con-v2 .con-key-empty { border:1px dashed var(--con-muted); }
+.con-v2 .con-cumulative-heading { display:flex; align-items:end; justify-content:space-between; gap:14px; padding-top:21px; margin-top:20px; border-top:1px solid var(--con-line); }
+.con-v2 .con-cumulative-heading h4 { font-size:14px; color:var(--con-text); margin:5px 0 0; }
+.con-v2 .con-cumulative-heading small { color:var(--con-muted); font-size:10px; text-align:right; }
+.con-v2 .con-history-coverage { display:flex; align-items:flex-start; gap:8px; color:var(--con-muted); border:1px solid var(--con-line); background:rgba(30,140,173,.06); padding:11px 12px; border-radius:10px; font-size:11px; line-height:1.55; margin-top:13px; }
+.con-v2 .con-history-coverage svg { flex:0 0 auto; color:var(--con-accent); }
+.con-v2 .con-operational-tooltip { display:flex; flex-direction:column; gap:6px; background:var(--con-surface); color:var(--con-text); border:1px solid var(--con-line); border-radius:11px; box-shadow:0 8px 24px rgba(0,0,0,.22); padding:11px 14px; max-width:265px; font-size:12px; }
+.con-v2 .con-operational-tooltip strong { font-size:13px; }
+.con-v2 .con-operational-tooltip small { color:var(--con-muted); font-size:10px; line-height:1.5; }
+.con-v2 .con-legal-explain { font-size:10px; line-height:1.65; margin-top:12px; color:var(--con-muted); border:1px dashed var(--con-line); border-radius:9px; padding:10px 12px; }
+.pozos-shell.theme-light .con-v2 .con-operational-active { background:linear-gradient(105deg,#e7fafa,#f5fbff); }
+.pozos-shell.theme-light .con-v2 .con-operational-active .con-status-tag { color:#006e73; }
+.pozos-shell.theme-light .con-v2 .con-month-metrics > div { background:#f3faff; }
+@media(max-width:680px) {
+  .con-v2 .con-month-metrics { grid-template-columns:1fr 1fr; }
+  .con-v2 .con-month-metrics > div:last-child { grid-column:1/-1; }
+  .con-v2 .con-chart-controls { align-items:stretch; }
+  .con-v2 .con-year-select { padding-bottom:8px; }
+  .con-v2 .con-cumulative-heading { flex-wrap:wrap; }
+}
