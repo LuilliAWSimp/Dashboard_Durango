@@ -385,3 +385,34 @@
 .pozos-shell.theme-light .con-v2 .con-diagnostics-grid>div { background:#f4faff; }
 .pozos-shell.theme-light .con-v2 .con-persisted-note { background:#edfaf7; }
 @media(max-width:600px) { .con-v2 .con-diagnostics-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .con-v2 .con-diagnostics { padding:12px; } .con-v2 .con-diagnostics-grid strong { font-size:15px; } }
+
+/* DGO-C06: analisis mas legible, mensual prioritario y acumulada compacta. */
+.con-v2 .con-month-metrics-v3 { grid-template-columns: repeat(4,minmax(0,1fr)); gap: 11px; }
+.con-v2 .con-month-metrics-v3 .con-metric-card { min-width: 0; min-height: 106px; }
+.con-v2 .con-month-metrics-v3 .con-metric-card small,
+.con-v2 .con-month-metrics-v3 .con-metric-card span { line-height: 1.4; }
+.con-v2 .con-month-metrics-v3 .con-metric-card strong { font-size: clamp(17px,1.55vw,23px); }
+.con-v2 .con-month-status-label { display: flex; gap: 12px; justify-content: space-between; align-items: center; flex-wrap: wrap; margin: 20px 0 9px; font-size: 11px; font-weight: 800; color: var(--con-text); }
+.con-v2 .con-month-status-label span { font-weight: 500; color: var(--con-muted); }
+.con-v2 .con-month-status-rail { display: grid; grid-template-columns: repeat(12,minmax(0,1fr)); gap: 5px; width: 100%; min-width: 0; }
+.con-v2 .con-month-status-item { display: grid; justify-items: center; align-content: center; gap: 5px; padding: 9px 2px; min-width: 0; border-radius: 8px; background: rgba(104,157,184,.045); border: 1px solid var(--con-line); }
+.con-v2 .con-month-status-item strong { font-size: 10px; color: var(--con-text); }
+.con-v2 .con-month-status-item span { font-size: 9px; color: var(--con-muted); text-align: center; white-space: nowrap; }
+.con-v2 .con-month-status-item.is-available { background: rgba(30,186,196,.11); border-color: rgba(35,202,210,.38); }
+.con-v2 .con-month-status-item.is-available span { color: #34dfd8; }
+.con-v2 .con-month-status-item.is-partial { background: rgba(55,156,233,.10); border-color: rgba(64,180,242,.38); }
+.con-v2 .con-month-status-item.is-partial span { color: #70caff; }
+.con-v2 .con-month-status-item.is-no_data { border-style: dashed; }
+.con-v2 .con-month-status-item.is-outside_window { opacity: .48; }
+.con-v2 .con-key-partial { background: #36a5e5; }
+.con-v2 .con-cumulative-heading { margin-top: 16px; padding-top: 14px; }
+.con-v2 .con-cumulative-compact { height: 126px; margin-top: 8px; }
+.pozos-shell.theme-light .con-v2 .con-month-status-item.is-available span { color: #087a71; }
+.pozos-shell.theme-light .con-v2 .con-month-status-item.is-partial span { color: #096a9c; }
+@media (max-width: 1150px) { .con-v2 .con-month-metrics-v3 { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+@media (max-width: 700px) {
+  .con-v2 .con-month-status-rail { grid-template-columns: repeat(6,minmax(0,1fr)); }
+  .con-v2 .con-month-metrics-v3 { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .con-v2 .con-month-metrics-v3 .con-metric-card:last-child { grid-column: auto; }
+}
+@media (max-width: 420px) { .con-v2 .con-month-metrics-v3 { grid-template-columns: 1fr; } }

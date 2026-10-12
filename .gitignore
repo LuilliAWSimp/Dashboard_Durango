@@ -29,3 +29,12 @@ backend/data/*.bak
 backend/data/report_email_schedules.sqlite3
 backend/data/report_email_schedules.sqlite3-shm
 backend/data/report_email_schedules.sqlite3-wal
+
+# DGO-C06: SQLite de concesiones es dato operativo local, nunca codigo.
+/backend/data/concessions.sqlite3
+/backend/data/concessions.sqlite3-wal
+/backend/data/concessions.sqlite3-shm
+/backend/data/concessions.sqlite3-journal
+/backend/data/concessions/documents/
+# Resguardos temporales; el directorio automatico normal esta FUERA del repositorio.
+/backend/data/concession_backup_*.sqlite3

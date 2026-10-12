@@ -24,3 +24,11 @@ export function summarizeOperationalChart(months: ConcessionMonthlyBucket[]) {
   const recent = included[included.length - 1] ?? null;
   return { total: included.length ? total : null, count: included.length, avg: included.length ? total / included.length : null, max, recent };
 }
+
+/** Semantica visual de cobertura: "sin datos" nunca se asume como consumo cero. */
+export function concessionMonthStatus(status: ConcessionMonthlyBucket['status']): string {
+  if (status === 'outside_window') return 'Fuera del periodo';
+  if (status === 'available') return 'Con lecturas';
+  if (status === 'partial') return 'Parcial';
+  return 'Sin datos';
+}

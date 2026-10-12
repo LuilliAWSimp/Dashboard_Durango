@@ -11,7 +11,7 @@ import {
 } from '../../../services/concessionService';
 import type { ConcessionPayload, ConcessionRecord, PdfPreview, ConcessionMonthlyHistory } from '../../../services/concessionService';
 import { fetchConcessionMonthlyHistory } from '../../../services/concessionService';
-import { buildOperationalChart, summarizeOperationalChart, CONCESSION_MONTH_LABELS } from '../../../utils/durangoConcessionOperational';
+import { buildOperationalChart, summarizeOperationalChart, concessionMonthStatus, CONCESSION_MONTH_LABELS } from '../../../utils/durangoConcessionOperational';
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { buildConcessionVisualSummary } from '../../../utils/durangoConcessionVisual';
 
@@ -243,6 +243,12 @@ export default function ConcesionesSection({ currentUser }: { currentUser?: { ro
   const operationalShare = row && selectedOperational?.operational_total_m3 != null && row.annual_volume_m3 > 0
     ? (selectedOperational.operational_total_m3 / row.annual_volume_m3) * 100 : null;
   const endYear = new Date().getFullYear();
+  const todayMonth = new Date().getMonth() + 1;
+  const isCurrentYear = year === endYear;
+  const monthOfInterest = isCurrentYear ? todayMonth : (analytics.recent?.month ?? 12);
+  const currentMonth = chartData.find((month) => month.month === monthOfInterest);
+  const dayCoverage = selectedCoverage && selectedCoverage.expected_days > 0
+    ? selectedCoverage.days_with_volume / selectedCoverage.expected_days * 100 : null;
 
   return <div className="concessions-page con-v2">
     <section className="con-hero panel fade-up">
@@ -332,10 +338,11 @@ export default function ConcesionesSection({ currentUser }: { currentUser?: { ro
           {!historyLoading && historyError && <div className="con-chart-feedback"><AlertCircle size={24}/><strong>No fue posible consultar el histórico</strong><span>{historyError}</span><button type="button" className="con-button con-button-muted" onClick={() => void loadOperational(year)}>Reintentar consulta</button></div>}
           {!historyLoading && !historyError && !analytics.count && <div className="con-chart-feedback"><CalendarDays size={26}/><strong>No hay meses con volumen verificable</strong><span>Los periodos sin lecturas no se muestran como cero. Revisa la cobertura del histórico del año seleccionado.</span></div>}
           {!historyLoading && !historyError && analytics.count > 0 && <>
-            <div className="con-month-metrics">
-              <div className="con-metric-card"><small>Acumulado medido</small><strong>{formatM3(analytics.total)} <em>m³</em></strong><span>Periodo disponible · {year}</span></div>
-              <div className="con-metric-card"><small>Promedio de meses con datos</small><strong>{formatM3(analytics.avg)} <em>m³</em></strong><span>No es una cuota mensual legal</span></div>
-              <div className="con-metric-card"><small>Mes de mayor volumen</small><strong>{analytics.max ? months[analytics.max.month-1] : '—'}</strong><span>{formatM3(analytics.max?.volume_m3)} m³ medidos</span></div>
+            <div className="con-month-metrics con-month-metrics-v3">
+              <div className="con-metric-card"><small>Extracción acumulada</small><strong>{formatM3(analytics.total)} <em>m³</em></strong><span>Solo meses con lecturas · {year}</span></div>
+              <div className="con-metric-card"><small>{isCurrentYear ? 'Mes actual' : 'Último mes con datos'}</small><strong>{formatM3(currentMonth?.volume_m3)} <em>m³</em></strong><span>{months[monthOfInterest - 1]} · {concessionMonthStatus(currentMonth?.status || 'no_data')}</span></div>
+              <div className="con-metric-card"><small>Días con volumen válido</small><strong>{dayCoverage === null ? '—' : `${dayCoverage.toFixed(1)}%`}</strong><span>{selectedCoverage ? `${selectedCoverage.days_with_volume} / ${selectedCoverage.expected_days} días del periodo` : 'Sin diagnóstico'}</span></div>
+              <div className="con-metric-card"><small>Mes de mayor volumen</small><strong>{analytics.max ? months[analytics.max.month - 1] : '—'}</strong><span>{formatM3(analytics.max?.volume_m3)} m³ registrados</span></div>
             </div>
             <div className="con-recharts-holder" role="img" aria-label={`Extracción mensual medida de ${row?.well_name ?? 'pozo'}, ${year}`}>
               <ResponsiveContainer width="100%" height="100%"><BarChart data={chartData} margin={{top:25,right:8,bottom:0,left:0}} barCategoryGap="24%">
@@ -347,9 +354,15 @@ export default function ConcesionesSection({ currentUser }: { currentUser?: { ro
                 <Bar dataKey="volume_m3" maxBarSize={47} radius={[6,6,0,0]}>{chartData.map((entry) => <Cell key={entry.month} fill={entry.status === 'partial' ? '#36a5e5' : '#17c6da'}/>)}</Bar>
               </BarChart></ResponsiveContainer>
             </div>
-            <div className="con-month-legend"><span><i className="con-key-teal"/> Extracción mensual registrada</span><span><i className="con-key-orange"/> Media de meses con datos</span><span><i className="con-key-empty"/> Sin lectura = sin barra</span></div>
-            <div className="con-cumulative-heading"><div><span className="con-eyebrow">TENDENCIA OPERATIVA</span><h4>Extracción acumulada · {year}</h4></div><small>Sin extrapolación de meses faltantes</small></div>
-            <div className="con-cumulative-holder" role="img" aria-label="Evolución de extracción acumulada, sólo meses con lecturas"><ResponsiveContainer width="100%" height="100%"><AreaChart data={chartData} margin={{top:8,right:8,bottom:0,left:0}}>
+            <div className="con-month-legend"><span><i className="con-key-teal"/> Mes con lecturas</span><span><i className="con-key-partial"/> Mes parcial</span><span><i className="con-key-orange"/> Media de meses con datos: {formatM3(analytics.avg)} m³</span></div>
+            <div className="con-month-status-label">Cobertura del periodo por mes <span>Sin datos nunca se interpreta como 0 m³</span></div>
+            <div className="con-month-status-rail" aria-label="Estado de los meses">
+              {chartData.map((month) => <div key={month.month} className={`con-month-status-item is-${month.status}`} title={`${month.name}: ${concessionMonthStatus(month.status)} · ${month.days_with_volume} días con volumen`}>
+                <strong>{month.name}</strong><span>{month.status === 'outside_window' ? 'Fuera' : month.status === 'available' ? 'Datos' : month.status === 'partial' ? 'Parcial' : 'Sin datos'}</span>
+              </div>)}
+            </div>
+            <div className="con-cumulative-heading"><div><span className="con-eyebrow">TENDENCIA OPERATIVA</span><h4>Acumulado verificado · {year}</h4></div><small>Sin extrapolación de meses faltantes · Vista compacta</small></div>
+            <div className="con-cumulative-holder con-cumulative-compact" role="img" aria-label="Evolución de extracción acumulada, sólo meses con lecturas"><ResponsiveContainer width="100%" height="100%"><AreaChart data={chartData} margin={{top:8,right:8,bottom:0,left:0}}>
               <defs><linearGradient id="conCumulativeFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stopColor="#27c5e9" stopOpacity={0.32}/><stop offset="100%" stopColor="#27c5e9" stopOpacity={0}/></linearGradient></defs>
               <CartesianGrid stroke="rgba(102,163,190,.12)" strokeDasharray="3 5" vertical={false}/>
               <XAxis dataKey="name" tick={{fill:'var(--con-muted)',fontSize:10}} tickLine={false} axisLine={false}/>
@@ -357,7 +370,7 @@ export default function ConcesionesSection({ currentUser }: { currentUser?: { ro
               <Tooltip content={<OperationalTooltip mode="cumulative"/>}/>
               <Area connectNulls={false} type="monotone" dataKey="cumulative_m3" stroke="#2cc9e7" strokeWidth={2.6} fill="url(#conCumulativeFill)" dot={{r:3}} activeDot={{r:5}}/>
             </AreaChart></ResponsiveContainer></div>
-            <div className="con-history-coverage"><Info size={16}/><span>Periodo de consulta: {operational?.period_start} a {operational?.period_end}. Los periodos anteriores al corte SCADA y cualquier intervalo sin lectura no se suman como cero ni se extrapolan.</span></div>
+            <div className="con-history-coverage"><Info size={16}/><span>Datos disponibles: {operational?.period_start} a {operational?.period_end}. Meses parciales o sin lecturas no se extrapolan; la cuota anual no es una meta mensual.</span></div>
           </>}
         </div>}
         <div className="con-chart-insight"><Info size={17}/><span>{chartMode === 'quota' ? 'Comparativo calculado exclusivamente con los volúmenes autorizados registrados. No existe un límite mensual legal deducible dividiendo la cuota anual entre 12.' : 'La gráfica utiliza sólo volúmenes de intervalos con totalizador verificado. Pueden faltar meses o días. El saldo legal requiere confirmar la vigencia y el ciclo de cada título.'}</span></div>
