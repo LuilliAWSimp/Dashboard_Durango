@@ -533,3 +533,103 @@
 .pozos-shell.theme-light .shift-detail-table tbody tr:hover td {
   background: #e4f4fb;
 }
+
+/* DGO-H05 - Homologación visual de Revisión diaria con referencia Las Fuentes.
+   Solo presentación: conservar todos los datos, fechas, turnos, alertas y eventos. */
+.daily-review-header-panel {
+  display: grid;
+  gap: 16px;
+  padding: 22px 24px;
+  border-color: rgba(115, 209, 243, .22);
+  background: linear-gradient(125deg, rgba(6, 26, 40, .96), rgba(10, 38, 56, .94));
+}
+.daily-review-header-panel > .panel-header.compact {
+  padding: 0;
+  margin: 0;
+}
+.daily-review-header-panel .panel-title {
+  font-size: clamp(25px, 2.5vw, 34px);
+  line-height: 1.15;
+}
+.daily-review-header-panel .panel-subtitle {
+  margin-top: 6px;
+  color: #a7bdc9;
+  font-size: 13px;
+}
+.daily-review-header-panel .date-range-panel {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(115, 209, 243, .18);
+  border-radius: 10px;
+  background: rgba(4, 21, 34, .62);
+  box-shadow: none;
+}
+.daily-review-header-panel .date-range-fields {
+  align-items: end;
+  gap: 10px;
+}
+.daily-review-header-panel .date-range-fields > button {
+  min-height: 38px;
+  border-radius: 8px;
+}
+.daily-review-kpi-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+.daily-review-kpi-grid .kpi-card {
+  min-width: 0;
+  min-height: 132px;
+  border-radius: 10px;
+}
+.daily-review-comparison-panel,
+.daily-review-detail-panel {
+  border-radius: 10px;
+  border-color: rgba(115, 209, 243, .18);
+}
+.daily-review-comparison-panel > .panel-header.compact,
+.daily-review-detail-panel > .panel-header.compact {
+  padding: 18px 20px 0;
+}
+.daily-review-comparison-panel .pozos-table-scroll,
+.daily-review-detail-panel .pozos-table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+.daily-review-comparison-panel .pozos-operacion-table,
+.daily-review-detail-panel .pozos-operacion-table {
+  font-variant-numeric: tabular-nums;
+}
+.daily-review-comparison-panel .pozos-operacion-table th,
+.daily-review-detail-panel .pozos-operacion-table th {
+  white-space: normal;
+  vertical-align: bottom;
+}
+.daily-review-comparison-panel .pozos-operacion-table td,
+.daily-review-detail-panel .pozos-operacion-table td {
+  vertical-align: middle;
+}
+.pozos-shell.theme-light .daily-review-header-panel {
+  background: #ffffff;
+  border-color: #cfdee6;
+}
+.pozos-shell.theme-light .daily-review-header-panel .date-range-panel {
+  background: #f2f8fc !important;
+  border-color: #cfdee6 !important;
+  box-shadow: none !important;
+}
+.pozos-shell.theme-light .daily-review-header-panel .panel-subtitle {
+  color: #526b7a;
+}
+@media (min-width: 1650px) {
+  .daily-review-kpi-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+}
+@media (max-width: 960px) {
+  .daily-review-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .daily-review-header-panel { padding: 16px; }
+  .daily-review-kpi-grid { grid-template-columns: 1fr; }
+  .daily-review-header-panel .date-range-fields > button { flex: 1 1 auto; min-height: 44px; }
+}

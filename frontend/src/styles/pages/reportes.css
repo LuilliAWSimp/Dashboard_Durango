@@ -1209,3 +1209,93 @@
 .durango-report-page .report-export-job-spinner { flex: 0 0 23px; width: 23px; height: 23px; border-radius: 50%; border: 3px solid rgba(56,189,248,.2); border-top-color: #38bdf8; animation: durango-report-export-spin 1s linear infinite; }
 @keyframes durango-report-export-spin { to { transform:rotate(360deg); } }
 @media (prefers-reduced-motion:reduce) { .durango-report-page .report-export-job-spinner { animation: none; } }
+
+/* DGO-H05 - Centro de reportes: consistencia de controles y superficies.
+   Se conservan la generación asíncrona de H01, los permisos y el contenido de exportación. */
+.durango-report-page .report-hero-panel {
+  border-radius: 10px;
+  border-color: rgba(115, 209, 243, .22);
+  box-shadow: none;
+  background: linear-gradient(135deg, rgba(6, 26, 40, .96), rgba(10, 38, 56, .92));
+}
+.durango-report-page .report-center-heading > span {
+  letter-spacing: .12em;
+  color: #73d1f3;
+}
+.durango-report-page .report-center-heading .panel-title {
+  font-size: clamp(26px, 2.7vw, 36px);
+}
+.durango-report-page .report-center-heading > p {
+  max-width: 720px;
+}
+.durango-report-page .report-workflow-panel {
+  gap: 16px;
+  border-radius: 10px;
+  border-color: rgba(115, 209, 243, .22);
+  background: rgba(4, 21, 34, .65);
+  box-shadow: none;
+}
+.durango-report-page .report-workflow-intro {
+  align-items: center;
+}
+.durango-report-page .report-controls-block {
+  gap: 10px;
+  align-items: end;
+}
+.durango-report-page .report-mode-toggle,
+.durango-report-page .report-date-input,
+.durango-report-page .report-period-buttons > button,
+.durango-report-page .report-action-button {
+  border-radius: 8px;
+}
+.durango-report-page .report-period-buttons > button,
+.durango-report-page .report-action-button {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.durango-report-page .report-action-button svg,
+.durango-report-page .report-period-buttons svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+}
+.durango-report-page .report-action-button:focus-visible,
+.durango-report-page .report-period-buttons button:focus-visible,
+.durango-report-page .report-mode-toggle button:focus-visible {
+  outline: 2px solid #73d1f3;
+  outline-offset: 2px;
+}
+.durango-report-page .report-action-button:disabled,
+.durango-report-page .report-period-buttons button:disabled {
+  cursor: not-allowed;
+  opacity: .62;
+}
+.durango-report-page .report-summary-card,
+.durango-report-page .report-data-panel,
+.durango-report-page .historical-export-panel {
+  border-radius: 10px;
+}
+.durango-report-page .report-data-table {
+  font-variant-numeric: tabular-nums;
+}
+.pozos-shell.theme-light .durango-report-page .report-hero-panel,
+.pozos-shell.theme-light .durango-report-page .report-workflow-panel {
+  background: #ffffff;
+  color: #163344;
+  border-color: #cfdee6;
+}
+.pozos-shell.theme-light .durango-report-page .report-workflow-panel {
+  background: #f2f8fc;
+}
+@media (max-width: 760px) {
+  .durango-report-page .report-hero-panel { padding: 16px; }
+  .durango-report-page .report-workflow-panel { padding: 12px; }
+  .durango-report-page .report-period-buttons > button,
+  .durango-report-page .report-action-button { min-height: 44px; }
+  .durango-report-page .report-workflow-intro { align-items: flex-start; }
+}

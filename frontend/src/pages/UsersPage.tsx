@@ -155,12 +155,12 @@ export default function UsersPage() {
   return (
     <div className="users-page">
       <section className="panel fade-up users-admin-header">
-        <PanelHeader title="Usuarios" subtitle="Administración local de accesos para Planta Durango." />
+        <PanelHeader eyebrow="Seguridad de acceso · Durango" title="Usuarios" subtitle="Administración local de accesos para Planta Durango." />
         <p className="panel-subtitle">Las credenciales y sesiones se administran exclusivamente en este servidor. No se comparten con otras plantas.</p>
       </section>
 
       <section className="panel fade-up users-create-panel">
-        <PanelHeader title="Crear usuario" subtitle="La contraseña debe tener al menos 10 caracteres, una letra y un número." />
+        <PanelHeader eyebrow="Alta de cuentas" title="Crear usuario" subtitle="La contraseña debe tener al menos 10 caracteres, una letra y un número." />
         <form className="users-create-form" onSubmit={handleCreate}>
           <label><span>Usuario o correo</span><input maxLength={254} value={form.username} onChange={(event) => setForm((current) => ({ ...current, username: event.target.value }))} autoComplete="off" required /></label>
           <label><span>Nombre visible</span><input value={form.display_name} onChange={(event) => setForm((current) => ({ ...current, display_name: event.target.value }))} required /></label>
@@ -183,7 +183,7 @@ export default function UsersPage() {
       ) : null}
 
       <section className="panel fade-up users-list-panel">
-        <div className="users-list-heading"><PanelHeader title="Usuarios registrados" subtitle={`${users.length} usuarios · ${activeAdmins} administradores activos`} /><button type="button" className="ghost-action" onClick={() => void load()} disabled={loading}><RefreshCw size={15} /> Actualizar</button></div>
+        <div className="users-list-heading"><PanelHeader eyebrow="Inventario de accesos" title="Usuarios registrados" subtitle={`${users.length} usuarios · ${activeAdmins} administradores activos`} /><button type="button" className="ghost-action" onClick={() => void load()} disabled={loading}><RefreshCw size={15} /> Actualizar</button></div>
         <div className="users-table-wrap">
           <table className="users-table">
             <thead><tr><th>Usuario o correo</th><th>Nombre</th><th>Rol</th><th>Estado</th><th>Último acceso</th><th>Acciones</th></tr></thead>
