@@ -67,6 +67,8 @@ class LocalAuthMiddleware(BaseHTTPMiddleware):
         # Operador solo puede mutar las operaciones explicitamente autorizadas.
         # Cualquier nueva mutacion queda denegada hasta declararla de forma consciente.
         self.self_service_mutation_paths = {
+            # H01: crear un job de exportacion no altera datos de planta.
+            f"{self.api_prefix}/water/reports/jobs",
             f"{self.api_prefix}/auth/logout",
             f"{self.api_prefix}/auth/change-password",
         }

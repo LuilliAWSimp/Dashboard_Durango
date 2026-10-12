@@ -1201,3 +1201,11 @@
 @media (max-width: 700px) {
   .modal-actions { flex-direction: column-reverse; }
 }
+
+/* DGO-H01: seguimiento de exportaciones largas, independiente del layout del hero. */
+.durango-report-page .report-export-job-status { display: flex; gap: 12px; align-items: center; border: 1px solid rgba(56,189,248,.32); background: rgba(14,116,144,.12); border-radius: 10px; padding: 12px 14px; margin-top: 12px; min-width: 0; }
+.durango-report-page .report-export-job-status strong, .durango-report-page .report-export-job-status small { display:block; }
+.durango-report-page .report-export-job-status small { opacity: .8; margin-top: 3px; line-height: 1.4; }
+.durango-report-page .report-export-job-spinner { flex: 0 0 23px; width: 23px; height: 23px; border-radius: 50%; border: 3px solid rgba(56,189,248,.2); border-top-color: #38bdf8; animation: durango-report-export-spin 1s linear infinite; }
+@keyframes durango-report-export-spin { to { transform:rotate(360deg); } }
+@media (prefers-reduced-motion:reduce) { .durango-report-page .report-export-job-spinner { animation: none; } }

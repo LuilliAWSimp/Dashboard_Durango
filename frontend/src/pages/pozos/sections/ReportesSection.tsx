@@ -213,6 +213,7 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [exportAction, setExportAction] = useState<ExportAction>(null);
+  const [exportJob, setExportJob] = useState<{ id: string; status: string; created_at?: number } | null>(null);
   const inFlightRef = useRef(false);
   const [error, setError] = useState('');
   const [emailOpen, setEmailOpen] = useState(false);
@@ -279,8 +280,8 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
     setExportAction(action);
     setError('');
     try {
-      if (action === 'pdf') await downloadDailyWaterReportPdf(appliedFilters);
-      if (action === 'xlsx') await downloadDailyWaterReportExcel(appliedFilters);
+      if (action === 'pdf') await downloadDailyWaterReportPdf(appliedFilters, setExportJob);
+      if (action === 'xlsx') await downloadDailyWaterReportExcel(appliedFilters, setExportJob);
       if (action === 'html') {
         const fullReport = await fetchDailyWaterReport(appliedFilters, { includeHistory: true, includeShifts: true });
         exportDailyWaterReportHtml(fullReport);
@@ -289,6 +290,7 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
       setError(friendlyReportError(caught, 'No fue posible generar el formato solicitado. Intenta nuevamente.'));
     } finally {
       setExportAction(null);
+      setExportJob(null);
     }
   };
 
@@ -298,8 +300,8 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
     setExportAction(action);
     setError('');
     try {
-      if (format === 'excel') await downloadFullHistoricalExcel();
-      else await downloadFullHistoricalPdf();
+      if (format === 'excel') await downloadFullHistoricalExcel({}, setExportJob);
+      else await downloadFullHistoricalPdf({}, setExportJob);
     } catch (caught) {
       const message = friendlyReportError(caught, 'No fue posible generar el histórico completo de planta. Intenta nuevamente.');
       setError(message);
@@ -310,6 +312,7 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
       });
     } finally {
       setExportAction(null);
+      setExportJob(null);
     }
   };
 
@@ -422,6 +425,13 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
         </div>
         {hasPendingPeriodChanges && report ? <div className="status-pill">Cambios de periodo pendientes. Pulsa Actualizar para aplicarlos a la vista y a las exportaciones.</div> : null}
         {refreshing ? <div className="status-pill auto-refresh-status">Actualizando datos de la vista previa…</div> : null}
+        {exportJob && (exportJob.status === 'queued' || exportJob.status === 'running') ? (
+          <div className="report-export-job-status" role="status" aria-live="polite">
+            <span className="report-export-job-spinner" aria-hidden="true" />
+            <div><strong>{exportJob.status === 'queued' ? 'Exportación en espera' : 'Generando exportación en segundo plano'}</strong>
+              <small>El servidor continúa trabajando sin mantener abierta una consulta larga. No cierres esta pestaña si deseas la descarga automática.</small></div>
+          </div>
+        ) : null}
         {error ? <div className="status-pill alert">{error}</div> : null}
       </section>
 
