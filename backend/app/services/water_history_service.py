@@ -982,8 +982,15 @@ def get_water_history_module(*, module: str, start_date: str, end_date: str, agg
     requested_start_dt = datetime.combine(start, time.min)
     requested_end_dt = datetime.combine(end + timedelta(days=1), time.min)
     effective_end_dt = effective_local_end(requested_end_dt, now=now_local)
-    cache_ttl = _history_cache_ttl(start, end, now_local.date())
-    cache_key = f'durango:module:{module}:{start}:{end}:{aggregation}:{effective_end_dt.isoformat(timespec="minutes")}'
+    # DGO-H07: las lecturas de un dia abierto no deben invalidar la cache
+    # pesada en cada minuto. Los cinco minutos son una ventana operativa, no
+    # una interpolacion ni una alteracion del calculo fisico.
+    includes_today = start <= now_local.date() <= end
+    cache_ttl = max(_history_cache_ttl(start, end, now_local.date()), 5 * 60) if includes_today else _history_cache_ttl(start, end, now_local.date())
+    cache_end = effective_end_dt
+    if includes_today:
+        cache_end = effective_end_dt.replace(minute=(effective_end_dt.minute // 5) * 5, second=0, microsecond=0)
+    cache_key = f'durango:module:{module}:{start}:{end}:{aggregation}:{cache_end.isoformat(timespec="minutes")}'
     cached = _CACHE.get(cache_key)
     if not force_refresh and cached and monotonic() < cached['expires_at']:
         return cached['value']

@@ -69,6 +69,8 @@ class LocalAuthMiddleware(BaseHTTPMiddleware):
         self.self_service_mutation_paths = {
             # H01: crear un job de exportacion no altera datos de planta.
             f"{self.api_prefix}/water/reports/jobs",
+            # H07: iniciar una consulta historica no modifica datos de planta.
+            f"{self.api_prefix}/water/history/module/jobs",
             f"{self.api_prefix}/auth/logout",
             f"{self.api_prefix}/auth/change-password",
         }

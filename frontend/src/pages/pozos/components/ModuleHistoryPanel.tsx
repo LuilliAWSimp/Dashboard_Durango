@@ -347,15 +347,14 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
   const [selected, setSelected] = useState<OperationalIdentity[]>(() => activeIdentities);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [historyJobStatus, setHistoryJobStatus] = useState('');
   const [error, setError] = useState('');
   const [resolvedQueryIdentity, setResolvedQueryIdentity] = useState('');
   const dataRef = useRef<WaterModuleHistoryResponse | null>(null);
-  // Reutilizar brevemente el resultado si el operador vuelve a la misma pestaña.
-  // La actualización automática y el botón Actualizar SIEMPRE consultan al backend.
-  const recentModuleQueries = useRef(new Map<string, { at: number; response: WaterModuleHistoryResponse }>());
   const requestIdRef = useRef(0);
   const inFlightIdentityRef = useRef('');
   const appliedRefreshKeyRef = useRef(Number(effectiveRange.refreshKey || 0));
+  const lastResolvedIdentityRef = useRef('');
 
   const singleIdentity = singleElement && activeIdentities.length === 1 ? activeIdentities[0] : null;
   const queryIdentity = `${module}:${singleIdentity === null ? 'module' : identityText(singleIdentity)}:${effectiveRange.startDate}:${effectiveRange.endDate}:${aggregation}`;
@@ -365,6 +364,7 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
     setData(null);
     dataRef.current = null;
     setResolvedQueryIdentity('');
+    lastResolvedIdentityRef.current = '';
   }, [module, singleIdentity]);
 
   useEffect(() => {
@@ -396,19 +396,17 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
     if (!effectiveRange.startDate || !effectiveRange.endDate) return;
     const identity = queryIdentity;
     if (inFlightIdentityRef.current === identity) return;
-    const previousQuery = !forceRefresh && !background ? recentModuleQueries.current.get(identity) : undefined;
-    if (previousQuery && Date.now() - previousQuery.at < 45_000) {
-      requestIdRef.current += 1; // Invalida respuestas antiguas de otros módulos.
-      setData(previousQuery.response);
-      setResolvedQueryIdentity(identity);
-      setError('');
-      setLoading(false);
-      setRefreshing(false);
-      return;
-    }
     inFlightIdentityRef.current = identity;
     const requestId = ++requestIdRef.current;
-    if (!dataRef.current) setLoading(true); else if (background) setRefreshing(true);
+    // Nunca presentar el periodo anterior como si perteneciera al rango nuevo.
+    const hasCurrentData = lastResolvedIdentityRef.current === identity && Boolean(dataRef.current);
+    if (!hasCurrentData) {
+      dataRef.current = null;
+      setData(null);
+      setResolvedQueryIdentity('');
+      setLoading(true);
+    } else if (background) setRefreshing(true);
+    setHistoryJobStatus('');
     if (!background) setError('');
     try {
       const response = singleIdentity === null
@@ -418,6 +416,9 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
             endDate: String(effectiveRange.endDate),
             aggregation,
             forceRefresh,
+            onStatus: (status: string) => {
+              if (requestId === requestIdRef.current) setHistoryJobStatus(status);
+            },
           })
         : singleHistoryAsModuleResponse(await fetchWaterHistory({
             module,
@@ -429,19 +430,17 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
           }));
       if (requestId !== requestIdRef.current) return;
       setData(response);
-      recentModuleQueries.current.delete(identity);
-      recentModuleQueries.current.set(identity, { at: Date.now(), response });
-      if (recentModuleQueries.current.size > 6) {
-        const oldest = recentModuleQueries.current.keys().next().value;
-        if (oldest !== undefined) recentModuleQueries.current.delete(oldest);
-      }
+      lastResolvedIdentityRef.current = identity;
       setResolvedQueryIdentity(identity);
       setError('');
     } catch (reason: unknown) {
       if (requestId !== requestIdRef.current) return;
-      setError((reason as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'No fue posible consultar el histórico operativo.');
+      const failure = reason as { code?: string; response?: { status?: number; data?: { detail?: string } }; message?: string };
+      setError(failure.response?.data?.detail || (failure.code === 'ECONNABORTED'
+        ? 'La comunicación con el servidor agotó el tiempo de espera. Intenta actualizar.'
+        : failure.message || 'No fue posible consultar el histórico operativo.'));
     } finally {
-      if (requestId === requestIdRef.current) { setLoading(false); setRefreshing(false); }
+      if (requestId === requestIdRef.current) { setLoading(false); setRefreshing(false); setHistoryJobStatus(''); }
       if (inFlightIdentityRef.current === identity) inFlightIdentityRef.current = '';
     }
   }, [module, singleIdentity, queryIdentity, effectiveRange.startDate, effectiveRange.endDate, aggregation]);
@@ -455,9 +454,9 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
   useAutoRefresh(rangeIncludesToday(effectiveRange), () => { void load(false, true); });
 
   const filteredData = useMemo<WaterModuleHistoryResponse | null>(() => {
-    if (!data) return null;
+    if (!data || resolvedQueryIdentity !== queryIdentity) return null;
     return { ...data, series: data.series.filter((series) => seriesMatchesAllowed(series, allowedTokens)) };
-  }, [data, allowedTokens]);
+  }, [data, allowedTokens, resolvedQueryIdentity, queryIdentity]);
   const currentQueryIdentity = queryIdentity;
   const detailSeries = singleElement ? filteredData?.series?.[0] : undefined;
   const thresholdError = singleElement ? thresholdValidation(thresholdDraft) : '';
@@ -649,6 +648,19 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
         title={panelTitle || (lockedHistory ? moduleDisplayLabel : 'Módulos de agua')}
         subtitle={panelSubtitle === null ? undefined : (panelSubtitle || (lockedHistory ? `Consulta ${moduleDisplayLabel.toLowerCase()} con el mismo motor histórico del Resumen.` : 'Consulta Pozos, Líneas, Lavadoras y Jarabes desde un único histórico.'))}
       />
+      {independentRange ? (
+        <div className="module-history-range-panel" aria-label={lockedHistory ? `Fechas del histórico de ${moduleDisplayLabel}` : 'Fechas del histórico global'}>
+          <div className="module-history-range-fields">
+            <label><span>Desde</span><input type="date" value={draftRange.startDate} onChange={(event) => setDraftRange((current) => ({ ...current, startDate: event.target.value }))} /></label>
+            <label><span>Hasta</span><input type="date" value={draftRange.endDate} onChange={(event) => setDraftRange((current) => ({ ...current, endDate: event.target.value }))} /></label>
+          </div>
+          <div className="module-history-range-actions">
+            <button type="button" className="primary-action" onClick={applyIndependentRange}>Actualizar</button>
+            <button type="button" className="ghost-action" onClick={resetIndependentRange}>Restablecer</button>
+          </div>
+          <span className="module-history-range-label">{formatOperationalDateRange(effectiveRange)}</span>
+        </div>
+      ) : null}
       <div className="module-history-toolbar">
         {!lockedHistory ? <div className="module-history-tabs" role="tablist">
           {(Object.keys(GLOBAL_HISTORY_VIEWS) as OperationalHistoryView[]).map((value) => {
@@ -667,22 +679,8 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
             <button type="button" className="report-action-button module-history-excel-button module-history-five-minute-button" disabled={!selectedElementIds.length || fiveMinuteExporting} onClick={() => void exportFiveMinuteExcel()} title="Exportación técnica independiente cada 5 minutos; máximo 3 días calendario."><FileSpreadsheet size={16} aria-hidden="true" /> {fiveMinuteExporting ? 'Generando...' : 'Excel 5 min'}</button>
             <button type="button" className="ghost-action report-action-button module-history-pdf-button" disabled={thresholdExportDisabled || pdfExporting} onClick={() => void exportPdf()} title="Genera un PDF con la misma serie visible."><FileText size={16} aria-hidden="true" /> {pdfExporting ? 'Generando...' : 'PDF'}</button>
           </div>
-{!independentRange ? <label className="module-history-aggregation"><span>Agrupación</span><select value={aggregation} onChange={(event) => setAggregation(event.target.value as HistoryAggregation)}><option value="minute" disabled={rangeDays > HISTORY_MAX_RANGE_DAYS.minute}>1 minuto</option><option value="quarter_hour" disabled={rangeDays > HISTORY_MAX_RANGE_DAYS.quarter_hour}>15 minutos</option><option value="hourly" disabled={rangeDays > HISTORY_MAX_RANGE_DAYS.hourly}>Por hora</option><option value="daily" disabled={rangeDays > HISTORY_MAX_RANGE_DAYS.daily}>Por día</option></select></label> : null}
-        </div>
-      {independentRange ? (
-        <div className="module-history-range-panel" aria-label={lockedHistory ? `Fechas del histórico de ${moduleDisplayLabel}` : 'Fechas del histórico global'}>
-          <div className="module-history-range-fields">
-            <label><span>Desde</span><input type="date" value={draftRange.startDate} onChange={(event) => setDraftRange((current) => ({ ...current, startDate: event.target.value }))} /></label>
-            <label><span>Hasta</span><input type="date" value={draftRange.endDate} onChange={(event) => setDraftRange((current) => ({ ...current, endDate: event.target.value }))} /></label>
-          </div>
           <label className="module-history-aggregation"><span>Agrupación</span><select value={aggregation} onChange={(event) => setAggregation(event.target.value as HistoryAggregation)}><option value="minute" disabled={rangeDays > HISTORY_MAX_RANGE_DAYS.minute}>1 minuto</option><option value="quarter_hour" disabled={rangeDays > HISTORY_MAX_RANGE_DAYS.quarter_hour}>15 minutos</option><option value="hourly" disabled={rangeDays > HISTORY_MAX_RANGE_DAYS.hourly}>Por hora</option><option value="daily" disabled={rangeDays > HISTORY_MAX_RANGE_DAYS.daily}>Por día</option></select></label>
-          <div className="module-history-range-actions">
-            <button type="button" className="primary-action" onClick={applyIndependentRange}>Actualizar</button>
-            <button type="button" className="ghost-action" onClick={resetIndependentRange}>Restablecer</button>
-          </div>
-          <span className="module-history-range-label">{formatOperationalDateRange(effectiveRange)}</span>
         </div>
-      ) : null}
       </div>
       {singleElement ? <div className="dgo-h02-threshold-panel" aria-label="Revisión de umbrales históricos de flujo">
         <label className="dgo-h02-threshold-toggle"><input type="checkbox" checked={thresholdDraft.enabled} onChange={(event) => { setThresholdDraft((draft) => ({ ...draft, enabled: event.target.checked })); if (event.target.checked && metric === 'totalizer') setMetric('both'); }} /> <strong>Revisar umbrales</strong><span>Consulta opcional · L/s</span></label>
@@ -724,7 +722,11 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
       {excelExporting ? <div className="status-pill">Preparando Excel con umbrales…</div> : null}
       {refreshing ? <div className="status-pill auto-refresh-status">Actualizando comparativa…</div> : null}
       {error ? <div className="status-pill alert">{error}</div> : null}
-      {loading && !data ? <div className="status-pill">Cargando comparativa...</div> : null}
+      {loading && !filteredData ? <div className="status-pill" role="status">
+        {historyJobStatus === 'queued' ? 'Histórico en cola: esperando turno de consulta BOS…' :
+          historyJobStatus === 'running' ? 'Consultando BOS y validando intervalos… La pantalla sigue disponible.' :
+            'Preparando histórico operativo…'}
+      </div> : null}
       {rows.length && hasAny && visible.length ? (
         <ResponsiveContainer width="100%" height={410}>
           <ComposedChart data={displayRows} margin={{ top: 16, right: axes.showTotalizer ? 40 : 18, bottom: 18, left: 8 }}>

@@ -24,6 +24,7 @@ from app.database import Base, SessionLocal, engine
 from app.services.seed_service import seed_if_empty
 from app.services.concession_service import initialize_concessions
 from app.services.concession_backup_service import start_concession_backup, stop_concession_backup
+from app.services.water_history_job_service import manager as module_history_jobs
 from app.services.concession_cache_service import (
     initialize_consumption_storage, start_consumption_sync, stop_consumption_sync,
 )
@@ -115,6 +116,7 @@ def on_shutdown():
     stop_consumption_sync()
     stop_concession_backup()
     stop_report_email_scheduler()
+    module_history_jobs.shutdown()
 
 
 @app.get('/')

@@ -23,7 +23,36 @@ async function cachedRequest(key, ttl, forceRefresh, loader, bypassCache = false
 export function clearWaterCache() { cache.clear(); }
 export async function fetchWaterDashboard(section = 'dashboard', options = {}) { const params = buildParams(options); const key = cacheKey(section, options); const bypassCache = Boolean(options.bypassCache || options.bypass_cache); return cachedRequest(key, cacheTtl(params), params.force_refresh, async () => (await api.get(`/water/dashboard/${section}`, { params, timeout: 12000 })).data, bypassCache); }
 export async function fetchWaterHistory(options) { const key = [PLANT_CACHE_KEY, 'history', options.module, String(options.sensorId), options.startDate, options.endDate, options.aggregation].join(':'); const ttl = rangeIncludesToday(options.startDate, options.endDate) ? TODAY_TTL_MS : HISTORY_TTL_MS; return cachedRequest(key, ttl, options.forceRefresh, async () => (await api.get('/water/history', { params: { module: options.module, sensor_id: options.sensorId, start_date: options.startDate, end_date: options.endDate, aggregation: options.aggregation, force_refresh: Boolean(options.forceRefresh) }, timeout: 30000 })).data); }
-export async function fetchWaterModuleHistory(options) { const key = [PLANT_CACHE_KEY, 'history-module', options.module, options.startDate, options.endDate, options.aggregation].join(':'); const ttl = rangeIncludesToday(options.startDate, options.endDate) ? TODAY_TTL_MS : HISTORY_TTL_MS; return cachedRequest(key, ttl, options.forceRefresh, async () => (await api.get('/water/history/module', { params: { module: options.module, start_date: options.startDate, end_date: options.endDate, aggregation: options.aggregation, force_refresh: Boolean(options.forceRefresh) }, timeout: 30000 })).data); }
+// DGO-H07: la IPC calcula el histórico en segundo plano. Ninguna petición
+// espera el procesamiento completo de SQL Server/validacion fisica.
+export async function fetchWaterModuleHistory(options) {
+  const key = [PLANT_CACHE_KEY, 'history-module', options.module, options.startDate, options.endDate, options.aggregation].join(':');
+  const ttl = rangeIncludesToday(options.startDate, options.endDate) ? TODAY_TTL_MS : HISTORY_TTL_MS;
+  return cachedRequest(key, ttl, options.forceRefresh, async () => {
+    const job = (await api.post('/water/history/module/jobs', {
+        module: options.module, start_date: options.startDate,
+        end_date: options.endDate, aggregation: options.aggregation,
+        force_refresh: Boolean(options.forceRefresh),
+      }, { timeout: 12000 })).data;
+    if (typeof options.onStatus === 'function') options.onStatus(job.status);
+    const started = Date.now();
+    let status = job;
+    while (status.status === 'queued' || status.status === 'running') {
+      // El timeout es para cada solicitud HTTP, no para toda la operación.
+      // El límite de espera protege frente a un proceso BOS estancado.
+      if (Date.now() - started > 15 * 60 * 1000) {
+        throw new Error('La consulta excedió 15 minutos. Verifica BOS y vuelve a intentar.');
+      }
+      await new Promise((resolve) => setTimeout(resolve, 2500));
+      status = (await api.get(`/water/history/module/jobs/${job.id}`, { timeout: 12000 })).data;
+      if (typeof options.onStatus === 'function') options.onStatus(status.status);
+    }
+    if (status.status !== 'ready') {
+      throw new Error(status.error || 'No fue posible consultar el histórico operativo.');
+    }
+    return (await api.get(`/water/history/module/jobs/${job.id}/result`, { timeout: 20000 })).data;
+  });
+}
 export async function fetchWellsMinuteFlow(options) { const key = [PLANT_CACHE_KEY, 'wells-minute', options.startDateTime, options.endDateTime].join(':'); const ttl = rangeIncludesToday(options.startDateTime.slice(0, 10), options.endDateTime.slice(0, 10)) ? TODAY_TTL_MS : HISTORY_TTL_MS; return cachedRequest(key, ttl, options.forceRefresh, async () => (await api.get('/water/wells/minute-flow', { params: { start_datetime: options.startDateTime, end_datetime: options.endDateTime, force_refresh: Boolean(options.forceRefresh) }, timeout: 30000 })).data); }
 export async function fetchWaterShifts(options) { const key = [PLANT_CACHE_KEY, 'shifts', options.date, options.shift || 'all'].join(':'); const ttl = options.date === localToday() ? TODAY_TTL_MS : HISTORY_TTL_MS; return cachedRequest(key, ttl, options.forceRefresh, async () => (await api.get('/water/shifts', { params: { date: options.date, shift: options.shift || 'all', force_refresh: Boolean(options.forceRefresh) }, timeout: 30000 })).data); }
 export async function fetchWaterDailyReview(options = {}) { const key = [PLANT_CACHE_KEY, 'review-daily', options.date || '', options.includeShifts === false ? 'no-shifts' : 'shifts', options.includeComparatives === false ? 'no-comparatives' : 'comparatives'].join(':'); const ttl = (options.date || localToday()) === localToday() ? TODAY_TTL_MS : HISTORY_TTL_MS; return cachedRequest(key, ttl, options.forceRefresh, async () => (await api.get('/water/review/daily', { params: { date: options.date || undefined, include_shifts: options.includeShifts !== false, include_comparatives: options.includeComparatives !== false, force_refresh: Boolean(options.forceRefresh) }, timeout: 45000 })).data); }
