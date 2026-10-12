@@ -22,7 +22,7 @@ test('navegación visible responde a capabilities y conserva estados pendientes'
   const items = buildDurangoNavigation({}, 'viewer');
   const labels = items.map((item) => item.label);
   assert.deepEqual(labels, [
-    'Resumen', 'Pozos', 'Líneas', 'Lavadoras', 'Jarabes',
+    'Resumen', 'Pozos', 'Líneas', 'Lavadoras', 'Jarabes', 'Concesiones',
     'Balance de Agua · En validación',
     'Revisión Diaria', 'Reportes',
   ]);

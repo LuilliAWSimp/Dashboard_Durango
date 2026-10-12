@@ -12,6 +12,7 @@ import FlujosSection from './pozos/sections/FlujosSection';
 import ReportesSection from './pozos/sections/ReportesSection';
 import JarabesSection from './pozos/sections/JarabesSection';
 import UsersPage from './UsersPage';
+import ConcesionesSection from './pozos/sections/ConcesionesSection';
 
 const pieColors = ['#14b8ff', '#0ea5e9', '#38bdf8'];
 const axisColor = '#b9e7ff';
@@ -47,6 +48,10 @@ const sectionMap = {
   render: ({ itemId } = {}) => <JarabesSection itemId={itemId} />,
 },
 
+  concesiones: {
+    title: 'Concesiones',
+    render: ({ user } = {}) => <ConcesionesSection currentUser={user} />,
+  },
   balance: {
     title: 'Balance de Agua',
     render: () => <BalanceSection />,
@@ -82,7 +87,7 @@ export default function PozosDashboardPage({ section = 'dashboard', itemId, setH
     setHeaderMeta({
       title: current.title,
       subtitle: '',
-      onExport: effectiveSection === 'reportes' || effectiveSection === 'usuarios' ? null : async (format) => {
+      onExport: effectiveSection === 'reportes' || effectiveSection === 'usuarios' || effectiveSection === 'concesiones' ? null : async (format) => {
         try {
           await downloadWaterReport(effectiveSection, format, { itemId, title: current.title });
         } catch (error) {

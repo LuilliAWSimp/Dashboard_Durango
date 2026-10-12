@@ -77,6 +77,9 @@ class Settings(BaseSettings):
     report_email_max_attempts: int = Field(default=3, alias="REPORT_EMAIL_MAX_ATTEMPTS")
     report_email_retry_minutes: int = Field(default=10, alias="REPORT_EMAIL_RETRY_MINUTES")
 
+    concession_database_path: str = Field(default="data/concessions.sqlite3", alias="CONCESSION_DATABASE_PATH")
+    concession_documents_path: str = Field(default="data/concessions/documents", alias="CONCESSION_DOCUMENTS_PATH")
+
     # SQL Server settings
     sqlserver_host: str = Field(default=r"SERVER-SCADA\SQLSCADA", validation_alias=AliasChoices("SQLSERVER_HOST", "DB_SERVER"))
     sqlserver_port: int = Field(default=1433, alias="SQLSERVER_PORT")
