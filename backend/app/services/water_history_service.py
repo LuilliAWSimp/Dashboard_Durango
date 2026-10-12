@@ -374,6 +374,8 @@ def _aggregate(
     rows: list[dict[str, Any]],
     aggregation: Aggregation,
     validation_rows: list[dict[str, Any]] | None = None,
+    *,
+    flow_only: bool = False,
 ) -> dict[datetime, dict[str, Any]]:
     grouped: dict[datetime, list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
@@ -402,6 +404,20 @@ def _aggregate(
         maxs = [_num(row.get('flow_max')) for row in bucket_rows]
         mins = [value for value in mins if value is not None]
         maxs = [value for value in maxs if value is not None]
+        if flow_only:
+            # Flow-only charts do not calculate or imply measured volume.
+            result[bucket] = {
+                'samples': samples, 'active_samples': active_samples,
+                'flow_avg': flow_avg, 'flow_active_avg': flow_active_avg,
+                'flow_min': min(mins) if mins else None,
+                'flow_max': max(maxs) if maxs else None,
+                'total_open': None, 'total_close': None, 'volume': None,
+                'reliable': False, 'status': 'flow_only',
+                'validated_volume_m3': None, 'discarded_volume_m3': 0.0,
+                'discarded_totalizer_events': 0, 'discarded_totalizer_event_details': [],
+                'has_discontinuities': False,
+            }
+            continue
         if aggregation == 'minute':
             observed_open = next((_num(row.get('total_open')) for row in bucket_rows if _num(row.get('total_open')) is not None), None)
             observed_close = next((_num(row.get('total_close')) for row in reversed(bucket_rows) if _num(row.get('total_close')) is not None), None)
@@ -525,8 +541,9 @@ def _build_points(
     validation_rows: list[dict[str, Any]] | None = None,
     *,
     effective_end_dt: datetime | None = None,
+    flow_only: bool = False,
 ) -> list[dict[str, Any]]:
-    aggregates = _aggregate(sensor_id, rows, aggregation, validation_rows)
+    aggregates = _aggregate(sensor_id, rows, aggregation, validation_rows, flow_only=flow_only)
     result: list[dict[str, Any]] = []
     cursor = _floor(start_dt, aggregation)
     step = _step(aggregation)
@@ -858,6 +875,103 @@ def _query_15m_multi(sensor_ids: list[int], start_dt: datetime, end_dt: datetime
         raise WaterHistoryError('No fue posible consultar el histórico de planta.', status='sql_error') from exc
 
 
+def _flow_bucket_sql(aggregation: Aggregation) -> str:
+    """Bucketing on the source-time clock, matching the existing Durango pipeline."""
+    anchor = "CONVERT(datetime2, '20000101')"
+    units = {'minute': 'minute', 'quarter_hour': 'minute', 'hourly': 'hour', 'daily': 'day'}
+    unit = units[aggregation]
+    amount = f'DATEDIFF({unit}, {anchor}, reading_ts)'
+    if aggregation == 'quarter_hour':
+        amount = f'({amount} / 15) * 15'
+    return f'DATEADD({unit}, {amount}, {anchor})'
+
+
+def _query_flow_buckets(sensor_ids: list[int], start_dt: datetime, end_dt: datetime, aggregation: Aggregation) -> list[dict[str, Any]]:
+    """DGO-H08: return only flow statistics, aggregated on SQL Server.
+
+    Similar to Insurgentes' set-based history, while retaining Durango's
+    timezone and Pozo 1 calibration. Separate seek-friendly ts_local and
+    NULL-ts_local branches preserve COALESCE(ts_local, ts_minute) semantics.
+    This MUST NOT be used for a volume/totalizer export: no totalizer is
+    inferred and no physical validation is skipped in the full-data path.
+    """
+    if not sensor_ids or end_dt <= start_dt:
+        return []
+    params: dict[str, Any] = {
+        'start_dt': local_to_source_naive(start_dt, LOCAL_TIMEZONE),
+        'end_dt': local_to_source_naive(end_dt, LOCAL_TIMEZONE),
+        'pozo_1_sensor_id': POZO_1_FLOW_SENSOR_ID,
+        'pozo_1_flow_cutoff': POZO_1_FLOW_CALIBRATION_CUTOFF_LOCAL,
+        'pozo_1_legacy_factor': POZO_1_LEGACY_FLOW_NORMALIZATION_FACTOR,
+    }
+    keys: list[str] = []
+    for index, sensor_id in enumerate(sensor_ids):
+        name = f'sensor_{index}'
+        keys.append(f':{name}')
+        params[name] = int(sensor_id)
+    sensor_filter = ', '.join(keys)
+    bucket_sql = _flow_bucket_sql(aggregation)
+    sql = text(f"""
+        WITH filtered AS (
+            SELECT reading.sensor_id, reading.ts_local AS reading_ts,
+                   reading.instant_value, reading.total_value
+              FROM iot.readings_minute AS reading
+             WHERE reading.sensor_id IN ({sensor_filter})
+               AND reading.ts_local >= :start_dt AND reading.ts_local < :end_dt
+            UNION ALL
+            SELECT reading.sensor_id, reading.ts_minute AS reading_ts,
+                   reading.instant_value, reading.total_value
+              FROM iot.readings_minute AS reading
+             WHERE reading.sensor_id IN ({sensor_filter})
+               AND reading.ts_local IS NULL
+               AND reading.ts_minute >= :start_dt AND reading.ts_minute < :end_dt
+        ), normalized AS (
+            SELECT sensor_id, reading_ts,
+                CASE WHEN sensor_id = :pozo_1_sensor_id AND reading_ts < :pozo_1_flow_cutoff
+                     THEN TRY_CONVERT(float, instant_value) * :pozo_1_legacy_factor
+                     ELSE TRY_CONVERT(float, instant_value) END AS flow_value,
+                TRY_CONVERT(float, total_value) AS total_value
+              FROM filtered
+        ), bucketed AS (
+            SELECT sensor_id, {bucket_sql} AS bucket_start, flow_value, total_value
+              FROM normalized
+        )
+        SELECT sensor_id, bucket_start,
+               SUM(CASE WHEN flow_value IS NOT NULL OR total_value IS NOT NULL THEN 1 ELSE 0 END) AS samples,
+               SUM(CASE WHEN flow_value > 0 THEN 1 ELSE 0 END) AS active_samples,
+               AVG(flow_value) AS flow_avg,
+               AVG(CASE WHEN flow_value > 0 THEN flow_value END) AS flow_active_avg,
+               MIN(flow_value) AS flow_min,
+               MAX(flow_value) AS flow_max
+          FROM bucketed
+         GROUP BY sensor_id, bucket_start
+         ORDER BY sensor_id, bucket_start
+    """)
+    started = monotonic()
+    all_rows: list[dict[str, Any]] = []
+    try:
+        with SessionLocal() as session:
+            # Match the existing source check; no DDL or schema changes.
+            exists = session.execute(text("SELECT CASE WHEN OBJECT_ID('iot.readings_minute','U') IS NULL THEN 0 ELSE 1 END")).scalar()
+            if not exists:
+                raise WaterHistoryError('La fuente histórica no está disponible.', status='no_history_source')
+            for left, right in _history_query_windows(start_dt, end_dt, aggregation):
+                chunk_params = {**params,
+                    'start_dt': local_to_source_naive(left, LOCAL_TIMEZONE),
+                    'end_dt': local_to_source_naive(right, LOCAL_TIMEZONE)}
+                all_rows.extend(dict(row._mapping) for row in session.execute(sql, chunk_params).fetchall())
+    except WaterHistoryError:
+        raise
+    except OperationalError as exc:
+        status = 'timeout' if any(token in str(exc).lower() for token in ('timeout', 'hyt00', 'hyt01')) else 'sql_error'
+        raise WaterHistoryError('La consulta histórica tardó demasiado.' if status == 'timeout' else 'No fue posible consultar el histórico de planta.', status=status) from exc
+    except SQLAlchemyError as exc:
+        raise WaterHistoryError('No fue posible consultar el histórico de planta.', status='sql_error') from exc
+    logger.info('Durango H08 flow-only SQL sensors=%s aggregation=%s buckets=%s seconds=%.3f',
+                len(sensor_ids), aggregation, len(all_rows), monotonic() - started)
+    return _localized_rows(all_rows, 'bucket_start', source_timezone=LOCAL_TIMEZONE, normalize_flows=False)
+
+
 def _query_minute_history_rows(sensor_ids: list[int], start_dt: datetime, end_dt: datetime) -> list[dict[str, Any]]:
     params: dict[str, Any] = {
         'start_dt': local_to_source_naive(start_dt, LOCAL_TIMEZONE),
@@ -976,7 +1090,7 @@ def _bos_rows_to_15m(sensor_id: int, rows: list[dict[str, Any]]) -> list[dict[st
     return result
 
 
-def get_water_history_module(*, module: str, start_date: str, end_date: str, aggregation: str, force_refresh: bool = False) -> dict[str, Any]:
+def get_water_history_module(*, module: str, start_date: str, end_date: str, aggregation: str, force_refresh: bool = False, flow_only: bool = False) -> dict[str, Any]:
     module, aggregation, start, end = _validate_module_request(module, start_date, end_date, aggregation)
     now_local = local_now_naive()
     requested_start_dt = datetime.combine(start, time.min)
@@ -990,7 +1104,7 @@ def get_water_history_module(*, module: str, start_date: str, end_date: str, agg
     cache_end = effective_end_dt
     if includes_today:
         cache_end = effective_end_dt.replace(minute=(effective_end_dt.minute // 5) * 5, second=0, microsecond=0)
-    cache_key = f'durango:module:{module}:{start}:{end}:{aggregation}:{cache_end.isoformat(timespec="minutes")}'
+    cache_key = f'durango:module:{module}:{start}:{end}:{aggregation}:{cache_end.isoformat(timespec="minutes")}:{"flow" if flow_only else "complete"}'
     cached = _CACHE.get(cache_key)
     if not force_refresh and cached and monotonic() < cached['expires_at']:
         return cached['value']
@@ -1002,7 +1116,19 @@ def get_water_history_module(*, module: str, start_date: str, end_date: str, agg
     query_error: WaterHistoryError | None = None
     grouped: dict[Any, list[dict[str, Any]]] = {identity: [] for identity in identities}
     validation_grouped: dict[Any, list[dict[str, Any]]] = {identity: [] for identity in identities}
-    if not legacy_only and module == 'flow':
+    # Fast set-based SQL path exclusively for the multi-sensor 'Flujo' view.
+    # Full 'Totalizador'/'Ambos', reports and individual histories are unchanged.
+    if flow_only and not legacy_only and module in {'well', 'line'}:
+        numeric_ids = [int(value) for value in identities]
+        try:
+            if query_end_dt > query_start_dt:
+                for row in _query_flow_buckets(numeric_ids, query_start_dt, query_end_dt, aggregation):
+                    sensor = int(row.get('sensor_id') or 0)
+                    if sensor in grouped:
+                        grouped[sensor].append(row)
+        except WaterHistoryError as exc:
+            query_error = exc
+    elif not legacy_only and module == 'flow':
         line_flow_ids = [
             int(identity)
             for identity in identities
@@ -1047,7 +1173,7 @@ def get_water_history_module(*, module: str, start_date: str, end_date: str, agg
                 row_sensor = int(row.get('sensor_id') or 0)
                 if row_sensor in grouped:
                     grouped[row_sensor].append(row)
-        if module == 'well' and aggregation != 'minute' and query_end_dt > query_start_dt:
+        if module == 'well' and not flow_only and aggregation != 'minute' and query_end_dt > query_start_dt:
             for row in _query_physical_validation_rows_chunked(numeric_ids, query_start_dt, query_end_dt):
                 validation_sensor = int(row.get('sensor_id') or 0)
                 if validation_sensor in validation_grouped:
@@ -1078,6 +1204,7 @@ def get_water_history_module(*, module: str, start_date: str, end_date: str, agg
         points = _build_points(
             identity, aggregation, requested_start_dt, requested_end_dt, sensor_rows, sensor_validation_rows,
             effective_end_dt=effective_end_dt,
+            flow_only=flow_only,
         )
         contract = sensor_contract(identity)
         series.append({
@@ -1095,6 +1222,7 @@ def get_water_history_module(*, module: str, start_date: str, end_date: str, agg
     payload = {
         'plant': 'Planta Durango',
         'module': module,
+        'flow_only': flow_only,
         'start_date': start.isoformat(),
         'end_date': end.isoformat(),
         'aggregation': aggregation,

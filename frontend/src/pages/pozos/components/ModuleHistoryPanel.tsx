@@ -221,6 +221,7 @@ function ModuleTooltip({
   totalizerDisplay,
   volumeDisplay,
   singleElement,
+  flowOnly,
   palette,
   items,
   module,
@@ -234,6 +235,7 @@ function ModuleTooltip({
   totalizerDisplay: TotalizerDisplay;
   volumeDisplay: DetailVolumeDisplay;
   singleElement: boolean;
+  flowOnly: boolean;
   palette: string[];
   items: HistoryItem[];
   module: ComparisonModule;
@@ -278,7 +280,7 @@ function ModuleTooltip({
                   {singleElement && thresholdStates ? <><span>Umbral</span><strong>{thresholdStates[row.bucketStart] || 'Sin lectura'}</strong></> : null}
                   <span>Cobertura</span><strong>{formatNumber(meta?.coveragePercent)}% · {String(meta?.coverageStatus || 'Sin registros')}</strong>
                   <span>Actividad</span><strong>{String(meta?.intervalState || (status === 'no_data' ? 'Sin registros' : status === 'zero_consumption' ? 'Apagado con datos' : status === 'partial_activity' ? 'Actividad parcial' : 'Activo'))}</strong>
-                  <span>Validación</span><strong>{String(meta?.validation || (status === 'invalid_totalizer' ? 'Validación parcial' : status === 'no_data' || status === 'no_history' ? 'Sin volumen validado' : 'Validado'))}</strong>
+                  {!flowOnly ? <><span>Validación</span><strong>{String(meta?.validation || (status === 'invalid_totalizer' ? 'Validación parcial' : status === 'no_data' || status === 'no_history' ? 'Sin volumen validado' : 'Validado'))}</strong></> : null}
                 </>}
               </div>
             </div>
@@ -337,6 +339,7 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
   const aggregation = controlledAggregation || internalAggregation;
   const rangeDays = inclusiveHistoryRangeDays(String(effectiveRange.startDate || ''), String(effectiveRange.endDate || ''));
   const [metric, setMetric] = useState<ComparisonMetric>(() => singleElement ? 'both' : 'flow');
+  const flowOnly = !singleElement && metric === 'flow';
   const [totalizerDisplay, setTotalizerDisplay] = useState<TotalizerDisplay>('delta');
   const [volumeDisplay, setVolumeDisplay] = useState<DetailVolumeDisplay>('interval');
   const [pdfExporting, setPdfExporting] = useState(false);
@@ -357,7 +360,7 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
   const lastResolvedIdentityRef = useRef('');
 
   const singleIdentity = singleElement && activeIdentities.length === 1 ? activeIdentities[0] : null;
-  const queryIdentity = `${module}:${singleIdentity === null ? 'module' : identityText(singleIdentity)}:${effectiveRange.startDate}:${effectiveRange.endDate}:${aggregation}`;
+  const queryIdentity = `${module}:${singleIdentity === null ? 'module' : identityText(singleIdentity)}:${effectiveRange.startDate}:${effectiveRange.endDate}:${aggregation}:${flowOnly ? 'flow' : 'complete'}`;
 
   useEffect(() => { dataRef.current = data; }, [data]);
   useEffect(() => {
@@ -416,6 +419,7 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
             endDate: String(effectiveRange.endDate),
             aggregation,
             forceRefresh,
+            flowOnly,
             onStatus: (status: string) => {
               if (requestId === requestIdRef.current) setHistoryJobStatus(status);
             },
@@ -443,7 +447,7 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
       if (requestId === requestIdRef.current) { setLoading(false); setRefreshing(false); setHistoryJobStatus(''); }
       if (inFlightIdentityRef.current === identity) inFlightIdentityRef.current = '';
     }
-  }, [module, singleIdentity, queryIdentity, effectiveRange.startDate, effectiveRange.endDate, aggregation]);
+  }, [module, singleIdentity, queryIdentity, effectiveRange.startDate, effectiveRange.endDate, aggregation, flowOnly]);
 
   useEffect(() => {
     const refreshKey = Number(effectiveRange.refreshKey || 0);
@@ -723,8 +727,8 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
       {refreshing ? <div className="status-pill auto-refresh-status">Actualizando comparativa…</div> : null}
       {error ? <div className="status-pill alert">{error}</div> : null}
       {loading && !filteredData ? <div className="status-pill" role="status">
-        {historyJobStatus === 'queued' ? 'Histórico en cola: esperando turno de consulta BOS…' :
-          historyJobStatus === 'running' ? 'Consultando BOS y validando intervalos… La pantalla sigue disponible.' :
+        {historyJobStatus === 'queued' ? 'Histórico en cola: esperando turno para consultar SQL Server…' :
+          historyJobStatus === 'running' ? 'Consultando SQL Server para el período seleccionado… La gráfica se mostrará cuando termine.' :
             'Preparando histórico operativo…'}
       </div> : null}
       {rows.length && hasAny && visible.length ? (
@@ -734,7 +738,7 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
             <XAxis dataKey="timestamp" type="number" scale="time" domain={['dataMin', 'dataMax']} tickFormatter={(value) => tick(Number(value), aggregation)} minTickGap={32} stroke="#b9e7ff" />
             {axes.showFlow ? <YAxis yAxisId="flow" stroke="#7dd3fc" width={62} tickFormatter={(value) => Number(value).toLocaleString('es-MX')} label={{ value: 'L/s', angle: -90, position: 'insideLeft', fill: '#7dd3fc' }} /> : null}
             {axes.showTotalizer ? <YAxis yAxisId="totalizer" orientation={axes.independentAxes ? 'right' : 'left'} stroke="#c4b5fd" width={78} tickFormatter={(value) => Number(value).toLocaleString('es-MX')} label={{ value: totalizerAxisLabel, angle: axes.independentAxes ? 90 : -90, position: axes.independentAxes ? 'insideRight' : 'insideLeft', fill: '#c4b5fd' }} /> : null}
-            <Tooltip content={<ModuleTooltip aggregation={aggregation} selected={visible} metric={metric} totalizerDisplay={effectiveTotalizerDisplay} volumeDisplay={volumeDisplay} singleElement={singleElement} palette={palette} items={activeItems} module={module} thresholdStates={thresholdStates} />} filterNull={false} allowEscapeViewBox={{ x: true, y: true }} wrapperStyle={{ zIndex: 120, pointerEvents: 'none' }} offset={16} />
+            <Tooltip content={<ModuleTooltip aggregation={aggregation} selected={visible} metric={metric} totalizerDisplay={effectiveTotalizerDisplay} volumeDisplay={volumeDisplay} singleElement={singleElement} flowOnly={flowOnly} palette={palette} items={activeItems} module={module} thresholdStates={thresholdStates} />} filterNull={false} allowEscapeViewBox={{ x: true, y: true }} wrapperStyle={{ zIndex: 120, pointerEvents: 'none' }} offset={16} />
             {singleElement && threshold.enabled && axes.showFlow && threshold.direction !== 'above' && threshold.minValue !== null ? <ReferenceLine yAxisId="flow" y={threshold.minValue} stroke="#F59E0B" strokeWidth={1.8} strokeDasharray="6 4" label={{ value: `Mín. ${threshold.minValue} L/s`, fill: '#F59E0B', fontSize: 11, position: 'insideTopRight' }} /> : null}
             {singleElement && threshold.enabled && axes.showFlow && threshold.direction !== 'below' && threshold.maxValue !== null ? <ReferenceLine yAxisId="flow" y={threshold.maxValue} stroke="#FB7185" strokeWidth={1.8} strokeDasharray="6 4" label={{ value: `Máx. ${threshold.maxValue} L/s`, fill: '#FB7185', fontSize: 11, position: 'insideBottomRight' }} /> : null}
             <Legend />

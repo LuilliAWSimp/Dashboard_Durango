@@ -79,6 +79,7 @@ class ModuleHistoryJobRequest(BaseModel):
     end_date: str
     aggregation: Literal['minute', 'quarter_hour', 'hourly', 'daily']
     force_refresh: bool = False
+    flow_only: bool = False
 
 
 @router.post('/history/module/jobs')

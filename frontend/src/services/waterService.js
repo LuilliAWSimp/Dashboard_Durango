@@ -26,12 +26,13 @@ export async function fetchWaterHistory(options) { const key = [PLANT_CACHE_KEY,
 // DGO-H07: la IPC calcula el histórico en segundo plano. Ninguna petición
 // espera el procesamiento completo de SQL Server/validacion fisica.
 export async function fetchWaterModuleHistory(options) {
-  const key = [PLANT_CACHE_KEY, 'history-module', options.module, options.startDate, options.endDate, options.aggregation].join(':');
+  const key = [PLANT_CACHE_KEY, 'history-module', options.module, options.startDate, options.endDate, options.aggregation, options.flowOnly ? 'flow' : 'complete'].join(':');
   const ttl = rangeIncludesToday(options.startDate, options.endDate) ? TODAY_TTL_MS : HISTORY_TTL_MS;
   return cachedRequest(key, ttl, options.forceRefresh, async () => {
     const job = (await api.post('/water/history/module/jobs', {
         module: options.module, start_date: options.startDate,
         end_date: options.endDate, aggregation: options.aggregation,
+        flow_only: Boolean(options.flowOnly),
         force_refresh: Boolean(options.forceRefresh),
       }, { timeout: 12000 })).data;
     if (typeof options.onStatus === 'function') options.onStatus(job.status);
@@ -39,9 +40,9 @@ export async function fetchWaterModuleHistory(options) {
     let status = job;
     while (status.status === 'queued' || status.status === 'running') {
       // El timeout es para cada solicitud HTTP, no para toda la operación.
-      // El límite de espera protege frente a un proceso BOS estancado.
+      // El límite de espera protege frente a una consulta SQL detenida.
       if (Date.now() - started > 15 * 60 * 1000) {
-        throw new Error('La consulta excedió 15 minutos. Verifica BOS y vuelve a intentar.');
+        throw new Error('La consulta excedió 15 minutos. Verifica la consulta SQL y vuelve a intentar.');
       }
       await new Promise((resolve) => setTimeout(resolve, 2500));
       status = (await api.get(`/water/history/module/jobs/${job.id}`, { timeout: 12000 })).data;

@@ -44,9 +44,9 @@ class ModuleHistoryJobManager:
     def _public(job: dict[str, Any]) -> dict[str, Any]:
         return {key: job.get(key) for key in ('id', 'status', 'created_at', 'updated_at', 'error')}
 
-    def submit(self, *, owner_id: int, module: str, start_date: str, end_date: str, aggregation: str, force_refresh: bool = False) -> dict[str, Any]:
+    def submit(self, *, owner_id: int, module: str, start_date: str, end_date: str, aggregation: str, force_refresh: bool = False, flow_only: bool = False) -> dict[str, Any]:
         parsed_module, parsed_agg, start, end = _validate_module_request(module, start_date, end_date, aggregation)
-        options = dict(module=parsed_module, start_date=start.isoformat(), end_date=end.isoformat(), aggregation=parsed_agg)
+        options = dict(module=parsed_module, start_date=start.isoformat(), end_date=end.isoformat(), aggregation=parsed_agg, flow_only=bool(flow_only))
         fingerprint = (owner_id, *(options.values()))
         with self._lock:
             now = time.time()
@@ -91,7 +91,7 @@ class ModuleHistoryJobManager:
             # No exponer SQL, cadenas de conexion u ODBC en el cliente.
             from app.services.water_history_service import WaterHistoryError
             if isinstance(exc, WaterHistoryError):
-                message = 'La consulta de BOS no se pudo completar. Comprueba su disponibilidad y vuelve a intentar.'
+                message = 'La consulta a SQL Server no se pudo completar. Comprueba la conexión y vuelve a intentar.'
             else:
                 message = 'No se pudo completar la consulta historica de planta.'
             with self._lock:

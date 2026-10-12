@@ -19,5 +19,5 @@ test('cambio de fechas no mantiene gráfica antigua durante error o recarga', ()
   assert.match(component, /setData\(null\)/);
   assert.match(component, /resolvedQueryIdentity !== queryIdentity/);
   assert.match(component, /Histórico en cola/);
-  assert.match(component, /Consultando BOS y validando intervalos/);
+  assert.match(component, /Consultando SQL Server para el período seleccionado/);
 });
