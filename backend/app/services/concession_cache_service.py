@@ -64,6 +64,17 @@ def initialize_consumption_storage() -> None:
             status TEXT NOT NULL DEFAULT 'pending', updated_at TEXT NOT NULL
           );
         ''')
+        # C05: ampliar el esquema existente sin borrar ni recalcular los 70 dias guardados.
+        columns = {row['name'] for row in conn.execute('PRAGMA table_info(concession_daily_consumption)')}
+        additions = {
+            'totalizer_open_m3': 'REAL NULL',
+            'totalizer_close_m3': 'REAL NULL',
+            'discarded_totalizer_events': 'INTEGER NOT NULL DEFAULT 0',
+            'has_discontinuities': 'INTEGER NOT NULL DEFAULT 0',
+        }
+        for name, definition in additions.items():
+            if name not in columns:
+                conn.execute(f'ALTER TABLE concession_daily_consumption ADD COLUMN {name} {definition}')
         conn.execute('''INSERT OR IGNORE INTO concession_sync_state
           (id,next_backfill_day,updated_at) VALUES (1,?,?)''', (_CUTOVER.isoformat(), _iso()))
         conn.commit()
@@ -88,6 +99,56 @@ def _sync_summary(conn: sqlite3.Connection, today: date) -> dict:
         'initial_load_complete': processed >= total_days,
         'refresh_minutes': max(5, int(get_settings().concession_sync_refresh_minutes)),
         'manual_rebuild_pending': bool(state['force_next_day']),
+        'persisted_locally': True,
+        'source_queries_on_page_load': False,
+    }
+
+
+def _well_coverage(conn: sqlite3.Connection, year: int, start: date, end: date, key: str) -> dict:
+    """Diagnostic from cached daily rows only; not a live SCADA query."""
+    expected_days = max(0, (end - start).days + 1)
+    row = conn.execute('''SELECT COUNT(*) AS processed_days,
+      COALESCE(SUM(CASE WHEN volume_reliable=1 AND volume_m3 IS NOT NULL AND samples_received>0 THEN 1 ELSE 0 END),0) AS valid_days,
+      COALESCE(SUM(CASE WHEN samples_received>0 AND NOT (volume_reliable=1 AND volume_m3 IS NOT NULL) THEN 1 ELSE 0 END),0) AS excluded_days,
+      COALESCE(SUM(samples_received),0) AS samples_received,
+      COALESCE(SUM(samples_expected),0) AS samples_expected,
+      COALESCE(SUM(CASE WHEN samples_expected<=0 THEN 1 ELSE 0 END),0) AS days_without_expected,
+      COALESCE(SUM(discarded_totalizer_events),0) AS discarded_events,
+      MIN(CASE WHEN volume_reliable=1 AND samples_received>0 AND volume_m3 IS NOT NULL THEN day END) AS first_valid_day,
+      MAX(CASE WHEN volume_reliable=1 AND samples_received>0 AND volume_m3 IS NOT NULL THEN day END) AS last_valid_day
+      FROM concession_daily_consumption WHERE plant_key=? AND well_key=? AND day BETWEEN ? AND ?''',
+      (_PLANT,key,start.isoformat(),end.isoformat())).fetchone()
+    processed = int(row['processed_days'])
+    valid = int(row['valid_days'])
+    excluded = int(row['excluded_days'])
+    first = conn.execute('''SELECT day,totalizer_open_m3 FROM concession_daily_consumption
+      WHERE plant_key=? AND well_key=? AND day BETWEEN ? AND ? AND
+        volume_reliable=1 AND totalizer_open_m3 IS NOT NULL ORDER BY day ASC LIMIT 1''',
+      (_PLANT,key,start.isoformat(),end.isoformat())).fetchone()
+    last = conn.execute('''SELECT day,totalizer_close_m3 FROM concession_daily_consumption
+      WHERE plant_key=? AND well_key=? AND day BETWEEN ? AND ? AND
+        volume_reliable=1 AND totalizer_close_m3 IS NOT NULL ORDER BY day DESC LIMIT 1''',
+      (_PLANT,key,start.isoformat(),end.isoformat())).fetchone()
+    samples_expected = int(row['samples_expected'])
+    return {
+        'period_year': year, 'expected_days': expected_days,
+        'processed_days': processed, 'days_with_volume': valid,
+        'days_without_data': max(0,processed-valid-excluded),
+        'days_excluded': excluded,
+        'days_pending': max(0,expected_days-processed),
+        'samples_received': int(row['samples_received']),
+        'samples_expected': samples_expected,
+        'sample_coverage_percent': round(min(100, 100*int(row['samples_received'])/samples_expected),1)
+                                   if samples_expected and not row['days_without_expected'] else None,
+        'first_valid_day': row['first_valid_day'], 'last_valid_day': row['last_valid_day'],
+        # Las lecturas inicial/final son una referencia de los dias disponibles,
+        # no se deben restar como sustituto de los incrementos validados.
+        'first_totalizer_m3': first['totalizer_open_m3'] if first else None,
+        'last_totalizer_m3': last['totalizer_close_m3'] if last else None,
+        'discarded_totalizer_events': int(row['discarded_events']),
+        'historical_snapshots_incomplete': valid>0 and (
+            first is None or last is None or
+            first['day'] != row['first_valid_day'] or last['day'] != row['last_valid_day']),
     }
 
 
@@ -102,6 +163,7 @@ def cached_monthly_history(year: int) -> dict:
         monthly = conn.execute('''SELECT * FROM concession_monthly_consumption
           WHERE plant_key=? AND year=?''', (_PLANT, year)).fetchall()
         sync = _sync_summary(conn, today)
+        coverage = {key: _well_coverage(conn, year, start, end, key) for key in _WELLS}
     indexed = {(record['well_key'], record['month']): dict(record) for record in monthly}
     # El contrato permanece identico al de C03, para que las graficas conserven semantica.
     response = summarize_months({'series': []}, year=year, start=start, end=end)
@@ -120,6 +182,7 @@ def cached_monthly_history(year: int) -> dict:
             if month['volume_m3'] is not None:
                 months_with_data += 1
                 total += month['volume_m3']
+        well['coverage'] = coverage[well['well_key']]
         well['months_with_data'] = months_with_data
         well['operational_total_m3'] = round(total, 3) if months_with_data else None
         well['has_partial_coverage'] = start > date(year, 1, 1) or any(month['status'] == 'partial' for month in well['months'])
@@ -145,14 +208,24 @@ def _write_day(day: date, history: dict) -> None:
             expected = max(0, int(point.get('samples_expected') or 0))
             parsed = _as_number(point.get('volume_m3'))
             reliable = samples > 0 and bool(point.get('volume_reliable')) and parsed is not None
+            # C05: conservar puntos de conciliacion cuando BOS los exponga;
+            # no rellenar lecturas antiguas artificialmente ni forzar un backfill.
+            open_m3 = _as_number(point.get('totalizer_open_m3')) if samples else None
+            close_m3 = _as_number(point.get('totalizer_close_m3')) if samples else None
+            discarded = max(0, int(point.get('discarded_totalizer_events') or 0))
+            discontinuities = int(bool(point.get('has_discontinuities')))
             conn.execute('''INSERT INTO concession_daily_consumption
-                (plant_key,well_key,day,volume_m3,volume_reliable,samples_received,samples_expected,processed_at)
-                VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(plant_key,well_key,day) DO UPDATE SET
+                (plant_key,well_key,day,volume_m3,volume_reliable,samples_received,samples_expected,
+                 processed_at,totalizer_open_m3,totalizer_close_m3,discarded_totalizer_events,has_discontinuities)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(plant_key,well_key,day) DO UPDATE SET
                 volume_m3=excluded.volume_m3,volume_reliable=excluded.volume_reliable,
                 samples_received=excluded.samples_received,samples_expected=excluded.samples_expected,
-                processed_at=excluded.processed_at''',
+                processed_at=excluded.processed_at,totalizer_open_m3=excluded.totalizer_open_m3,
+                totalizer_close_m3=excluded.totalizer_close_m3,
+                discarded_totalizer_events=excluded.discarded_totalizer_events,
+                has_discontinuities=excluded.has_discontinuities''',
                 (_PLANT, key, day.isoformat(), parsed if reliable else None,
-                 int(reliable), samples, expected, now))
+                 int(reliable), samples, expected, now,open_m3,close_m3,discarded,discontinuities))
         _rollup_year(conn, day.year, _now_day(), now)
         conn.execute('''UPDATE concession_sync_state SET last_success_at=?,last_period_date=?,
           last_error=NULL,retry_after=NULL,updated_at=? WHERE id=1''',
@@ -233,7 +306,12 @@ def _next_day(conn: sqlite3.Connection, today: date) -> tuple[date, str] | None:
     threshold = _utc() - timedelta(minutes=max(5, int(get_settings().concession_sync_refresh_minutes)))
     candidates = [day for day in last_two if not processed.get(day.isoformat()) or
                   datetime.fromisoformat(processed[day.isoformat()]) < threshold]
-    return (candidates[0], 'refresh') if candidates else None
+    # Elegir el dia menos reciente primero: evita consultar siempre ayer
+    # y dejar al dia actual sin actualizar cuando el refresco es periodico.
+    if not candidates:
+        return None
+    oldest = min(candidates, key=lambda day: processed.get(day.isoformat()) or '')
+    return oldest, 'refresh'
 
 
 def process_one_day() -> bool:

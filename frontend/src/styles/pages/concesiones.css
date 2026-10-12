@@ -366,3 +366,22 @@
   .con-v2 .con-well-card-head .con-status-chip { grid-column: 1 / -1; justify-self: start; margin-left: 56px; }
   .con-v2 .con-month-metrics { grid-template-columns: 1fr; }
 }
+
+/* DGO-C05: persistencia visible y diagnostico diario sin afectar otros modulos. */
+.con-v2 .con-persisted-note { display:flex; align-items:flex-start; gap:9px; border-radius:10px; border:1px solid rgba(35,196,169,.27); background:rgba(22,147,133,.075); padding:11px 13px; color:var(--con-muted); font-size:11px; line-height:1.55; }
+.con-v2 .con-persisted-note svg { color:#37d4b3; flex:0 0 auto; margin-top:1px; }
+.con-v2 .con-well-card-bottom strong { color:var(--con-text); font-size:11px; font-weight:800; font-variant-numeric:tabular-nums; }
+.con-v2 .con-diagnostics { border:1px solid var(--con-line); border-radius:13px; padding:15px; margin:17px 0 6px; background:rgba(54,142,183,.055); min-width:0; }
+.con-v2 .con-diagnostics-heading { display:flex; justify-content:space-between; align-items:flex-start; gap:9px; flex-wrap:wrap; margin-bottom:12px; }
+.con-v2 .con-diagnostics-heading h4 { margin:4px 0 0; font-size:13px; color:var(--con-text); }
+.con-v2 .con-diagnostics-caption { color:var(--con-muted); font-size:10px; }
+.con-v2 .con-diagnostics-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }
+.con-v2 .con-diagnostics-grid>div { min-width:0; display:flex; flex-direction:column; gap:6px; border-radius:9px; padding:11px 12px; background:rgba(35,130,172,.075); border:1px solid var(--con-line); }
+.con-v2 .con-diagnostics-grid small { color:var(--con-muted); font-size:10px; }
+.con-v2 .con-diagnostics-grid strong { font-size:18px; color:var(--con-text); font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.con-v2 .con-diagnostics-dates { display:flex; flex-wrap:wrap; justify-content:space-between; gap:6px 12px; color:var(--con-muted); font-size:10px; margin:12px 0 0; line-height:1.5; }
+.con-v2 .con-diagnostics-dates b { color:var(--con-text); }
+.con-v2 .con-diagnostics p { margin:12px 0 0; padding-top:10px; border-top:1px solid var(--con-line); font-size:10px; line-height:1.65; color:var(--con-muted); }
+.pozos-shell.theme-light .con-v2 .con-diagnostics-grid>div { background:#f4faff; }
+.pozos-shell.theme-light .con-v2 .con-persisted-note { background:#edfaf7; }
+@media(max-width:600px) { .con-v2 .con-diagnostics-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .con-v2 .con-diagnostics { padding:12px; } .con-v2 .con-diagnostics-grid strong { font-size:15px; } }

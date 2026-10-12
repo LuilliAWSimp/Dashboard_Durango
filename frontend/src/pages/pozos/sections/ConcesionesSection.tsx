@@ -235,6 +235,7 @@ export default function ConcesionesSection({ currentUser }: { currentUser?: { ro
   const months = CONCESSION_MONTH_LABELS;
   const selectedShare = widths.find((item) => item.well_key === row?.well_key);
   const selectedOperational = operational?.wells.find((item) => item.well_key === row?.well_key);
+  const selectedCoverage = selectedOperational?.coverage;
   const chartData = buildOperationalChart(selectedOperational?.months || []);
   const analytics = summarizeOperationalChart(selectedOperational?.months || []);
   const totalObserved = operational?.wells.reduce((sum, item) => sum + (item.operational_total_m3 ?? 0), 0);
@@ -273,13 +274,14 @@ export default function ConcesionesSection({ currentUser }: { currentUser?: { ro
     <section className={`con-status-banner ${anyObserved ? 'con-operational-active' : ''}`} aria-label="Estado del monitoreo"><Info size={19}/><div><strong>{anyObserved ? 'Extracciones operativas disponibles desde BOS' : historyLoading ? 'Sincronizando consumos en segundo plano' : 'Extracción operativa no disponible'}</strong><p>{anyObserved ? `Las barras presentan incrementos verificados por el histórico de la planta desde ${operational?.period_start}. Los meses sin cobertura son parciales o no disponibles. No representan el saldo legal de la concesión.` : historyError || 'Los datos aparecerán progresivamente conforme se complete la sincronización local.'}</p></div><span className="con-status-tag">{anyObserved ? 'Datos operativos' : historyLoading ? 'Consultando' : 'Sin histórico'}</span></section>
 
     {operational?.sync && <section className="panel con-sync-panel" aria-label="Estado de sincronización de concesiones">
-      <div className="con-sync-title"><div><span className="con-eyebrow">CACHE LOCAL · IPC DURANGO</span><h3>Sincronización de consumos</h3><p>El histórico se calcula en segundo plano. Las gráficas leen SQLite sin esperar a BOS.</p></div>
+      <div className="con-sync-title"><div><span className="con-eyebrow">CACHE LOCAL · IPC DURANGO</span><h3>Sincronización de consumos</h3><p>Lectura directa de SQLite: abrir o recargar esta página no vuelve a consultar los 70 días en BOS.</p></div>
         <span className={`con-sync-chip ${operational.sync.last_error ? 'con-sync-issue' : operational.sync.initial_load_complete ? 'con-sync-ok' : ''}`}>
-          {operational.sync.last_error ? 'Reintento pendiente' : operational.sync.initial_load_complete ? 'Histórico inicial procesado' : 'Recuperando históricos'}</span></div>
-      <div className="con-sync-info"><strong>{operational.sync.processed_days} / {operational.sync.expected_days} días procesados</strong><span>{operational.sync.progress_percent}%</span></div>
+          {operational.sync.last_error ? 'Reintento pendiente' : operational.sync.initial_load_complete ? 'Histórico guardado en la IPC' : 'Recuperando históricos'}</span></div>
+      <div className="con-sync-info"><strong>{operational.sync.processed_days} / {operational.sync.expected_days} días guardados</strong><span>{operational.sync.progress_percent}%</span></div>
       <div className="con-sync-bar" role="progressbar" aria-valuenow={operational.sync.progress_percent} aria-valuemin={0} aria-valuemax={100} aria-label="Progreso de sincronización"><i style={{width: `${operational.sync.progress_percent}%`}} /></div>
       <div className="con-sync-footer"><small>{operational.sync.last_success_at ? `Última actualización: ${new Date(operational.sync.last_success_at).toLocaleString('es-MX')}` : 'Primera sincronización pendiente'} · Refresco de días recientes cada {operational.sync.refresh_minutes} minutos.</small>
       {isAdmin && <button type="button" className="con-button con-button-muted" disabled={rebuildBusy || operational.sync.manual_rebuild_pending} onClick={() => void queueRecentDays()}><RefreshCw size={14}/>{rebuildBusy ? 'Encolando...' : 'Reprocesar 7 días'}</button>}</div>
+      {operational.sync.initial_load_complete && <div className="con-persisted-note"><Database size={16}/><span>Histórico inicial conservado en el servidor. Las visitas posteriores sólo leen los resultados; el sincronizador actualiza días recientes por separado.</span></div>}
       {operational.sync.last_error && <div className="con-sync-warning"><AlertCircle size={15}/><span>La última lectura de BOS falló; se conservan los datos anteriores y el servidor reintentará automáticamente.</span></div>}
     </section>}
 
@@ -300,7 +302,10 @@ export default function ConcesionesSection({ currentUser }: { currentUser?: { ro
             <div className="con-well-card-progress-label"><small>Parte del total de la planta</small><strong>{item.relativePercent.toFixed(1)}%</strong></div>
             <span className="con-bar"><span className={`con-bar-color-${index % 3}`} style={{ width: `${item.relativePercent}%` }}/></span>
           </div>
-          <div className="con-well-card-bottom"><span><Info size={14}/> Extracción operativa en construcción</span><span>Remanente legal: pendiente</span></div>
+          <div className="con-well-card-bottom">
+            <span><TrendingUp size={14}/> Extracción observada {year}: <strong>{formatM3(operational?.wells.find((well) => well.well_key === item.well_key)?.operational_total_m3)} m³</strong></span>
+            <span>Remanente legal: pendiente</span>
+          </div>
         </button>)}
       </div>
       <div className="con-under-cards"><Info size={14}/>* Volúmenes registrados de manera provisional. Los porcentajes de estas tarjetas son <strong>distribución de autorización, nunca porcentaje consumido.</strong></div>
@@ -377,6 +382,18 @@ export default function ConcesionesSection({ currentUser }: { currentUser?: { ro
             <div><span>Comparativo medido / cuota*</span><strong>{operationalShare === null ? 'Sin datos' : `${operationalShare.toFixed(1)}%`}</strong></div>
             <div><span>Saldo legal disponible</span><strong className="con-pending">Pendiente de validar</strong></div>
           </div>
+          {selectedCoverage && <div className="con-diagnostics" aria-label={`Diagnóstico de mediciones de ${row.well_name}`}>
+            <div className="con-diagnostics-heading"><div><span className="con-eyebrow">CONCILIACIÓN OPERATIVA · {year}</span><h4>Calidad y cobertura del histórico</h4></div><span className="con-diagnostics-caption">Datos guardados en SQLite</span></div>
+            <div className="con-diagnostics-grid">
+              <div><small>Días procesados</small><strong>{selectedCoverage.processed_days} / {selectedCoverage.expected_days}</strong></div>
+              <div><small>Días con volumen válido</small><strong>{selectedCoverage.days_with_volume}</strong></div>
+              <div><small>Sin lecturas / descartados</small><strong>{selectedCoverage.days_without_data} / {selectedCoverage.days_excluded}</strong></div>
+              <div><small>Cobertura de muestras</small><strong>{selectedCoverage.sample_coverage_percent == null ? 'Sin datos' : `${selectedCoverage.sample_coverage_percent}%`}</strong></div>
+            </div>
+            <div className="con-diagnostics-dates"><span>Primer día con volumen: <b>{selectedCoverage.first_valid_day || 'Sin datos'}</b></span><span>Último día con volumen: <b>{selectedCoverage.last_valid_day || 'Sin datos'}</b></span></div>
+            {(selectedCoverage.first_totalizer_m3 != null || selectedCoverage.last_totalizer_m3 != null) && <div className="con-diagnostics-dates"><span>Primera referencia de totalizador: <b>{formatM3(selectedCoverage.first_totalizer_m3)} m³</b></span><span>Última referencia: <b>{formatM3(selectedCoverage.last_totalizer_m3)} m³</b></span></div>}
+            <p>Las referencias de totalizador sólo se conservan en días reprocesados tras esta actualización. <strong>No se restan para calcular la extracción</strong> porque podrían existir reinicios y discontinuidades.</p>
+          </div>}
           <div className="con-document-box"><FileText size={21}/><div><strong>{row.document_name || 'No se ha adjuntado el título o prórroga'}</strong><span>{row.has_document ? 'Original archivado para cotejo documental' : 'Un administrador puede cargar un PDF desde Administrar'}</span></div>
             {row.has_document && <button type="button" title="Descargar PDF original" aria-label="Descargar PDF original" onClick={() => void download()}><ArrowDownToLine size={19}/></button>}
           </div>

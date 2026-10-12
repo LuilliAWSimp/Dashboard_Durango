@@ -97,6 +97,26 @@ export type ConcessionMonthlyBucket = {
   status: 'available' | 'partial' | 'no_data' | 'outside_window';
 };
 
+/** Diagnóstico elaborado de filas diarias persistidas, sin llamar a BOS desde la pantalla. */
+export type ConcessionCoverage = {
+  period_year: number;
+  expected_days: number;
+  processed_days: number;
+  days_with_volume: number;
+  days_without_data: number;
+  days_excluded: number;
+  days_pending: number;
+  samples_received: number;
+  samples_expected: number;
+  sample_coverage_percent: number | null;
+  first_valid_day: string | null;
+  last_valid_day: string | null;
+  first_totalizer_m3: number | null;
+  last_totalizer_m3: number | null;
+  discarded_totalizer_events: number;
+  historical_snapshots_incomplete: boolean;
+};
+
 export type ConcessionOperationalWell = {
   well_key: string;
   well_name: string;
@@ -105,6 +125,7 @@ export type ConcessionOperationalWell = {
   operational_total_m3: number | null;
   months_with_data: number;
   has_partial_coverage: boolean;
+  coverage?: ConcessionCoverage;
 };
 
 export type ConcessionSyncState = {
@@ -119,6 +140,8 @@ export type ConcessionSyncState = {
   initial_load_complete: boolean;
   refresh_minutes: number;
   manual_rebuild_pending: boolean;
+  persisted_locally?: boolean;
+  source_queries_on_page_load?: boolean;
 };
 
 export type ConcessionMonthlyHistory = {
