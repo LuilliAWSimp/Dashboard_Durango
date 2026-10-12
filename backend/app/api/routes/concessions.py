@@ -2,14 +2,14 @@
 from __future__ import annotations
 
 import logging
+from datetime import date
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from app.auth.dependencies import current_user, require_roles
-from app.services.concession_history_service import get_concession_monthly_history
-from app.services.water_history_service import WaterHistoryError
+from app.services.concession_cache_service import cached_monthly_history, request_rebuild
 from app.services.concession_service import (
     ConcessionError, attach_document, document_for, inspect_pdf, list_audit,
     list_concessions, update_concession,
@@ -43,17 +43,28 @@ def get_concessions():
 
 @router.get('/history/monthly')
 def read_monthly_history(year: int = Query(..., ge=2026, le=2100)):
-    """Datos operativos con controles de totalizador, no cierre legal de concesión."""
+    """Lectura instantánea de SQLite. Nunca dispara consultas pesadas a BOS."""
     try:
-        return get_concession_monthly_history(year)
+        return cached_monthly_history(year)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    except WaterHistoryError as exc:
-        raise HTTPException(status_code=504 if exc.status == 'timeout' else 503,
-                            detail='El histórico BOS no está disponible. Inténtelo más tarde.') from exc
     except Exception as exc:
-        logger.exception('Error consultando extracciones mensuales de concesiones')
-        raise HTTPException(status_code=500, detail='No se pudo consultar la extracción mensual.') from exc
+        logger.exception('Error consultando cache local de Concesiones')
+        raise HTTPException(status_code=500, detail='No se pudo consultar la caché local.') from exc
+
+
+class RebuildPeriod(BaseModel):
+    start_date: date
+    end_date: date
+
+
+@router.post('/history/rebuild')
+def rebuild_history(payload: RebuildPeriod, user: dict = Depends(require_roles('admin'))):
+    """Encola máximo 31 días; responde inmediatamente sin consultar SQL Server."""
+    try:
+        return request_rebuild(payload.start_date, payload.end_date)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.patch('/{well_key}')

@@ -74,11 +74,14 @@ class Settings(BaseSettings):
     report_email_scheduler_poll_seconds: int = Field(default=30, alias="REPORT_EMAIL_SCHEDULER_POLL_SECONDS")
     report_email_send_delay_minutes: int = Field(default=10, alias="REPORT_EMAIL_SEND_DELAY_MINUTES")
     report_email_catchup_hours: int = Field(default=36, alias="REPORT_EMAIL_CATCHUP_HOURS")
-    report_email_max_attempts: int = Field(default=1, alias="REPORT_EMAIL_MAX_ATTEMPTS")
+    report_email_max_attempts: int = Field(default=3, alias="REPORT_EMAIL_MAX_ATTEMPTS")
     report_email_retry_minutes: int = Field(default=10, alias="REPORT_EMAIL_RETRY_MINUTES")
 
     concession_database_path: str = Field(default="data/concessions.sqlite3", alias="CONCESSION_DATABASE_PATH")
     concession_documents_path: str = Field(default="data/concessions/documents", alias="CONCESSION_DOCUMENTS_PATH")
+    # Cache de extracciones de concesiones, solo en el servidor IPC de la planta.
+    concession_sync_enabled: bool = Field(default=True, alias="CONCESSION_SYNC_ENABLED")
+    concession_sync_refresh_minutes: int = Field(default=15, ge=5, le=1440, alias="CONCESSION_SYNC_REFRESH_MINUTES")
 
     # SQL Server settings
     sqlserver_host: str = Field(default=r"SERVER-SCADA\SQLSCADA", validation_alias=AliasChoices("SQLSERVER_HOST", "DB_SERVER"))

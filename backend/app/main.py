@@ -22,6 +22,9 @@ from app.config import get_settings
 from app.database import Base, SessionLocal, engine
 from app.services.seed_service import seed_if_empty
 from app.services.concession_service import initialize_concessions
+from app.services.concession_cache_service import (
+    initialize_consumption_storage, start_consumption_sync, stop_consumption_sync,
+)
 from app.services.report_email_scheduler_service import (
     initialize_report_email_scheduler_storage,
     start_report_email_scheduler,
@@ -90,6 +93,8 @@ app.include_router(water_router, prefix=settings.api_v1_prefix)
 def on_startup():
     app.state.auth_service.initialize()
     initialize_concessions()
+    initialize_consumption_storage()
+    start_consumption_sync()
     initialize_report_email_scheduler_storage()
     start_report_email_scheduler()
     if settings.db_mode.lower() == 'demo':
@@ -103,6 +108,7 @@ def on_startup():
 
 @app.on_event('shutdown')
 def on_shutdown():
+    stop_consumption_sync()
     stop_report_email_scheduler()
 
 

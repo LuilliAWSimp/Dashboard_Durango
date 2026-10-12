@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import {
   downloadConcessionPdf, fetchConcessionAudit, fetchConcessions, previewConcessionPdf,
-  saveConcessionPdf, updateConcession,
+  saveConcessionPdf, updateConcession, queueConcessionHistoryRebuild,
 } from '../../../services/concessionService';
 import type { ConcessionPayload, ConcessionRecord, PdfPreview, ConcessionMonthlyHistory } from '../../../services/concessionService';
 import { fetchConcessionMonthlyHistory } from '../../../services/concessionService';
@@ -65,6 +65,7 @@ export default function ConcesionesSection({ currentUser }: { currentUser?: { ro
   const [historyError, setHistoryError] = useState('');
   const [audit, setAudit] = useState<Array<{ action: string; actor: string; created_at: string; details: Record<string, unknown> }>>([]);
   const [historyBusy, setHistoryBusy] = useState(false);
+  const [rebuildBusy, setRebuildBusy] = useState(false);
   const mounted = useRef(true);
 
   const refresh = useCallback(async (showSpinner = false) => {
@@ -128,7 +129,7 @@ export default function ConcesionesSection({ currentUser }: { currentUser?: { ro
       }
     };
     void read();
-    const timer = window.setInterval(() => { if (!document.hidden) void read(); }, 5 * 60 * 1000);
+    const timer = window.setInterval(() => { if (!document.hidden) void read(); }, 30 * 1000);
     return () => { active = false; window.clearInterval(timer); };
   }, [year]);
 
@@ -210,6 +211,25 @@ export default function ConcesionesSection({ currentUser }: { currentUser?: { ro
     catch (err) { setNotice(errorMessage(err)); }
   };
 
+  const queueRecentDays = async () => {
+    if (!isAdmin || rebuildBusy) return;
+    setRebuildBusy(true);
+    try {
+      const today = new Date();
+      const latest = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      const start = new Date(latest);
+      start.setDate(start.getDate() - 6);
+      const dayKey = (value: Date) => `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
+      await queueConcessionHistoryRebuild(dayKey(start), dayKey(latest));
+      setNotice('Reprocesamiento de los últimos 7 días en cola. La pantalla seguirá disponible.');
+      void loadOperational(year, false);
+    } catch (err) {
+      setNotice(errorMessage(err));
+    } finally {
+      setRebuildBusy(false);
+    }
+  };
+
   const chartMax = Math.max(1, Math.ceil(largest / 100000) * 100000);
   const chartTicks = [4, 3, 2, 1, 0].map((part) => chartMax * part / 4);
   const months = CONCESSION_MONTH_LABELS;
@@ -250,7 +270,18 @@ export default function ConcesionesSection({ currentUser }: { currentUser?: { ro
       <article className="con-kpi panel"><span className="con-kpi-icon"><ClipboardCheck size={19}/></span><small>Expedientes por validar</small><strong>{records.length ? documentsPending : '—'}</strong><span>No implica cumplimiento legal</span></article>
     </section>
 
-    <section className={`con-status-banner ${anyObserved ? 'con-operational-active' : ''}`} aria-label="Estado del monitoreo"><Info size={19}/><div><strong>{anyObserved ? 'Extracciones operativas disponibles desde BOS' : historyLoading ? 'Consultando históricos de los pozos' : 'Extracción operativa no disponible'}</strong><p>{anyObserved ? `Las barras presentan incrementos verificados por el histórico de la planta desde ${operational?.period_start}. Los meses sin cobertura son parciales o no disponibles. No representan el saldo legal de la concesión.` : historyError || 'El monitoreo mostrará lecturas reales en cuanto el histórico de BOS responda.'}</p></div><span className="con-status-tag">{anyObserved ? 'Datos operativos' : historyLoading ? 'Consultando' : 'Sin histórico'}</span></section>
+    <section className={`con-status-banner ${anyObserved ? 'con-operational-active' : ''}`} aria-label="Estado del monitoreo"><Info size={19}/><div><strong>{anyObserved ? 'Extracciones operativas disponibles desde BOS' : historyLoading ? 'Sincronizando consumos en segundo plano' : 'Extracción operativa no disponible'}</strong><p>{anyObserved ? `Las barras presentan incrementos verificados por el histórico de la planta desde ${operational?.period_start}. Los meses sin cobertura son parciales o no disponibles. No representan el saldo legal de la concesión.` : historyError || 'Los datos aparecerán progresivamente conforme se complete la sincronización local.'}</p></div><span className="con-status-tag">{anyObserved ? 'Datos operativos' : historyLoading ? 'Consultando' : 'Sin histórico'}</span></section>
+
+    {operational?.sync && <section className="panel con-sync-panel" aria-label="Estado de sincronización de concesiones">
+      <div className="con-sync-title"><div><span className="con-eyebrow">CACHE LOCAL · IPC DURANGO</span><h3>Sincronización de consumos</h3><p>El histórico se calcula en segundo plano. Las gráficas leen SQLite sin esperar a BOS.</p></div>
+        <span className={`con-sync-chip ${operational.sync.last_error ? 'con-sync-issue' : operational.sync.initial_load_complete ? 'con-sync-ok' : ''}`}>
+          {operational.sync.last_error ? 'Reintento pendiente' : operational.sync.initial_load_complete ? 'Histórico inicial procesado' : 'Recuperando históricos'}</span></div>
+      <div className="con-sync-info"><strong>{operational.sync.processed_days} / {operational.sync.expected_days} días procesados</strong><span>{operational.sync.progress_percent}%</span></div>
+      <div className="con-sync-bar" role="progressbar" aria-valuenow={operational.sync.progress_percent} aria-valuemin={0} aria-valuemax={100} aria-label="Progreso de sincronización"><i style={{width: `${operational.sync.progress_percent}%`}} /></div>
+      <div className="con-sync-footer"><small>{operational.sync.last_success_at ? `Última actualización: ${new Date(operational.sync.last_success_at).toLocaleString('es-MX')}` : 'Primera sincronización pendiente'} · Refresco de días recientes cada {operational.sync.refresh_minutes} minutos.</small>
+      {isAdmin && <button type="button" className="con-button con-button-muted" disabled={rebuildBusy || operational.sync.manual_rebuild_pending} onClick={() => void queueRecentDays()}><RefreshCw size={14}/>{rebuildBusy ? 'Encolando...' : 'Reprocesar 7 días'}</button>}</div>
+      {operational.sync.last_error && <div className="con-sync-warning"><AlertCircle size={15}/><span>La última lectura de BOS falló; se conservan los datos anteriores y el servidor reintentará automáticamente.</span></div>}
+    </section>}
 
     <section className="con-wells-section">
       <div className="con-section-title-row"><div><span className="con-eyebrow">INVENTARIO / SELECCIÓN</span><h3>Concesiones por pozo</h3><p>Selecciona un pozo para ver su ficha. Las barras muestran su participación en el volumen autorizado total.</p></div><span className="con-counter">{records.length} registrados</span></div>
@@ -312,7 +343,7 @@ export default function ConcesionesSection({ currentUser }: { currentUser?: { ro
               <Tooltip content={<OperationalTooltip mode="cumulative"/>}/>
               <Area connectNulls={false} type="monotone" dataKey="cumulative_m3" stroke="#2cc9e7" strokeWidth={2.6} fill="url(#conCumulativeFill)" dot={{r:3}} activeDot={{r:5}}/>
             </AreaChart></ResponsiveContainer></div>
-            <div className="con-history-coverage"><Info size={16}/><span>Histórico disponible: {operational?.period_start} a {operational?.period_end}. Los periodos anteriores al corte SCADA y cualquier intervalo sin lectura no se suman como cero ni se extrapolan.</span></div>
+            <div className="con-history-coverage"><Info size={16}/><span>Periodo de consulta: {operational?.period_start} a {operational?.period_end}. Los periodos anteriores al corte SCADA y cualquier intervalo sin lectura no se suman como cero ni se extrapolan.</span></div>
           </>}
         </div>}
         <div className="con-chart-insight"><Info size={17}/><span>{chartMode === 'quota' ? 'Comparativo calculado exclusivamente con los volúmenes autorizados registrados. No existe un límite mensual legal deducible dividiendo la cuota anual entre 12.' : 'La gráfica utiliza sólo volúmenes de intervalos con totalizador verificado. Pueden faltar meses o días. El saldo legal requiere confirmar la vigencia y el ciclo de cada título.'}</span></div>

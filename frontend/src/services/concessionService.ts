@@ -107,6 +107,20 @@ export type ConcessionOperationalWell = {
   has_partial_coverage: boolean;
 };
 
+export type ConcessionSyncState = {
+  state: 'updating' | 'error' | 'backfilling' | 'up_to_date';
+  processed_days: number;
+  expected_days: number;
+  progress_percent: number;
+  last_success_at: string | null;
+  last_period_date: string | null;
+  last_error: string | null;
+  running: boolean;
+  initial_load_complete: boolean;
+  refresh_minutes: number;
+  manual_rebuild_pending: boolean;
+};
+
 export type ConcessionMonthlyHistory = {
   year: number;
   period_start: string;
@@ -114,10 +128,16 @@ export type ConcessionMonthlyHistory = {
   source: string;
   legal_period_verified: false;
   historical_scope_notice: string;
+  sync: ConcessionSyncState;
   wells: ConcessionOperationalWell[];
 };
 
 export async function fetchConcessionMonthlyHistory(year: number): Promise<ConcessionMonthlyHistory> {
   const response = await api.get('/concessions/history/monthly', { params: { year } });
+  return response.data;
+}
+
+export async function queueConcessionHistoryRebuild(startDate: string, endDate: string): Promise<{queued: boolean}> {
+  const response = await api.post('/concessions/history/rebuild', {start_date: startDate, end_date: endDate});
   return response.data;
 }

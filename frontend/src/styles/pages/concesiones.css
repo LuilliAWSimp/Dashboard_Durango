@@ -323,3 +323,18 @@
   .con-v2 .con-year-select { padding-bottom:8px; }
   .con-v2 .con-cumulative-heading { flex-wrap:wrap; }
 }
+
+/* DGO-C04: estado de precálculo persistente de la IPC */
+.con-sync-panel { padding: 22px 24px; display: grid; gap: 10px; }
+.con-sync-title, .con-sync-info, .con-sync-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.con-sync-title h3 { margin: 5px 0; font-size: 17px; }
+.con-sync-title p, .con-sync-footer small { color: var(--con-muted); margin: 0; font-size: 12px; }
+.con-sync-info { font-size: 12px; }
+.con-sync-info span { color: var(--con-muted); }
+.con-sync-chip { color: #83c9ff; background: rgba(64,155,208,.1); border: 1px solid rgba(64,155,208,.24); padding: 7px 12px; border-radius: 999px; font-size: 11px; font-weight: 750; }
+.con-sync-chip.con-sync-ok { color: #24c99b; background: rgba(36,201,155,.1); }
+.con-sync-chip.con-sync-issue { color: #f6bd6d; background: rgba(241,170,66,.1); }
+.con-sync-bar { width: 100%; border-radius: 999px; background: rgba(101,166,202,.18); height: 9px; overflow: hidden; }
+.con-sync-bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg,#1887d9,#29c7d5); transition: width .3s; }
+.con-sync-warning { display: flex; align-items: center; gap: 8px; color: #e8b66f; font-size: 12px; }
+@media (max-width: 600px) { .con-sync-panel { padding: 16px; } .con-sync-footer button { width: 100%; justify-content: center; } }
