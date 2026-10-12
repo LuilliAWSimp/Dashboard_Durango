@@ -626,7 +626,8 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
   return (
     <section className={`panel chart-panel fade-up module-history-panel operational-module-comparison operational-history-panel operational-history-${fixedView || (fixedModule ? module : globalView)} ${className}`.trim()}>
       <PanelHeader
-        title={panelTitle || (lockedHistory ? `Histórico operativo · ${moduleDisplayLabel}` : 'Histórico operativo global')}
+        eyebrow={lockedHistory ? `Histórico operativo · ${moduleDisplayLabel}` : 'Histórico operativo global'}
+        title={panelTitle || (lockedHistory ? moduleDisplayLabel : 'Módulos de agua')}
         subtitle={panelSubtitle === null ? undefined : (panelSubtitle || (lockedHistory ? `Consulta ${moduleDisplayLabel.toLowerCase()} con el mismo motor histórico del Resumen.` : 'Consulta Pozos, Líneas, Lavadoras y Jarabes desde un único histórico.'))}
       />
       {independentRange ? (

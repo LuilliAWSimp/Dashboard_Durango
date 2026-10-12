@@ -288,7 +288,11 @@ export default function OperationalModuleSection({
   return (
     <div className={`operational-module-page operational-module-${module}-page`}>
       <section className="operational-module-heading fade-up">
-        <PanelHeader title={title} subtitle={subtitle} />
+        <PanelHeader
+          eyebrow={`Operación de ${title.toLowerCase()}`}
+          title={title}
+          subtitle={subtitle}
+        />
       </section>
 
       <SqlChartDateControls

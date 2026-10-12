@@ -569,3 +569,61 @@
 .pozos-shell.theme-light .dgo-h02-threshold-fields :is(select,input) { background:#FFF; color:#163344; border-color:#CFDEE6; }
 .pozos-shell.theme-light .dgo-h02-threshold-stats span { background:#FFF; border-color:#CFDEE6; }
 .pozos-shell.theme-light .dgo-h02-threshold-error { color:#B91C1C; }
+
+/* DGO-H04 · Alineación de toolbar y selectores del histórico con la referencia visual. */
+.module-history-panel > .panel-header.compact {
+  margin-bottom: 14px;
+}
+
+.module-history-panel > .panel-header.compact .panel-title {
+  font-size: clamp(28px, 2.5vw, 38px);
+  line-height: 1.08;
+}
+
+.module-history-panel > .panel-header.compact .panel-subtitle {
+  max-width: 780px;
+  color: #9ccbdd;
+}
+
+.module-history-range-panel {
+  gap: 16px;
+  padding: 14px 18px;
+  border: 1px solid rgba(56,189,248,.18);
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(5, 24, 39, .9), rgba(3, 15, 28, .94));
+}
+
+.module-history-toolbar {
+  align-items: flex-start;
+  gap: 14px 18px;
+  padding: 10px 0 2px;
+}
+
+.module-history-tabs {
+  align-items: center;
+}
+
+.module-comparison-controls {
+  flex: 1 1 740px;
+  justify-content: flex-end;
+  gap: 10px 12px;
+}
+
+.module-history-export-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.module-history-tab,
+.sensor-chip {
+  border-radius: 12px;
+}
+
+.module-selection-heading {
+  margin-top: 18px;
+}
+
+.module-history-sensors {
+  margin-top: 10px;
+}

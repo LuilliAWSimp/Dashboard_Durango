@@ -349,3 +349,37 @@
 @media (max-width: 720px) {
   .shift-selector-field select { width: 100%; min-width: 0; }
 }
+
+/* DGO-H04 · Tarjetas y despliegue de turnos más compactos y consistentes con la referencia. */
+.shift-consumption-panel > .panel-header.compact {
+  margin-bottom: 12px;
+}
+
+.shift-consumption-panel > .panel-header.compact .panel-title {
+  font-size: clamp(26px, 2.4vw, 36px);
+  line-height: 1.08;
+}
+
+.shift-controls-panel {
+  gap: 14px;
+  align-items: end;
+}
+
+.shift-summary-cards {
+  gap: 16px;
+}
+
+.shift-summary-card {
+  border-radius: 20px;
+  padding: 18px 18px 14px;
+  background: linear-gradient(145deg, rgba(6, 31, 49, .94), rgba(2, 12, 24, .98));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.03);
+}
+
+.shift-detail-disclosure {
+  border-radius: 18px;
+}
+
+.shift-detail-disclosure > summary {
+  min-height: 56px;
+}

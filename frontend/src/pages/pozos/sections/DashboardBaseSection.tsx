@@ -250,8 +250,12 @@ export default function DashboardBaseSection() {
 
   return (
     <div className="dashboard-resumen-page">
-      <section className="panel fade-up compact-hero">
-        <PanelHeader title="Resumen hídrico de Durango" subtitle="Vista ejecutiva de la operación, histórico, comparativos y alertas de la planta." />
+      <section className="panel fade-up compact-hero operational-reference-hero">
+        <PanelHeader
+          eyebrow="Dashboard ARCA · Planta Durango"
+          title="Resumen operativo de agua"
+          subtitle="Vista ejecutiva de la operación, el histórico consolidado, los comparativos por módulo y las alertas de la planta."
+        />
         {dailyLoading ? <div className="status-pill auto-refresh-status">Actualizando comparativos diarios…</div> : null}
         {dailyError ? <div className="status-pill alert">{dailyError}</div> : null}
       </section>
