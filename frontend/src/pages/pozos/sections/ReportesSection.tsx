@@ -213,7 +213,7 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [exportAction, setExportAction] = useState<ExportAction>(null);
-  const [exportJob, setExportJob] = useState<{ id: string; status: string; created_at?: number } | null>(null);
+  const [exportJob, setExportJob] = useState<{ id: string; status: string; created_at?: number; stage?: string; queue_seconds?: number; work_seconds?: number } | null>(null);
   const inFlightRef = useRef(false);
   const [error, setError] = useState('');
   const [emailOpen, setEmailOpen] = useState(false);
@@ -429,7 +429,8 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
           <div className="report-export-job-status" role="status" aria-live="polite">
             <span className="report-export-job-spinner" aria-hidden="true" />
             <div><strong>{exportJob.status === 'queued' ? 'Exportación en espera' : 'Generando exportación en segundo plano'}</strong>
-              <small>El servidor continúa trabajando sin mantener abierta una consulta larga. No cierres esta pestaña si deseas la descarga automática.</small></div>
+              <small>{exportJob.stage || 'Preparando reporte'} · {exportJob.status === 'queued' ? `Esperando ${Math.floor(exportJob.queue_seconds || 0)} s` : `Procesando ${Math.floor(exportJob.work_seconds || 0)} s`}</small>
+              <small>La consulta sigue en el servidor. No cierres esta pestaña si deseas la descarga automática.</small></div>
           </div>
         ) : null}
         {error ? <div className="status-pill alert">{error}</div> : null}

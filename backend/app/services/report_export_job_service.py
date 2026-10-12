@@ -72,7 +72,7 @@ def validate_options(kind: str, options: dict[str, Any]) -> dict[str, str | None
     return clean
 
 
-def _export(kind: str, params: dict[str, str | None]) -> tuple[bytes, str]:
+def _export(kind: str, params: dict[str, str | None], on_stage: Callable[[str], None] | None = None) -> tuple[bytes, str]:
     if kind.startswith('daily_'):
         from app.services.water_daily_report_service import (
             build_daily_water_report_excel, build_daily_water_report_pdf, get_daily_water_report,
@@ -80,7 +80,10 @@ def _export(kind: str, params: dict[str, str | None]) -> tuple[bytes, str]:
         report = get_daily_water_report(
             report_date=params['date'], start_date=params['start_date'],
             end_date=params['end_date'], include_history=True, include_shifts=True,
+            progress_callback=on_stage,
         )
+        if on_stage is not None:
+            on_stage('Construyendo archivo PDF' if kind == 'daily_pdf' else 'Construyendo archivo Excel')
         return (build_daily_water_report_pdf(report) if kind == 'daily_pdf'
                 else build_daily_water_report_excel(report))
     from app.services.water_historical_export_service import build_full_historical_excel, build_full_historical_pdf
@@ -146,7 +149,7 @@ class ExportJobManager:
             job = {'id': job_id, 'owner_id': owner_id, 'kind': kind, 'params': params,
                    'fingerprint': fingerprint, 'status': 'queued', 'created_at': now,
                    'updated_at': now, 'filename': None, 'filepath': None,
-                   'error': None}
+                   'error': None, 'stage': 'En espera', 'started_at': None}
             self._jobs[job_id] = job
             self._executor.submit(self._run, job_id)
             return self._public(job)
@@ -155,14 +158,25 @@ class ExportJobManager:
         with self._lock:
             job = self._jobs[job_id]
             job['status'] = 'running'
+            job['stage'] = 'Iniciando exportación'
+            job['started_at'] = time.time()
             job['updated_at'] = time.time()
             kind, params = job['kind'], dict(job['params'])
         path: Path | None = None
         try:
-            content, filename = self.exporter(kind, params)
+            if self.exporter is _export:
+                def stage(label: str) -> None:
+                    with self._lock:
+                        job['stage'] = label
+                        job['updated_at'] = time.time()
+                content, filename = self.exporter(kind, params, on_stage=stage)
+            else:
+                content, filename = self.exporter(kind, params)
             if not isinstance(content, bytes) or not content:
                 raise ValueError('La exportación no produjo un archivo válido.')
             ext, _ = FORMATS[kind]
+            with self._lock:
+                job['stage'] = 'Guardando archivo terminado'
             path = self._base_dir() / f'{job_id}.{ext}'
             # Solo se publican archivos completos: el navegador nunca lee parciales.
             temporary = path.with_suffix('.part')
@@ -172,14 +186,14 @@ class ExportJobManager:
             finally:
                 temporary.unlink(missing_ok=True)
             with self._lock:
-                job.update(status='ready', filename=Path(filename).name, filepath=str(path),
+                job.update(status='ready', stage='Disponible para descargar', filename=Path(filename).name, filepath=str(path),
                            updated_at=time.time())
         except Exception as exc:
             logger.exception('Exportacion de reporte fallida kind=%s id=%s', kind, job_id)
             if path is not None:
                 path.unlink(missing_ok=True)
             with self._lock:
-                job.update(status='failed', error=self._error_message(exc), updated_at=time.time())
+                job.update(status='failed', stage='Error de generación', error=self._error_message(exc), updated_at=time.time())
 
     @staticmethod
     def _error_message(exc: Exception) -> str:
@@ -190,7 +204,12 @@ class ExportJobManager:
 
     @staticmethod
     def _public(job: dict[str, Any]) -> dict[str, Any]:
-        return {key: job.get(key) for key in ('id', 'kind', 'status', 'created_at', 'updated_at', 'filename', 'error')}
+        public = {key: job.get(key) for key in ('id', 'kind', 'status', 'stage', 'created_at', 'updated_at', 'filename', 'error')}
+        started_at = job.get('started_at')
+        now = time.time()
+        public['queue_seconds'] = round((started_at or now) - job['created_at'], 1)
+        public['work_seconds'] = round(((min(job['updated_at'], now) if job['status'] in FINAL_STATUSES else now) - started_at), 1) if started_at is not None else 0.0
+        return public
 
     def get(self, owner_id: int, job_id: str) -> dict[str, Any] | None:
         with self._lock:

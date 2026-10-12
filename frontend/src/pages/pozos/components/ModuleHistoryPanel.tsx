@@ -350,6 +350,9 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
   const [error, setError] = useState('');
   const [resolvedQueryIdentity, setResolvedQueryIdentity] = useState('');
   const dataRef = useRef<WaterModuleHistoryResponse | null>(null);
+  // Reutilizar brevemente el resultado si el operador vuelve a la misma pestaña.
+  // La actualización automática y el botón Actualizar SIEMPRE consultan al backend.
+  const recentModuleQueries = useRef(new Map<string, { at: number; response: WaterModuleHistoryResponse }>());
   const requestIdRef = useRef(0);
   const inFlightIdentityRef = useRef('');
   const appliedRefreshKeyRef = useRef(Number(effectiveRange.refreshKey || 0));
@@ -393,6 +396,16 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
     if (!effectiveRange.startDate || !effectiveRange.endDate) return;
     const identity = queryIdentity;
     if (inFlightIdentityRef.current === identity) return;
+    const previousQuery = !forceRefresh && !background ? recentModuleQueries.current.get(identity) : undefined;
+    if (previousQuery && Date.now() - previousQuery.at < 45_000) {
+      requestIdRef.current += 1; // Invalida respuestas antiguas de otros módulos.
+      setData(previousQuery.response);
+      setResolvedQueryIdentity(identity);
+      setError('');
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
     inFlightIdentityRef.current = identity;
     const requestId = ++requestIdRef.current;
     if (!dataRef.current) setLoading(true); else if (background) setRefreshing(true);
@@ -416,6 +429,12 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
           }));
       if (requestId !== requestIdRef.current) return;
       setData(response);
+      recentModuleQueries.current.delete(identity);
+      recentModuleQueries.current.set(identity, { at: Date.now(), response });
+      if (recentModuleQueries.current.size > 6) {
+        const oldest = recentModuleQueries.current.keys().next().value;
+        if (oldest !== undefined) recentModuleQueries.current.delete(oldest);
+      }
       setResolvedQueryIdentity(identity);
       setError('');
     } catch (reason: unknown) {
@@ -630,19 +649,6 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
         title={panelTitle || (lockedHistory ? moduleDisplayLabel : 'Módulos de agua')}
         subtitle={panelSubtitle === null ? undefined : (panelSubtitle || (lockedHistory ? `Consulta ${moduleDisplayLabel.toLowerCase()} con el mismo motor histórico del Resumen.` : 'Consulta Pozos, Líneas, Lavadoras y Jarabes desde un único histórico.'))}
       />
-      {independentRange ? (
-        <div className="module-history-range-panel" aria-label={lockedHistory ? `Fechas del histórico de ${moduleDisplayLabel}` : 'Fechas del histórico global'}>
-          <div className="module-history-range-fields">
-            <label><span>Desde</span><input type="date" value={draftRange.startDate} onChange={(event) => setDraftRange((current) => ({ ...current, startDate: event.target.value }))} /></label>
-            <label><span>Hasta</span><input type="date" value={draftRange.endDate} onChange={(event) => setDraftRange((current) => ({ ...current, endDate: event.target.value }))} /></label>
-          </div>
-          <div className="module-history-range-actions">
-            <button type="button" className="primary-action" onClick={applyIndependentRange}>Actualizar</button>
-            <button type="button" className="ghost-action" onClick={resetIndependentRange}>Restablecer</button>
-          </div>
-          <span className="module-history-range-label">{formatOperationalDateRange(effectiveRange)}</span>
-        </div>
-      ) : null}
       <div className="module-history-toolbar">
         {!lockedHistory ? <div className="module-history-tabs" role="tablist">
           {(Object.keys(GLOBAL_HISTORY_VIEWS) as OperationalHistoryView[]).map((value) => {
@@ -661,8 +667,22 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
             <button type="button" className="report-action-button module-history-excel-button module-history-five-minute-button" disabled={!selectedElementIds.length || fiveMinuteExporting} onClick={() => void exportFiveMinuteExcel()} title="Exportación técnica independiente cada 5 minutos; máximo 3 días calendario."><FileSpreadsheet size={16} aria-hidden="true" /> {fiveMinuteExporting ? 'Generando...' : 'Excel 5 min'}</button>
             <button type="button" className="ghost-action report-action-button module-history-pdf-button" disabled={thresholdExportDisabled || pdfExporting} onClick={() => void exportPdf()} title="Genera un PDF con la misma serie visible."><FileText size={16} aria-hidden="true" /> {pdfExporting ? 'Generando...' : 'PDF'}</button>
           </div>
-          <label className="module-history-aggregation"><span>Agrupación</span><select value={aggregation} onChange={(event) => setAggregation(event.target.value as HistoryAggregation)}><option value="minute" disabled={rangeDays > HISTORY_MAX_RANGE_DAYS.minute}>1 minuto</option><option value="quarter_hour" disabled={rangeDays > HISTORY_MAX_RANGE_DAYS.quarter_hour}>15 minutos</option><option value="hourly" disabled={rangeDays > HISTORY_MAX_RANGE_DAYS.hourly}>Por hora</option><option value="daily" disabled={rangeDays > HISTORY_MAX_RANGE_DAYS.daily}>Por día</option></select></label>
+{!independentRange ? <label className="module-history-aggregation"><span>Agrupación</span><select value={aggregation} onChange={(event) => setAggregation(event.target.value as HistoryAggregation)}><option value="minute" disabled={rangeDays > HISTORY_MAX_RANGE_DAYS.minute}>1 minuto</option><option value="quarter_hour" disabled={rangeDays > HISTORY_MAX_RANGE_DAYS.quarter_hour}>15 minutos</option><option value="hourly" disabled={rangeDays > HISTORY_MAX_RANGE_DAYS.hourly}>Por hora</option><option value="daily" disabled={rangeDays > HISTORY_MAX_RANGE_DAYS.daily}>Por día</option></select></label> : null}
         </div>
+      {independentRange ? (
+        <div className="module-history-range-panel" aria-label={lockedHistory ? `Fechas del histórico de ${moduleDisplayLabel}` : 'Fechas del histórico global'}>
+          <div className="module-history-range-fields">
+            <label><span>Desde</span><input type="date" value={draftRange.startDate} onChange={(event) => setDraftRange((current) => ({ ...current, startDate: event.target.value }))} /></label>
+            <label><span>Hasta</span><input type="date" value={draftRange.endDate} onChange={(event) => setDraftRange((current) => ({ ...current, endDate: event.target.value }))} /></label>
+          </div>
+          <label className="module-history-aggregation"><span>Agrupación</span><select value={aggregation} onChange={(event) => setAggregation(event.target.value as HistoryAggregation)}><option value="minute" disabled={rangeDays > HISTORY_MAX_RANGE_DAYS.minute}>1 minuto</option><option value="quarter_hour" disabled={rangeDays > HISTORY_MAX_RANGE_DAYS.quarter_hour}>15 minutos</option><option value="hourly" disabled={rangeDays > HISTORY_MAX_RANGE_DAYS.hourly}>Por hora</option><option value="daily" disabled={rangeDays > HISTORY_MAX_RANGE_DAYS.daily}>Por día</option></select></label>
+          <div className="module-history-range-actions">
+            <button type="button" className="primary-action" onClick={applyIndependentRange}>Actualizar</button>
+            <button type="button" className="ghost-action" onClick={resetIndependentRange}>Restablecer</button>
+          </div>
+          <span className="module-history-range-label">{formatOperationalDateRange(effectiveRange)}</span>
+        </div>
+      ) : null}
       </div>
       {singleElement ? <div className="dgo-h02-threshold-panel" aria-label="Revisión de umbrales históricos de flujo">
         <label className="dgo-h02-threshold-toggle"><input type="checkbox" checked={thresholdDraft.enabled} onChange={(event) => { setThresholdDraft((draft) => ({ ...draft, enabled: event.target.checked })); if (event.target.checked && metric === 'totalizer') setMetric('both'); }} /> <strong>Revisar umbrales</strong><span>Consulta opcional · L/s</span></label>
