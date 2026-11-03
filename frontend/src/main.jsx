@@ -29,3 +29,6 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 );
 // DGO-V01: bounded LF16 visual contract; keep last for predictable cascade.
 import './styles/durangoVisualSystem.css';
+
+// DGO-V02: sidebar LF16 geometry, navigation and responsive drawer.
+import './styles/durangoSidebarLF16.css';

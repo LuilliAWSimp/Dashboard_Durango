@@ -1,0 +1,351 @@
+/* DGO-V02 | LF16 sidebar/nav geometry. Loaded AFTER the V01 palette.
+ * Strictly scoped to Durango's hydraulic shell. The modules, data, routes and
+ * authentication remain authoritative in their existing components.
+ */
+.pozos-shell .sidebar {
+  width: 252px;
+  flex: 0 0 252px;
+  min-width: 252px;
+  max-width: 252px;
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+  box-shadow: none;
+}
+.pozos-shell .sidebar.collapsed {
+  width: 72px;
+  flex: 0 0 72px;
+  min-width: 72px;
+  max-width: 72px;
+}
+.pozos-shell .sidebar :is(.brand-row, .sidebar-theme-control, .session-card, .sidebar-footer) {
+  flex: 0 0 auto;
+}
+
+/* LF16 identity: logo and collapse switch on the first track, plant name below. */
+.pozos-shell .sidebar:not(.collapsed) .brand-row,
+.pozos-shell .sidebar.mobile-open .brand-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 36px;
+  grid-template-areas: 'logo toggle' 'identity identity';
+  align-content: start;
+  gap: 12px;
+  min-height: 0;
+  padding: 18px 16px 16px;
+  background: transparent;
+  border-bottom: 1px solid var(--dgo-border);
+}
+.pozos-shell .sidebar .brand-mark.logo-mark {
+  grid-area: logo;
+  width: 108px;
+  min-width: 0;
+  height: auto;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.pozos-shell .sidebar .brand-mark .sidebar-logo {
+  display: block;
+  width: 108px;
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+.pozos-shell .sidebar .brand-copy { grid-area: identity; min-width: 0; gap: 4px; }
+.pozos-shell .sidebar .brand-title {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: 0;
+  color: var(--dgo-text);
+}
+.pozos-shell .sidebar .brand-subtitle {
+  max-width: none;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--dgo-muted);
+}
+.pozos-shell .sidebar .menu-button {
+  grid-area: toggle;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  margin: 0;
+  border: 1px solid var(--dgo-border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dgo-muted);
+  cursor: pointer;
+}
+.pozos-shell .sidebar .menu-button:hover { background: var(--dgo-raised); color: var(--dgo-text); }
+
+/* Stable sidebar tracks: navigation scrolls independently of user controls. */
+.pozos-shell .sidebar .sidebar-theme-control { width: 100%; padding: 12px 12px 0; }
+.pozos-shell .sidebar .theme-toggle-button,
+.pozos-shell.theme-light .sidebar .theme-toggle-button {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  min-height: 42px;
+  padding: 10px 12px;
+  border: 1px solid var(--dgo-border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dgo-muted);
+  box-shadow: none;
+  font-size: 13px;
+  font-weight: 500;
+}
+.pozos-shell .sidebar .sidebar-nav {
+  flex: 1 1 0;
+  min-height: 0;
+  padding: 16px 12px 8px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.pozos-shell .sidebar .nav-group { margin: 0 0 12px; }
+.pozos-shell .sidebar .nav-group-title {
+  margin: 0 12px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.4;
+  color: var(--dgo-muted);
+}
+.pozos-shell .sidebar .nav-item,
+.pozos-shell.theme-light .sidebar .nav-item {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  min-height: 42px;
+  margin: 0 0 4px;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dgo-muted);
+  box-shadow: none;
+  transform: none;
+  font-size: 13px;
+  line-height: 1.45;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+.pozos-shell .sidebar .nav-item:hover,
+.pozos-shell.theme-light .sidebar .nav-item:hover {
+  background: var(--dgo-raised);
+  color: var(--dgo-text);
+  transform: none;
+}
+.pozos-shell .sidebar .nav-item.active,
+.pozos-shell.theme-light .sidebar .nav-item.active {
+  background: var(--dgo-active);
+  border-color: var(--dgo-border);
+  box-shadow: inset 3px 0 var(--dgo-accent);
+  color: var(--dgo-text);
+  font-weight: 650;
+}
+.pozos-shell .sidebar .nav-item svg,
+.pozos-shell .sidebar .menu-button svg,
+.pozos-shell .sidebar .theme-toggle-button svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  flex: 0 0 18px;
+  color: inherit;
+  stroke-width: 1.8;
+}
+.pozos-shell .sidebar .nav-item.active svg { color: var(--dgo-accent); }
+.pozos-shell .sidebar .nav-item span { min-width: 0; overflow-wrap: anywhere; }
+
+/* Existing Durango SessionCard actions are preserved, but simplified to LF16. */
+.pozos-shell .sidebar .session-card,
+.pozos-shell.theme-light .sidebar .session-card {
+  margin: 0 12px 12px;
+  padding: 12px 0 0;
+  border: 0;
+  border-top: 1px solid var(--dgo-border);
+  border-radius: 0;
+  background: transparent;
+  color: var(--dgo-text);
+  box-shadow: none;
+}
+.pozos-shell .sidebar .session-card-label { color: var(--dgo-muted); letter-spacing: 0; font-weight: 600; }
+.pozos-shell .sidebar .session-card-avatar {
+  border: 1px solid var(--dgo-border);
+  border-radius: 8px;
+  background: var(--dgo-active);
+  color: var(--dgo-accent);
+}
+.pozos-shell .sidebar .session-card-copy strong { color: var(--dgo-text); }
+.pozos-shell .sidebar .session-card-copy span { color: var(--dgo-muted); }
+.pozos-shell .sidebar .session-card-actions button,
+.pozos-shell .sidebar .session-icon-button,
+.pozos-shell.theme-light .sidebar .session-card-actions button,
+.pozos-shell.theme-light .sidebar .session-icon-button {
+  min-height: 36px;
+  border: 1px solid var(--dgo-border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dgo-muted);
+  box-shadow: none;
+  font-size: 12px;
+  font-weight: 500;
+}
+.pozos-shell .sidebar .session-card-actions button:hover,
+.pozos-shell .sidebar .session-icon-button:hover {
+  background: var(--dgo-raised);
+  color: var(--dgo-text);
+}
+.pozos-shell .sidebar .session-card-actions button.danger,
+.pozos-shell .sidebar .session-icon-button.danger {
+  color: var(--dgo-muted);
+  border-color: var(--dgo-border);
+  background: transparent;
+}
+.pozos-shell .sidebar .session-card-actions button.danger:hover,
+.pozos-shell .sidebar .session-icon-button.danger:hover { color: #fb7185; border-color: #fb7185; }
+
+/* Icon rail: LF16 44px hit targets within a 72px column. */
+.pozos-shell .sidebar.collapsed .brand-row {
+  display: flex;
+  justify-content: center;
+  min-height: 70px;
+  padding: 16px 0;
+  background: transparent;
+}
+.pozos-shell .sidebar.collapsed .menu-button {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  border-radius: 8px;
+}
+.pozos-shell .sidebar.collapsed .sidebar-theme-control {
+  display: grid;
+  place-items: center;
+  padding: 12px 0 0;
+}
+.pozos-shell .sidebar.collapsed .sidebar-theme-control .theme-toggle-button,
+.pozos-shell.theme-light .sidebar.collapsed .sidebar-theme-control .theme-toggle-button {
+  width: 44px;
+  min-width: 44px;
+  max-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  margin: 0;
+  justify-content: center;
+  border-radius: 8px;
+}
+.pozos-shell .sidebar.collapsed .sidebar-nav { padding: 12px 0 8px; }
+.pozos-shell .sidebar.collapsed .nav-item,
+.pozos-shell.theme-light .sidebar.collapsed .nav-item {
+  justify-content: center;
+  width: 44px;
+  max-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  margin: 0 auto 6px;
+  border-radius: 8px;
+}
+.pozos-shell .sidebar.collapsed .session-card,
+.pozos-shell.theme-light .sidebar.collapsed .session-card {
+  display: grid;
+  place-items: center;
+  gap: 6px;
+  width: 100%;
+  margin: 0;
+  padding: 12px 0;
+  border-left: 0;
+  border-right: 0;
+  border-bottom: 0;
+}
+.pozos-shell .sidebar.collapsed .session-icon-button {
+  width: 44px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  border-radius: 8px;
+}
+.pozos-shell .sidebar.collapsed .nav-item:hover::after { border-radius: 8px; }
+
+/* Mobile: real drawer rather than a fixed 92px rail stealing content. */
+.dgo-mobile-topbar { display: none; }
+.dgo-sidebar-mobile-overlay { display: none; }
+@media (max-width: 900px) {
+  .pozos-shell .main-shell { margin-left: 0; width: 100%; min-width: 0; }
+  .pozos-shell .sidebar,
+  .pozos-shell .sidebar.collapsed {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 62;
+    width: min(280px, calc(100vw - 48px));
+    min-width: 0;
+    max-width: min(280px, calc(100vw - 48px));
+    height: 100dvh;
+    max-height: 100dvh;
+    flex-basis: auto;
+    transform: translateX(-105%);
+    visibility: hidden;
+    pointer-events: none;
+    transition: transform .2s ease, visibility .2s ease;
+    box-shadow: 8px 0 30px rgba(0, 0, 0, .2);
+  }
+  .pozos-shell .sidebar.mobile-open,
+  .pozos-shell .sidebar.mobile-open.collapsed {
+    transform: translateX(0);
+    visibility: visible;
+    pointer-events: auto;
+    width: min(280px, calc(100vw - 48px));
+    min-width: 0;
+    max-width: min(280px, calc(100vw - 48px));
+  }
+  .pozos-shell .sidebar.mobile-open .brand-row { display: grid; }
+  .pozos-shell .sidebar.mobile-open .session-card { margin: 0 12px 12px; padding: 12px 0 0; }
+  .dgo-mobile-topbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 56px;
+    padding: 8px 16px;
+    background: var(--dgo-surface);
+    color: var(--dgo-text);
+    border-bottom: 1px solid var(--dgo-border);
+  }
+  .dgo-mobile-topbar > span { font-size: 13px; font-weight: 700; letter-spacing: .02em; }
+  .dgo-mobile-menu-button {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    flex: 0 0 40px;
+    border: 1px solid var(--dgo-border);
+    border-radius: 8px;
+    color: var(--dgo-text);
+    background: var(--dgo-raised);
+    cursor: pointer;
+  }
+  .dgo-sidebar-mobile-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 61;
+    width: 100%;
+    border: 0;
+    background: rgba(1, 12, 22, .68);
+    cursor: pointer;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pozos-shell .sidebar { transition: none; }
+}

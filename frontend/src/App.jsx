@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Menu } from 'lucide-react';
 import { Navigate, Route, Routes, useParams } from 'react-router-dom';
 import Header from './components/Header';
 import BrandLogo from './components/BrandLogo';
@@ -94,15 +95,57 @@ function InitialPlantLoader({ status = 'loading', error, onRetry, onSkip }) {
 
 function Shell({ user, onLogout, sidebarProps, children, headerMeta, shellClass = '', theme = 'dark', onThemeToggle }) {
   const [clock, setClock] = useState(nowText());
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   useEffect(() => {
     const interval = setInterval(() => setClock(nowText()), 1000);
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    if (!mobileDrawerOpen) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') setMobileDrawerOpen(false);
+    };
+    const mediaQuery = window.matchMedia('(max-width: 900px)');
+    const onViewportChange = (event) => {
+      if (!event.matches) setMobileDrawerOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    mediaQuery.addEventListener('change', onViewportChange);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', onKeyDown);
+      mediaQuery.removeEventListener('change', onViewportChange);
+    };
+  }, [mobileDrawerOpen]);
+
+  const closeMobileDrawer = () => setMobileDrawerOpen(false);
+
   return (
-    <div className={`app-shell ${shellClass} theme-${theme}`.trim()} data-theme={theme}>
-      <Sidebar {...sidebarProps} theme={theme} onThemeToggle={onThemeToggle} user={user} onLogout={onLogout} />
+    <div className={`app-shell ${shellClass} theme-${theme} ${mobileDrawerOpen ? 'mobile-drawer-open' : ''}`.trim()} data-theme={theme}>
+      {mobileDrawerOpen ? (
+        <button type="button" className="dgo-sidebar-mobile-overlay" aria-label="Cerrar menú" onClick={closeMobileDrawer} />
+      ) : null}
+      <Sidebar
+        {...sidebarProps}
+        collapsed={mobileDrawerOpen ? false : sidebarProps.collapsed}
+        mobileOpen={mobileDrawerOpen}
+        onMobileClose={closeMobileDrawer}
+        onNavigate={closeMobileDrawer}
+        theme={theme}
+        onThemeToggle={onThemeToggle}
+        user={user}
+        onLogout={onLogout}
+      />
       <div className="main-shell">
+        <div className="dgo-mobile-topbar" aria-label="Navegación móvil">
+          <button type="button" className="dgo-mobile-menu-button" aria-label="Abrir menú" aria-controls="durango-sidebar-nav" aria-expanded={mobileDrawerOpen} onClick={() => setMobileDrawerOpen(true)}>
+            <Menu size={20} />
+          </button>
+          <span>{PLANT_NAME}</span>
+        </div>
         <Header title={headerMeta.title} subtitle={headerMeta.subtitle} now={clock} onExport={headerMeta.onExport} onEmail={headerMeta.onEmail} />
         <div className="plant-context-bar" aria-label="Nombre de planta"><span>{PLANT_NAME}</span></div>
         <main className="page-content">{children}</main>

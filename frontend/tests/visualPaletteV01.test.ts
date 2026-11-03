@@ -54,8 +54,9 @@ test('V01: PDF, Excel and primary actions keep LF16 semantic colors', () => {
 
 test('V01: scoped CSS loads after legacy shared CSS and preserves chart series', () => {
   const imports = [...mainSource.matchAll(/import '\.\/styles\/([^']+\.css)';/g)].map((value) => value[1]);
-  assert.equal(imports.at(-1), 'durangoVisualSystem.css');
+  // V01 must follow legacy CSS. Later visual increments may add scoped layers.
   assert.ok(imports.indexOf('shared.css') < imports.indexOf('durangoVisualSystem.css'));
+  assert.ok(imports.slice(imports.indexOf('durangoVisualSystem.css') + 1).every((file) => file.startsWith('durango')));
   assert.ok(css.trimStart().startsWith('/* DGO-V01'));
   assert.doesNotMatch(css, /\.recharts-(?:line|bar|area|scatter|curve).*\b(?:fill|stroke)\s*:/);
   assert.doesNotMatch(css, /\b(?:zoom|transform:\s*scale)\s*:/);

@@ -71,19 +71,28 @@ export default function Sidebar({
   onToggle,
   sections = [],
   basePath = '',
-  brandTitle = 'PLANTA ZAPOPAN',
+  brandTitle = 'PLANTA DURANGO',
   brandSubtitle = '',
   domainSwitchPath,
   domainSwitchLabel = 'Cambiar dominio',
   theme = 'dark',
   onThemeToggle,
+  mobileOpen = false,
+  onMobileClose,
+  onNavigate,
   user,
   onLogout,
 }) {
+  const toggleMenu = () => {
+    if (mobileOpen) onMobileClose?.();
+    else onToggle?.();
+  };
+  const menuLabel = mobileOpen ? 'Cerrar menú' : collapsed ? 'Expandir menú' : 'Contraer menú';
+
   return (
-    <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
+    <aside className={`sidebar ${collapsed ? 'collapsed' : ''} ${mobileOpen ? 'mobile-open' : ''}`.trim()}>
       <div className="brand-row">
-        <button className="menu-button" onClick={onToggle} title={collapsed ? 'Expandir menu' : 'Contraer menu'} aria-label={collapsed ? 'Expandir menu' : 'Contraer menu'}><Menu size={18} /></button>
+        <button type="button" className="menu-button" onClick={toggleMenu} title={menuLabel} aria-label={menuLabel} aria-controls="durango-sidebar-nav" aria-expanded={!collapsed || mobileOpen}><Menu size={18} /></button>
         {!collapsed && (
           <>
             <div className="brand-mark logo-mark"><BrandLogo className="brand-logo sidebar-logo" /></div>
@@ -111,15 +120,15 @@ export default function Sidebar({
         </div>
       ) : null}
 
-      <nav className="sidebar-nav">
+      <nav id="durango-sidebar-nav" className="sidebar-nav" aria-label="Secciones de Durango">
         {sections.map((group) => (
           <div className="nav-group" key={group.group}>
             {!collapsed && <div className="nav-group-title">{group.group}</div>}
             {group.items.map((item) => {
               const Icon = getIcon(item.key, item.iconKey);
               return (
-                <NavLink key={item.key} to={`${basePath}/${item.key}`} title={item.label} aria-label={item.label} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-                  <Icon size={16} />
+                <NavLink key={item.key} to={`${basePath}/${item.key}`} title={collapsed ? item.label : undefined} aria-label={item.label} onClick={onNavigate} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                  <Icon size={18} />
                   {!collapsed && <span>{item.label}</span>}
                 </NavLink>
               );
@@ -132,7 +141,7 @@ export default function Sidebar({
 
       {domainSwitchPath ? (
         <div className="sidebar-footer">
-          <NavLink to={domainSwitchPath} title={domainSwitchLabel} aria-label={domainSwitchLabel} className="nav-item switch-domain-link">
+          <NavLink to={domainSwitchPath} title={domainSwitchLabel} aria-label={domainSwitchLabel} onClick={onNavigate} className="nav-item switch-domain-link">
             <ArrowLeftRight size={16} />
             {!collapsed && <span>{domainSwitchLabel}</span>}
           </NavLink>
