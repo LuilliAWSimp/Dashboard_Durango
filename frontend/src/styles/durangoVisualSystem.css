@@ -1,0 +1,299 @@
+/* DGO-V01 | Las Fuentes LF16 palette contract for Durango.
+ * Scope only the active hydraulic shell. Do not import Las Fuentes components,
+ * sensor catalogs or operational services. Load LAST, after shared.css.
+ * V02-V08 own layout, hero density, module cards and report redesigns.
+ */
+.pozos-shell {
+  --dgo-app-bg: #04121e;
+  --dgo-surface: #061a28;
+  --dgo-raised: #0a2638;
+  --dgo-border: #224151;
+  --dgo-text: #eef6fa;
+  --dgo-muted: #a7bdc9;
+  --dgo-accent: #73d1f3;
+  --dgo-active: #103e53;
+  --dgo-button-primary: #087ba5;
+  --dgo-button-primary-border: #1595bc;
+  --dgo-button-excel: #14653b;
+  --dgo-button-excel-border: #288652;
+  --dgo-button-pdf: #913347;
+  --dgo-button-pdf-border: #b75468;
+
+  /* Existing Durango components still consume these shared names. */
+  --bg: var(--dgo-app-bg);
+  --panel: var(--dgo-surface);
+  --panel-soft: var(--dgo-raised);
+  --border: var(--dgo-border);
+  --text: var(--dgo-text);
+  --muted: var(--dgo-muted);
+  --muted-2: var(--dgo-muted);
+  --shadow: none;
+  --surface-primary: var(--dgo-surface);
+  --surface-secondary: var(--dgo-raised);
+  --text-primary: var(--dgo-text);
+  --text-muted: var(--dgo-muted);
+  color: var(--dgo-text);
+  background: var(--dgo-app-bg);
+  color-scheme: dark;
+}
+
+.pozos-shell.theme-light {
+  --dgo-app-bg: #f2f7fa;
+  --dgo-surface: #ffffff;
+  --dgo-raised: #f2f7fa;
+  --dgo-border: #cfdee6;
+  --dgo-text: #163344;
+  --dgo-muted: #526b7a;
+  --dgo-accent: #096d94;
+  --dgo-active: #e2f3fa;
+  color-scheme: light;
+}
+
+/* LF16 neutral surfaces. No dimensional change to sidebar/hero/KPIs in V01. */
+.pozos-shell .main-shell,
+.pozos-shell.theme-light .main-shell {
+  background: var(--dgo-app-bg);
+  color: var(--dgo-text);
+}
+.pozos-shell .panel {
+  background: var(--dgo-surface);
+  border-color: var(--dgo-border);
+  border-radius: 10px;
+  box-shadow: none;
+  backdrop-filter: none;
+  color: var(--dgo-text);
+}
+.pozos-shell .panel::before { opacity: 0; }
+.pozos-shell :is(.panel-title, .summary-value, .operational-card-head strong) {
+  color: var(--dgo-text);
+}
+.pozos-shell :is(.panel-subtitle, .panel-eyebrow, .summary-label) {
+  color: var(--dgo-muted);
+}
+.pozos-shell .panel-eyebrow { color: var(--dgo-accent); }
+
+/* Shared KPIs: use the LF neutral card surface without changing data or grid. */
+.pozos-shell .kpi-card,
+.pozos-shell.theme-light .kpi-card {
+  background: var(--dgo-surface) !important;
+  color: var(--dgo-text) !important;
+  border-color: var(--dgo-border) !important;
+  border-radius: 10px;
+  box-shadow: none !important;
+}
+.pozos-shell .kpi-card::after,
+.pozos-shell .kpi-glow { display: none; }
+.pozos-shell .kpi-card::before { background: var(--dgo-accent) !important; }
+.pozos-shell .kpi-card :is(.kpi-value, .kpi-unit),
+.pozos-shell.theme-light .kpi-card :is(.kpi-value, .kpi-unit) {
+  color: var(--dgo-text) !important;
+}
+.pozos-shell .kpi-card :is(.kpi-label, .kpi-trend),
+.pozos-shell.theme-light .kpi-card :is(.kpi-label, .kpi-trend) {
+  color: var(--dgo-muted) !important;
+}
+
+/* Sidebar is recolored here; its dimensions and control layout belong to V02. */
+.pozos-shell .sidebar,
+.pozos-shell.theme-light .sidebar {
+  background: var(--dgo-surface);
+  border-right-color: var(--dgo-border);
+  box-shadow: none;
+}
+.pozos-shell .brand-row,
+.pozos-shell.theme-light .brand-row {
+  background: transparent;
+  border-bottom-color: var(--dgo-border);
+}
+.pozos-shell .sidebar :is(.nav-item, .menu-button, .theme-toggle-button),
+.pozos-shell.theme-light .sidebar :is(.nav-item, .menu-button, .theme-toggle-button) {
+  color: var(--dgo-muted);
+  border-color: var(--dgo-border);
+  background: transparent;
+  box-shadow: none;
+}
+.pozos-shell .sidebar :is(.nav-item, .menu-button, .theme-toggle-button):hover,
+.pozos-shell.theme-light .sidebar :is(.nav-item, .menu-button, .theme-toggle-button):hover {
+  background: var(--dgo-raised);
+  color: var(--dgo-text);
+}
+.pozos-shell .sidebar .nav-item.active,
+.pozos-shell.theme-light .sidebar .nav-item.active {
+  color: var(--dgo-text);
+  border-color: var(--dgo-border);
+  background: var(--dgo-active);
+  box-shadow: inset 3px 0 var(--dgo-accent);
+}
+.pozos-shell .sidebar .nav-item.active svg,
+.pozos-shell.theme-light .sidebar .nav-item.active svg { color: var(--dgo-accent); }
+.pozos-shell :is(.brand-title, .session-identity strong) { color: var(--dgo-text); }
+.pozos-shell :is(.brand-subtitle, .session-label, .session-identity small) { color: var(--dgo-muted); }
+.pozos-shell .plant-context-bar span {
+  background: var(--dgo-surface);
+  border-color: var(--dgo-border);
+  color: var(--dgo-text);
+  box-shadow: none;
+}
+
+/* Small reusable surfaces shared by histories, reports and daily review. */
+.pozos-shell :is(.date-range-panel, .chart-date-range-panel, .report-date-range-panel, .module-history-range-panel, .module-history-totalizer-control, .module-metric-selector) {
+  background: var(--dgo-raised);
+  border-color: var(--dgo-border);
+  box-shadow: none;
+}
+.pozos-shell :is(.operational-element-card, .report-summary-card, .shift-summary-card, .summary-item) {
+  background: var(--dgo-surface);
+  border-color: var(--dgo-border);
+  box-shadow: none;
+}
+.pozos-shell.theme-light :is(.operational-element-card, .report-summary-card, .shift-summary-card, .summary-item) {
+  background: var(--dgo-surface);
+  border-color: var(--dgo-border);
+  box-shadow: none;
+}
+
+/* Selection/aggregation widgets. Keep selections and chart series unchanged. */
+.pozos-shell :is(.tab-chip, .module-history-tab, .sensor-chip, .history-aggregation-trigger, .history-aggregation-option) {
+  background: var(--dgo-surface);
+  border-color: var(--dgo-border);
+  color: var(--dgo-text);
+  box-shadow: none;
+}
+.pozos-shell :is(.tab-chip.active, .module-history-tab.active, .sensor-chip.active, .history-aggregation-option.is-selected),
+.pozos-shell.theme-light :is(.tab-chip.active, .module-history-tab.active, .sensor-chip.active, .history-aggregation-option.is-selected) {
+  background: var(--dgo-active) !important;
+  border-color: var(--dgo-accent) !important;
+  color: var(--dgo-text) !important;
+  box-shadow: none;
+}
+.pozos-shell .module-metric-selector button { color: var(--dgo-muted); }
+.pozos-shell .module-metric-selector button.active,
+.pozos-shell.theme-light .module-metric-selector button.active {
+  color: var(--dgo-text) !important;
+  background: var(--dgo-active) !important;
+  border-color: var(--dgo-border) !important;
+  box-shadow: none !important;
+}
+
+/* Date inputs: scope only controls used by the hydraulic dashboard. */
+.pozos-shell :is(.date-range-fields input, .date-range-fields select, .module-history-range-fields input, .module-history-aggregation select, .history-aggregation-trigger) {
+  background: var(--dgo-surface);
+  color: var(--dgo-text);
+  border-color: var(--dgo-border);
+  box-shadow: none;
+}
+.pozos-shell.theme-light :is(.date-range-fields input, .date-range-fields select, .module-history-range-fields input, .module-history-aggregation select, .history-aggregation-trigger) {
+  background: var(--dgo-surface) !important;
+  color: var(--dgo-text) !important;
+  border-color: var(--dgo-border) !important;
+  box-shadow: none !important;
+  color-scheme: light !important;
+}
+.pozos-shell :is(input, select, textarea, button, a):focus-visible {
+  outline: 2px solid var(--dgo-accent);
+  outline-offset: 2px;
+}
+
+/* Use actual LF14 colors, preserving Excel/PDF semantic variants. */
+.pozos-shell :is(.date-range-apply, .primary-action),
+.pozos-shell.theme-light :is(.date-range-apply, .primary-action) {
+  background: var(--dgo-button-primary) !important;
+  border-color: var(--dgo-button-primary-border) !important;
+  color: #ffffff !important;
+  box-shadow: none;
+}
+.pozos-shell :is(.date-range-reset, .report-action-button:not(.export-pdf-button):not(.export-excel-button):not(.module-history-pdf-button):not(.module-history-excel-button):not(.primary-action)),
+.pozos-shell.theme-light :is(.date-range-reset, .report-action-button:not(.export-pdf-button):not(.export-excel-button):not(.module-history-pdf-button):not(.module-history-excel-button):not(.primary-action)) {
+  background: var(--dgo-surface) !important;
+  border-color: var(--dgo-border) !important;
+  color: var(--dgo-text) !important;
+  box-shadow: none;
+}
+.pozos-shell :is(.export-excel-button, .module-history-excel-button, .five-minute-excel-button),
+.pozos-shell.theme-light :is(.export-excel-button, .module-history-excel-button, .five-minute-excel-button) {
+  background: var(--dgo-button-excel) !important;
+  border-color: var(--dgo-button-excel-border) !important;
+  color: #ffffff !important;
+  box-shadow: none;
+}
+.pozos-shell :is(.export-pdf-button, .module-history-pdf-button),
+.pozos-shell.theme-light :is(.export-pdf-button, .module-history-pdf-button) {
+  background: var(--dgo-button-pdf) !important;
+  border-color: var(--dgo-button-pdf-border) !important;
+  color: #ffffff !important;
+  box-shadow: none;
+}
+.pozos-shell :is(.date-range-apply, .date-range-reset, .report-action-button):disabled { opacity: .55; cursor: not-allowed; }
+
+/* Table and chart tooltip readability in both themes, no export changes. */
+.pozos-shell table :is(th, td) { border-bottom-color: var(--dgo-border); }
+.pozos-shell table th { background: var(--dgo-raised); color: var(--dgo-muted); }
+.pozos-shell table td { color: var(--dgo-text); }
+.pozos-shell :is(.chart-tooltip, .module-history-tooltip, .minute-well-tooltip, .water-history-tooltip) {
+  background: var(--dgo-raised);
+  border-color: var(--dgo-border);
+  color: var(--dgo-text);
+  box-shadow: none;
+}
+.pozos-shell :is(.chart-tooltip-name, .module-history-tooltip-grid span, .water-history-tooltip .chart-tooltip-name) { color: var(--dgo-muted); }
+.pozos-shell :is(.chart-tooltip-value, .module-history-tooltip-grid strong, .water-history-tooltip .chart-tooltip-value) { color: var(--dgo-text); }
+
+/* Light-theme overrides intentionally outrank legacy dark-sidebar assumptions. */
+.pozos-shell.theme-light .panel {
+  background: var(--dgo-surface);
+  border-color: var(--dgo-border);
+  box-shadow: none;
+  color: var(--dgo-text);
+}
+.pozos-shell.theme-light :is(.panel-title, .panel-subtitle, .summary-value) {
+  color: var(--dgo-text);
+}
+.pozos-shell.theme-light .panel-subtitle { color: var(--dgo-muted); }
+.pozos-shell .sidebar .nav-item svg,
+.pozos-shell.theme-light .sidebar .nav-item svg { color: var(--dgo-muted); }
+.pozos-shell.theme-light .sidebar .brand-title,
+.pozos-shell.theme-light .sidebar .session-identity strong { color: var(--dgo-text); }
+.pozos-shell.theme-light .sidebar :is(.brand-subtitle, .nav-group-title, .session-label, .session-identity small) { color: var(--dgo-muted); }
+.pozos-shell.theme-light .sidebar .theme-toggle-button svg { color: var(--dgo-accent); }
+.pozos-shell.theme-light .sidebar .nav-item.active svg { color: var(--dgo-accent); }
+
+/* Match the legacy light-theme !important control rules explicitly. */
+.pozos-shell.theme-light :is(.date-range-panel, .chart-date-range-panel, .report-date-range-panel, .shift-controls-panel, .module-metric-selector) {
+  background: var(--dgo-raised) !important;
+  border-color: var(--dgo-border) !important;
+  box-shadow: none !important;
+}
+.pozos-shell.theme-light .history-aggregation-menu {
+  background: var(--dgo-surface) !important;
+  border-color: var(--dgo-border) !important;
+  box-shadow: none !important;
+}
+.pozos-shell.theme-light .module-metric-selector button:not(.active) {
+  color: var(--dgo-muted) !important;
+  background: transparent !important;
+  border-color: transparent !important;
+}
+.pozos-shell.theme-light :is(.chart-tooltip, .module-history-tooltip, .minute-well-tooltip, .water-history-tooltip) {
+  background: var(--dgo-raised);
+  border-color: var(--dgo-border);
+  color: var(--dgo-text);
+  box-shadow: none;
+}
+
+/* A final, single source of export button colors, including hover states. */
+.pozos-shell :is(.export-excel-button, .module-history-excel-button, .five-minute-excel-button, .historical-excel-button, .header-export-excel),
+.pozos-shell.theme-light :is(.export-excel-button, .module-history-excel-button, .five-minute-excel-button, .historical-excel-button, .header-export-excel),
+.pozos-shell :is(.export-excel-button, .module-history-excel-button, .five-minute-excel-button, .historical-excel-button, .header-export-excel):is(:hover:not(:disabled), :focus-visible) {
+  background: var(--dgo-button-excel) !important;
+  border-color: var(--dgo-button-excel-border) !important;
+  color: #ffffff !important;
+  box-shadow: none !important;
+}
+.pozos-shell :is(.export-pdf-button, .module-history-pdf-button, .historical-pdf-button, .header-export-pdf),
+.pozos-shell.theme-light :is(.export-pdf-button, .module-history-pdf-button, .historical-pdf-button, .header-export-pdf),
+.pozos-shell :is(.export-pdf-button, .module-history-pdf-button, .historical-pdf-button, .header-export-pdf):is(:hover:not(:disabled), :focus-visible) {
+  background: var(--dgo-button-pdf) !important;
+  border-color: var(--dgo-button-pdf-border) !important;
+  color: #ffffff !important;
+  box-shadow: none !important;
+}

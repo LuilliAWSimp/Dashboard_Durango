@@ -27,3 +27,5 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     </BrowserRouter>
   </React.StrictMode>
 );
+// DGO-V01: bounded LF16 visual contract; keep last for predictable cascade.
+import './styles/durangoVisualSystem.css';
