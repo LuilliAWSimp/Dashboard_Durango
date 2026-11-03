@@ -1,0 +1,317 @@
+/* DGO-V05 | Las Fuentes LF16 -> Durango: módulos operativos y tarjetas.
+ * Cargado tras V01-V04; no modifica datos, rutas, históricos ni el detalle.
+ * Los cuatro módulos usan OperationalModuleSection, una sola fuente visual.
+ */
+
+/* La cabecera es ligera; evitar el hero de 48 px y su borde/padding doble. */
+.pozos-shell .dgo-lf16-module-heading {
+  margin: 0 0 14px;
+  padding: 4px 0 12px;
+  border-bottom: 1px solid var(--dgo-border);
+  background: transparent;
+}
+.pozos-shell .dgo-lf16-module-heading .panel-header.compact {
+  margin: 0;
+  padding: 0;
+}
+.pozos-shell .dgo-lf16-module-heading .panel-eyebrow {
+  margin-bottom: 4px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: .02em;
+  color: var(--dgo-muted);
+}
+.pozos-shell .dgo-lf16-module-heading .panel-title {
+  margin: 0;
+  color: var(--dgo-text);
+  font-size: clamp(23px, 2.15vw, 28px);
+  font-weight: 780;
+  line-height: 1.2;
+  letter-spacing: -.02em;
+}
+.pozos-shell .dgo-lf16-module-heading .panel-subtitle {
+  margin-top: 5px;
+  max-width: 760px;
+  color: var(--dgo-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.pozos-shell .dgo-lf16-module-heading + .chart-date-range-panel {
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border-color: var(--dgo-border);
+  border-radius: 8px;
+  background: var(--dgo-surface);
+  box-shadow: none;
+}
+
+/* Mantener los cinco KPIs de Durango; compactar tamaño y jerarquía como LF16. */
+.pozos-shell .dgo-lf16-module-kpis {
+  grid-template-columns: repeat(auto-fit, minmax(min(185px, 100%), 1fr));
+  gap: 12px;
+  margin: 0 0 16px;
+}
+.pozos-shell .dgo-lf16-module-kpis > .kpi-card,
+.pozos-shell.theme-light .dgo-lf16-module-kpis > .kpi-card {
+  min-height: 102px;
+  padding: 13px 15px;
+  border: 1px solid var(--dgo-border);
+  border-radius: 8px;
+  background: var(--dgo-surface) !important;
+  box-shadow: none !important;
+}
+.pozos-shell .dgo-lf16-module-kpis > .kpi-card::before { display: none; }
+.pozos-shell .dgo-lf16-module-kpis .kpi-label {
+  margin-bottom: 7px;
+  color: var(--dgo-muted) !important;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: .025em;
+}
+.pozos-shell .dgo-lf16-module-kpis .kpi-value {
+  color: var(--dgo-text) !important;
+  font-size: clamp(21px, 1.65vw, 25px);
+  font-weight: 800;
+  line-height: 1.16;
+  letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums;
+}
+.pozos-shell .dgo-lf16-module-kpis .kpi-unit {
+  color: var(--dgo-muted) !important;
+  padding-bottom: 1px;
+  font-size: 11px;
+}
+.pozos-shell .dgo-lf16-module-kpis .kpi-trend {
+  margin-top: 7px;
+  color: var(--dgo-muted) !important;
+  font-size: 10.5px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+/* Grilla compartida para 2 pozos, 4 líneas, 3 lavadoras y jarabes. */
+.pozos-shell .dgo-lf16-cards-panel {
+  padding: 16px;
+  border: 1px solid var(--dgo-border);
+  border-radius: 8px;
+  background: var(--dgo-surface);
+  box-shadow: none;
+}
+.pozos-shell .dgo-lf16-cards-panel > .panel-header {
+  margin-bottom: 14px;
+}
+.pozos-shell .dgo-lf16-cards-panel > .panel-header .panel-title {
+  color: var(--dgo-text);
+  font-size: 17px;
+  line-height: 1.3;
+}
+.pozos-shell .dgo-lf16-equipment-grid,
+.pozos-shell .dgo-lf16-equipment-grid.operational-well-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  align-items: stretch;
+}
+.pozos-shell .dgo-lf16-equipment-card,
+.pozos-shell.theme-light .dgo-lf16-equipment-card {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--dgo-border);
+  border-radius: 8px;
+  background: var(--dgo-surface);
+  box-shadow: none;
+  transform: none;
+  transition: border-color .18s ease, background .18s ease;
+}
+.pozos-shell .dgo-lf16-equipment-card:hover,
+.pozos-shell .dgo-lf16-equipment-card:focus-within {
+  border-color: var(--dgo-accent);
+  background: var(--dgo-raised);
+  box-shadow: none;
+  transform: none;
+}
+.pozos-shell .dgo-lf16-equipment-card .operational-card-action {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  color: var(--dgo-text);
+  border-radius: 8px;
+}
+.pozos-shell .dgo-lf16-equipment-card .operational-card-action:focus-visible {
+  outline: 2px solid var(--dgo-accent);
+  outline-offset: -2px;
+  border-radius: 8px;
+}
+.pozos-shell .dgo-lf16-equipment-card .operational-card-main {
+  padding: 15px;
+  flex: 1 1 auto;
+  cursor: pointer;
+}
+.pozos-shell .dgo-lf16-equipment-card .operational-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  min-height: 36px;
+  margin: 0 0 13px;
+}
+.pozos-shell .dgo-lf16-equipment-card .operational-card-head .operational-card-title {
+  flex: 1 1 140px;
+  min-width: 0;
+  gap: 9px;
+}
+.pozos-shell .dgo-lf16-equipment-card .operational-card-icon {
+  width: 32px;
+  height: 32px;
+  flex-basis: 32px;
+  border: 1px solid var(--dgo-border);
+  border-radius: 6px;
+  color: var(--dgo-accent) !important;
+  background: var(--dgo-raised);
+}
+.pozos-shell .dgo-lf16-equipment-card .operational-card-eyebrow {
+  color: var(--dgo-muted);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: .02em;
+}
+.pozos-shell .dgo-lf16-equipment-card .operational-card-head strong {
+  margin-top: 2px;
+  color: var(--dgo-text);
+  font-size: 17px;
+  font-weight: 750;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.pozos-shell .dgo-lf16-equipment-card .operational-card-head .status-pill {
+  justify-self: auto;
+  max-width: 100%;
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 10px;
+  line-height: 1.3;
+  letter-spacing: 0;
+}
+
+/* Igual que LF16: métricas principales en tarjetas, secundarias sin recuadros. */
+.pozos-shell .dgo-lf16-equipment-primary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 13px;
+}
+.pozos-shell .dgo-lf16-equipment-primary > .metric-pair,
+.pozos-shell.theme-light .dgo-lf16-equipment-primary > .metric-pair {
+  min-width: 0;
+  min-height: 76px;
+  padding: 11px 12px;
+  border: 1px solid var(--dgo-border) !important;
+  border-radius: 6px;
+  background: var(--dgo-raised) !important;
+  box-shadow: none !important;
+}
+.pozos-shell .dgo-lf16-equipment-secondary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  min-width: 0;
+}
+.pozos-shell .dgo-lf16-equipment-secondary > .metric-pair,
+.pozos-shell.theme-light .dgo-lf16-equipment-secondary > .metric-pair {
+  min-width: 0;
+  padding: 0;
+  border: 0 !important;
+  border-radius: 0;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.pozos-shell .dgo-lf16-equipment-card :is(.dgo-lf16-equipment-primary, .dgo-lf16-equipment-secondary) .metric-pair span,
+.pozos-shell.theme-light .dgo-lf16-equipment-card :is(.dgo-lf16-equipment-primary, .dgo-lf16-equipment-secondary) .metric-pair span {
+  display: block;
+  margin: 0;
+  color: var(--dgo-muted) !important;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.4;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+.pozos-shell .dgo-lf16-equipment-card :is(.dgo-lf16-equipment-primary, .dgo-lf16-equipment-secondary) .metric-pair strong,
+.pozos-shell.theme-light .dgo-lf16-equipment-card :is(.dgo-lf16-equipment-primary, .dgo-lf16-equipment-secondary) .metric-pair strong {
+  display: block;
+  margin-top: 5px;
+  color: var(--dgo-text) !important;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.28;
+  overflow-wrap: anywhere;
+}
+.pozos-shell .dgo-lf16-equipment-primary .metric-pair strong { font-size: 21px; }
+.pozos-shell .dgo-lf16-equipment-secondary .metric-pair strong { font-size: 15px; }
+.pozos-shell .dgo-lf16-equipment-card .metric-pair small,
+.pozos-shell.theme-light .dgo-lf16-equipment-card .metric-pair small {
+  display: inline;
+  margin-left: 4px;
+  color: var(--dgo-muted) !important;
+  font-size: .72em;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.pozos-shell .dgo-lf16-equipment-card .operational-card-footer,
+.pozos-shell.theme-light .dgo-lf16-equipment-card .operational-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 5px 12px;
+  padding: 11px 15px;
+  border-top: 1px solid var(--dgo-border) !important;
+  background: transparent !important;
+  color: var(--dgo-muted) !important;
+  font-size: 11px;
+  line-height: 1.4;
+}
+.pozos-shell .dgo-lf16-equipment-card .operational-card-footer strong {
+  font-size: 11px;
+  color: var(--dgo-text);
+  font-weight: 700;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.pozos-shell .dgo-lf16-equipment-card .operational-card-footer .open-detail-link {
+  color: var(--dgo-accent);
+  font-size: 11px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+.pozos-shell.theme-light .dgo-lf16-equipment-card .operational-card-footer .last-reading-label {
+  color: var(--dgo-muted) !important;
+}
+
+@media (max-width: 1279px) {
+  .pozos-shell .dgo-lf16-equipment-grid,
+  .pozos-shell .dgo-lf16-equipment-grid.operational-well-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 760px) {
+  .pozos-shell .dgo-lf16-equipment-grid,
+  .pozos-shell .dgo-lf16-equipment-grid.operational-well-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .pozos-shell .dgo-lf16-cards-panel { padding: 12px; }
+  .pozos-shell .dgo-lf16-equipment-primary { gap: 8px; }
+  .pozos-shell .dgo-lf16-equipment-card .operational-card-main { padding: 12px; }
+  .pozos-shell .dgo-lf16-equipment-card .operational-card-footer { padding: 10px 12px; }
+  .pozos-shell .dgo-lf16-module-heading .panel-title { font-size: 24px; }
+}
+@media (max-width: 400px) {
+  .pozos-shell .dgo-lf16-equipment-primary { grid-template-columns: minmax(0,1fr); }
+  .pozos-shell .dgo-lf16-equipment-secondary { grid-template-columns: minmax(0,1fr); gap: 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pozos-shell .dgo-lf16-equipment-card { transition: none; }
+}

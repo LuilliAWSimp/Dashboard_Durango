@@ -38,3 +38,6 @@ import './styles/durangoSummaryLF16.css';
 
 // DGO-V04: LF16 historical controls, responsive chart layout and series palette.
 import './styles/durangoHistoryLF16.css';
+
+// DGO-V05: module headers, KPI density and equipment cards aligned with LF16.
+import './styles/durangoModulesLF16.css';

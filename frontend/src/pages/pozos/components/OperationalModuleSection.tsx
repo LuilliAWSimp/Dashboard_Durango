@@ -287,7 +287,7 @@ export default function OperationalModuleSection({
 
   return (
     <div className={`operational-module-page operational-module-${module}-page`}>
-      <section className="operational-module-heading fade-up">
+      <section className="operational-module-heading dgo-lf16-module-heading fade-up">
         <PanelHeader
           eyebrow={`Operación de ${title.toLowerCase()}`}
           title={title}
@@ -302,7 +302,7 @@ export default function OperationalModuleSection({
       />
 
       {sectionConfig ? (
-        <section className="cards-grid stagger-grid">
+        <section className="cards-grid stagger-grid dgo-lf16-module-kpis">
           <KpiCard label={labels?.totalKpi || 'Elementos monitoreados'} value={String(rows.length)} unit={sectionConfig.plural} trend={`${rows.length}/${expectedCount} identidades permitidas`} accent="cyan" />
           <KpiCard label={labels?.operatingKpi || 'Elementos operando'} value={String(rawSummary.operating)} unit={sectionConfig.plural} trend="Flujo actual positivo o estado operativo" accent="teal" />
           <KpiCard label={labels?.noFlowKpi || 'Elementos sin flujo'} value={String(rawSummary.noFlow)} unit={sectionConfig.plural} trend="Cero válido o estado sin actividad" accent="blue" />
@@ -310,7 +310,7 @@ export default function OperationalModuleSection({
           <KpiCard label={labels?.reviewKpi || 'Lecturas en revisión'} value={String(rawSummary.review + rawSummary.noHistory)} unit="elementos" trend="Sin histórico o validación parcial del periodo" accent="brown" />
         </section>
       ) : (
-        <section className="cards-grid stagger-grid">
+        <section className="cards-grid stagger-grid dgo-lf16-module-kpis">
           <KpiCard
             label={operationalVolumeLabel(module, { validated: true, scope: 'period' })}
             value={rawSummary.totalM3 === null ? 'No disponible' : fmt(rawSummary.totalM3)}
@@ -325,11 +325,11 @@ export default function OperationalModuleSection({
         </section>
       )}
 
-      <section className="panel fade-up">
+      <section className="panel fade-up dgo-lf16-cards-panel">
         <PanelHeader title={labels?.cardTitle || `Elementos de ${title.toLowerCase()}`} subtitle="Selecciona un elemento para abrir su detalle." />
         {controller.error ? <div className="status-pill alert">{controller.error}</div> : null}
 
-        <div className={`operational-card-grid ${module === 'well' ? 'operational-well-grid' : ''}`}>
+        <div className={`operational-card-grid dgo-lf16-equipment-grid ${module === 'well' ? 'operational-well-grid' : ''}`}>
           {rows.map((row, index) => {
             const identity = resolveOperationalIdentity(row, index, module);
             const rawState = String(row.current_state || (currentFlow(row) === null ? 'Sin registros' : currentFlow(row)! > 0 ? 'Activo' : 'Sin flujo'));
@@ -340,7 +340,7 @@ export default function OperationalModuleSection({
             const flow = currentFlow(row);
             const totalizer = number(row.current_totalizer_m3 ?? row.totalizador_m3);
             return (
-              <article key={`${module}-${identity}`} className={`operational-element-card operational-element-card-${cardMeta.className}`}>
+              <article key={`${module}-${identity}`} className={`operational-element-card dgo-lf16-equipment-card operational-element-card-${cardMeta.className}`}>
                 <button
                   type="button"
                   className="operational-card-action"
@@ -358,14 +358,23 @@ export default function OperationalModuleSection({
                       </div>
                       <StatusBadge type={statusType(rawState)}>{state}</StatusBadge>
                     </div>
-                    <div className="metric-pairs-grid operational-metric-grid">
-                      <MetricPair label="Flujo actual" value={flow === null ? 'Sin dato' : fmt(flow)} unit={flow === null ? '' : String(row.flow_unit || 'L/s')} />
-                      <MetricPair label="Totalizador actual" value={totalizer === null ? 'Sin totalizador' : fmt(totalizer)} unit={totalizer === null ? '' : 'm³'} />
+                    {/* LF16: lectura principal (volumen y flujo) y métricas secundarias.
+                        Conservar las mismas fuentes y formatos de Durango. */}
+                    <div className="dgo-lf16-equipment-primary">
                       <MetricPair
                         label={operationalVolumeLabel(module, { scope: 'period' })}
                         value={volume === null ? 'No disponible' : fmt(volume)}
                         unit={volume === null ? '' : 'm³'}
                         emphasis
+                      />
+                      <MetricPair label="Flujo actual" value={flow === null ? 'Sin dato' : fmt(flow)} unit={flow === null ? '' : String(row.flow_unit || 'L/s')} />
+                    </div>
+                    <div className="dgo-lf16-equipment-secondary">
+                      <MetricPair label="Totalizador actual" value={totalizer === null ? 'Sin totalizador' : fmt(totalizer)} unit={totalizer === null ? '' : 'm³'} />
+                      <MetricPair
+                        label="Tiempo activo en el período"
+                        value={number(row.active_minutes) === null ? '—' : fmt(row.active_minutes)}
+                        unit={number(row.active_minutes) === null ? '' : 'min'}
                       />
                     </div>
                   </div>
