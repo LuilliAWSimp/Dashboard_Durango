@@ -32,3 +32,6 @@ import './styles/durangoVisualSystem.css';
 
 // DGO-V02: sidebar LF16 geometry, navigation and responsive drawer.
 import './styles/durangoSidebarLF16.css';
+
+// DGO-V03: LF16 summary hero and process KPI cards (only dashboard).
+import './styles/durangoSummaryLF16.css';

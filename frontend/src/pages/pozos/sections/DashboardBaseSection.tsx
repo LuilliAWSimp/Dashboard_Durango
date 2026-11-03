@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import KpiCard from '../../../components/KpiCard';
+import { Link, useNavigate } from 'react-router-dom';
 import { DURANGO_CAPABILITIES } from '../../../config/plantCapabilities';
 import { fetchWaterDailyReview } from '../../../services/waterService';
 import { JARABES_SECTION_CONFIG, LAVADORAS_SECTION_CONFIG } from '../operationalSectionConfig';
@@ -14,6 +13,7 @@ import useSqlChartDashboard from '../hooks/useSqlChartDashboard';
 import type { DashboardData, FlexibleRecord } from '../types';
 import { evaluateDurangoWaterAlerts } from '../waterOperationalAlerts';
 import { operationalVolumeLabel } from '../operationalTerminology';
+import { currentFlowSummary } from '../summaryFlow';
 
 
 function rows(value: unknown): FlexibleRecord[] {
@@ -91,10 +91,6 @@ function rowSummary(items: FlexibleRecord[]): FlexibleRecord {
 function groupVolume(group: FlexibleRecord): number | null {
   return number(group.subtotal_validated_m3 ?? group.validated_volume_m3 ?? group.total_m3);
 }
-function volumeTrend(group: FlexibleRecord, total: number): string {
-  if (groupVolume(group) === null) return 'No disponible';
-  return `${Number(group.active_count || 0)}/${total} con actividad en el periodo`;
-}
 function coverageText(group: FlexibleRecord, total: number): string {
   const available = Number(group.coverage_available ?? 0);
   const denominator = Number(group.coverage_total ?? total);
@@ -129,6 +125,51 @@ function groupStatusType(group: FlexibleRecord): string {
   if (Number(group.coverage_total || 0) === 0 || Number(group.no_data_count || 0) > 0) return 'communication';
   if (group.coverage_complete === true) return 'normal';
   return 'warning';
+}
+
+interface SummaryProcessCardProps {
+  title: string;
+  route: string;
+  volumeLabel: string;
+  group: FlexibleRecord;
+  previous: FlexibleRecord;
+  items: FlexibleRecord[];
+  total: number;
+  dailyMode: boolean;
+}
+
+function SummaryProcessCard({ title, route, volumeLabel, group, previous, items, total, dailyMode }: SummaryProcessCardProps) {
+  const volume = groupVolume(group);
+  const flow = currentFlowSummary(items);
+  const active = Number(group.active_count ?? 0);
+  return (
+    <Link className="durango-summary-process-card" to={route} aria-label={`Abrir módulo ${title}`}>
+      <div className="durango-summary-process-head">
+        <strong>{title}</strong>
+        <span>Abrir módulo →</span>
+      </div>
+      <div className="durango-summary-process-primary">
+        <span>{volumeLabel}</span>
+        <div className="durango-summary-process-value">
+          <strong>{volume === null ? 'Sin datos' : fmt(volume)}</strong>
+          {volume !== null ? <span>m³</span> : null}
+        </div>
+      </div>
+      <div className="durango-summary-process-secondary">
+        <div>
+          <span>Flujo reportado</span>
+          <strong>{flow === null ? 'Sin lectura' : `${fmt(flow)} L/s`}</strong>
+        </div>
+        <div>
+          <span>Actividad del periodo</span>
+          <strong>{active}/{total}</strong>
+        </div>
+      </div>
+      <div className="durango-summary-process-foot">
+        {dailyMode ? dailyVolumeTrend(group, total, previous) : coverageText(group, total)}
+      </div>
+    </Link>
+  );
 }
 
 export default function DashboardBaseSection() {
@@ -241,33 +282,49 @@ export default function DashboardBaseSection() {
       ? `${criticalAlertCount} crítica${criticalAlertCount === 1 ? '' : 's'} · revisar alertas`
       : `${alerts.length} aviso${alerts.length === 1 ? '' : 's'} · revisar alertas`;
 
+  // Single catalog for both the LF16-style cards and the original comparison table.
   const comparisonRows = [
-    { key: 'wells', label: 'Pozos', group: wells, previous: previousDay.wells, week: previousWeek.wells, total: wellCount, route: '/pozos/pozos' },
-    { key: 'lines', label: 'Líneas', group: lines, previous: previousDay.lines, week: previousWeek.lines, total: lineCount, route: '/pozos/lineas' },
-    { key: 'lavadoras', label: 'Lavadoras', group: lavadoras, previous: previousDay.lavadoras, week: previousWeek.lavadoras, total: lavadoraCount, route: '/pozos/flujos' },
-    { key: 'jarabes', label: 'Jarabes', group: jarabes, previous: previousDay.jarabes, week: previousWeek.jarabes, total: jarabesCount, route: '/pozos/jarabes' },
+    { key: 'wells', label: 'Pozos', volumeLabel: `${operationalVolumeLabel('well')} de pozos`, items: wellRows, group: wells, previous: previousDay.wells, week: previousWeek.wells, total: wellCount, route: '/pozos/pozos' },
+    { key: 'lines', label: 'Líneas', volumeLabel: `${operationalVolumeLabel('line')} de líneas`, items: lineRows, group: lines, previous: previousDay.lines, week: previousWeek.lines, total: lineCount, route: '/pozos/lineas' },
+    { key: 'lavadoras', label: 'Lavadoras', volumeLabel: `${operationalVolumeLabel('flow')} de lavadoras`, items: lavadorasRows, group: lavadoras, previous: previousDay.lavadoras, week: previousWeek.lavadoras, total: lavadoraCount, route: '/pozos/flujos' },
+    { key: 'jarabes', label: 'Jarabes', volumeLabel: `${operationalVolumeLabel('flow')} de Jarabes`, items: jarabesRows, group: jarabes, previous: previousDay.jarabes, week: previousWeek.jarabes, total: jarabesCount, route: '/pozos/jarabes' },
   ];
 
   return (
     <div className="dashboard-resumen-page">
-      <section className="panel fade-up compact-hero operational-reference-hero">
-        <PanelHeader
-          eyebrow="Dashboard ARCA · Planta Durango"
-          title="Resumen operativo de agua"
-          subtitle="Vista ejecutiva de la operación, el histórico consolidado, los comparativos por módulo y las alertas de la planta."
-        />
+      <section className="durango-summary-shell fade-up" aria-label="Resumen de agua Durango">
+        <div className="durango-summary-top">
+          <div className="durango-summary-heading">
+            <span className="durango-summary-eyebrow">Dashboard ARCA · Planta Durango</span>
+            <h1>Resumen operativo de agua</h1>
+            <p>Vista ejecutiva de la operación, el histórico consolidado, los comparativos por módulo y las alertas de la planta.</p>
+          </div>
+          <div className="durango-summary-state" role="status" aria-live="polite">
+            <span className="durango-summary-state-label">Estado general</span>
+            <strong>{controller.loading ? 'Actualizando información' : controller.refreshing ? 'Actualizando lecturas' : controller.error ? 'Sin actualización reciente' : dashboard ? 'Información actualizada' : 'Sin datos disponibles'}</strong>
+            <span>Última actualización: {latest ? formatSqlDate(latest) : 'Sin lectura'}</span>
+            <span>Elementos con flujo actual: <b>{currentFlowCount}/{monitoredCount}</b></span>
+            <span>Alertas activas: <b>{alerts.length}</b></span>
+            <span className="durango-summary-state-note">{alertTrend}</span>
+          </div>
+        </div>
+        <div className="durango-summary-process-grid" aria-label="Módulos principales de Durango">
+          {comparisonRows.map((item) => (
+            <SummaryProcessCard
+              key={item.key}
+              title={item.label}
+              route={item.route}
+              volumeLabel={`${item.volumeLabel} · ${volumeScope}`}
+              group={item.group}
+              previous={item.previous}
+              items={item.items}
+              total={item.total}
+              dailyMode={dailyMode}
+            />
+          ))}
+        </div>
         {dailyLoading ? <div className="status-pill auto-refresh-status">Actualizando comparativos diarios…</div> : null}
         {dailyError ? <div className="status-pill alert">{dailyError}</div> : null}
-      </section>
-
-      <section className="cards-grid stagger-grid summary-operational-kpis">
-        <KpiCard label={`${operationalVolumeLabel('well')} de pozos · ${volumeScope}`} value={fmt(groupVolume(wells))} unit={groupVolume(wells) === null ? '' : 'm³'} trend={dailyMode ? dailyVolumeTrend(wells, wellCount, previousDay.wells) : volumeTrend(wells, wellCount)} accent="blue" />
-        <KpiCard label={`${operationalVolumeLabel('line')} de líneas · ${volumeScope}`} value={fmt(groupVolume(lines))} unit={groupVolume(lines) === null ? '' : 'm³'} trend={dailyMode ? dailyVolumeTrend(lines, lineCount, previousDay.lines) : volumeTrend(lines, lineCount)} accent="cyan" />
-        <KpiCard label={`${operationalVolumeLabel('flow')} de lavadoras · ${volumeScope}`} value={fmt(groupVolume(lavadoras))} unit={groupVolume(lavadoras) === null ? '' : 'm³'} trend={dailyMode ? dailyVolumeTrend(lavadoras, lavadoraCount, previousDay.lavadoras) : volumeTrend(lavadoras, lavadoraCount)} accent="indigo" />
-        <KpiCard label={`${operationalVolumeLabel('flow')} de Jarabes · ${volumeScope}`} value={fmt(groupVolume(jarabes))} unit={groupVolume(jarabes) === null ? '' : 'm³'} trend={dailyMode ? dailyVolumeTrend(jarabes, jarabesCount, previousDay.jarabes) : volumeTrend(jarabes, jarabesCount)} accent="purple" />
-        <KpiCard label="Elementos con flujo actual" value={`${currentFlowCount}/${monitoredCount}`} unit="elementos" trend="Estado operativo actual" accent="teal" />
-        <KpiCard label="Alertas activas" value={String(alerts.length)} unit={alerts.length === 1 ? 'alerta' : 'alertas'} trend={alertTrend} accent={criticalAlertCount > 0 ? 'red' : 'brown'} />
-        <KpiCard label="Última actualización" value={latest ? formatSqlDate(latest) : 'Sin lectura'} unit="" trend={controller.refreshing ? 'Actualizando información…' : 'Actualización automática cada 60 s'} accent="teal" />
       </section>
 
       <ModuleHistoryPanel range={controller.range} independentRange />
