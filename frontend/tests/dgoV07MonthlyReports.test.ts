@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { isCompleteCalendarMonth, normalizeReportFilters } from '../src/pages/pozos/reportExportContract.ts';
+import { isCompleteCalendarMonth, isExtendedReportRange, isValidReportFilters, normalizeReportFilters } from '../src/pages/pozos/reportExportContract.ts';
 
 const source = readFileSync(new URL('../src/pages/pozos/sections/ReportesSection.tsx', import.meta.url), 'utf8');
 
@@ -27,15 +27,20 @@ test('meses calendario de 28, 29, 30 y 31 dias se reconocen correctamente', () =
   });
 });
 
-test('PDF y Excel mensuales dependen de filtros aplicados y no de preview sincrona', () => {
-  assert.match(source, /const monthlyRequest = !background && isCompleteCalendarMonth\(nextFilters\)/);
-  assert.match(source, /setAppliedFilters\(nextFilters\);\s*setReport\(null\)/);
-  assert.match(source, /const monthlyExportReady = !loading && !hasPendingPeriodChanges && isCompleteCalendarMonth\(appliedFilters\)/);
-  assert.match(source, /const pdfExcelReady = exportReady \|\| monthlyExportReady/);
-  assert.match(source, /disabled=\{isBusy \|\| !pdfExcelReady\} onClick=\{\(\) => void runExport\('pdf'\)\}/);
-  assert.match(source, /disabled=\{isBusy \|\| !pdfExcelReady\} onClick=\{\(\) => void runExport\('xlsx'\)\}/);
-  assert.match(source, /downloadDailyWaterReportPdf\(appliedFilters, setExportJob\)/);
-  assert.match(source, /downloadDailyWaterReportExcel\(appliedFilters, setExportJob\)/);
-  // El PDF y Excel no dependen del HTML, SMTP ni regeneraciones en navegador.
-  assert.match(source, /fetchDailyWaterReport\(appliedFilters, \{ includeHistory: true, includeShifts: true \}\)/);
+test('DGO-V07A: PDF/Excel siempre utilizan los filtros visibles, sin Actualizar', () => {
+  assert.match(source, /const requestedFilters: ReportFilters = \{ \.\.\.draftFilters \}/);
+  assert.match(source, /downloadDailyWaterReportPdf\(requestedFilters, setExportJob\)/);
+  assert.match(source, /downloadDailyWaterReportExcel\(requestedFilters, setExportJob\)/);
+  assert.doesNotMatch(source, /downloadDailyWaterReportPdf\(appliedFilters/);
+  assert.doesNotMatch(source, /downloadDailyWaterReportExcel\(appliedFilters/);
+  assert.match(source, /const pdfExcelReady = isValidReportFilters\(draftFilters\)/);
+  assert.match(source, /reportFiltersLabel\(draftFilters\)/);
+  assert.match(source, /isExtendedReportRange\(nextFilters\)/);
+  assert.match(source, /const nextReport = await fetchDailyWaterReportPreview\(nextFilters\)/);
+  assert.match(source, /report && !hasPendingPeriodChanges \? <>/);
+  assert.deepEqual(normalizeReportFilters('range', '', '2026-10-01', '2026-10-31'), {
+    startDate: '2026-10-01', endDate: '2026-10-31',
+  });
+  assert.equal(isValidReportFilters({ startDate: '2026-10-01', endDate: '2026-10-31' }), true);
+  assert.equal(isExtendedReportRange({ startDate: '2026-10-01', endDate: '2026-10-31' }), true);
 });

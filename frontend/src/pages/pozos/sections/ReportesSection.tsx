@@ -17,7 +17,7 @@ import { useNotifications } from '../components/NotificationCenter';
 import ScheduledReportEmailPanel from '../components/ScheduledReportEmailPanel';
 import { downloadFullHistoricalExcel, downloadFullHistoricalPdf } from '../../../services/waterHistoricalExportService';
 import { operationalVolumeLabel } from '../operationalTerminology';
-import { isCompleteCalendarMonth, normalizeReportFilters, reportFiltersIncludeDate, sameReportFilters, type ReportFilters, type ReportMode } from '../reportExportContract';
+import { isExtendedReportRange, isValidReportFilters, normalizeReportFilters, reportFiltersIncludeDate, reportFiltersLabel, sameReportFilters, type ReportFilters, type ReportMode } from '../reportExportContract';
 
 type ReportSectionKey = 'wells' | 'production_lines' | 'washers' | 'jarabes';
 type ExportAction = 'pdf' | 'xlsx' | 'html' | 'historical-excel' | 'historical-pdf' | null;
@@ -214,7 +214,8 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
   const [refreshing, setRefreshing] = useState(false);
   const [exportAction, setExportAction] = useState<ExportAction>(null);
   const [exportJob, setExportJob] = useState<{ id: string; status: string; created_at?: number; stage?: string; queue_seconds?: number; work_seconds?: number } | null>(null);
-  const inFlightRef = useRef(false);
+  const previewRequestIdRef = useRef(0);
+  const [previewNotice, setPreviewNotice] = useState('');
   const [error, setError] = useState('');
   const [emailOpen, setEmailOpen] = useState(false);
   const [sending, setSending] = useState(false);
@@ -234,40 +235,54 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
   const [appliedFilters, setAppliedFilters] = useState<ReportFilters>({ date: today });
 
   const load = async (nextFilters: ReportFilters = draftFilters, background = false) => {
-    if (inFlightRef.current) return;
-    inFlightRef.current = true;
-    if (background && report) setRefreshing(true);
-    else setLoading(true);
-    if (!background) setError('');
-    // Un mes completo debe poder enviarse al worker PDF/Excel aunque la vista
-    // previa sincrona supere el timeout del navegador. Nunca mostrar preview
-    // del rango anterior como si correspondiera al mes solicitado.
-    const monthlyRequest = !background && isCompleteCalendarMonth(nextFilters);
-    if (monthlyRequest) {
+    if (!isValidReportFilters(nextFilters)) {
+      if (!background) setError('Selecciona una fecha o un periodo válido antes de continuar.');
+      return;
+    }
+    // Un nuevo periodo invalida cualquier respuesta tardía de la vista anterior.
+    const requestId = ++previewRequestIdRef.current;
+    if (!background) {
       setAppliedFilters(nextFilters);
       setReport(null);
-    }
-    try {
-      // Preview intentionally excludes historical series and administrative shifts.
-      const nextReport = await fetchDailyWaterReportPreview(nextFilters);
-      setReport(nextReport);
-      if (!background) {
-        setAppliedFilters(nextFilters);
-        const nextSubject = nextFilters.date
+      setPreviewNotice('');
+      setError('');
+      setForm((current) => ({
+        ...current,
+        subject: nextFilters.date
           ? reportSubject('day', nextFilters.date, nextFilters.date, nextFilters.date)
-          : reportSubject('range', date, nextFilters.startDate || '', nextFilters.endDate || '');
-        setForm((current) => ({ ...current, subject: nextSubject }));
+          : reportSubject('range', date, nextFilters.startDate || '', nextFilters.endDate || ''),
+      }));
+    }
+    // La vista previa es sincronica y tiene timeout HTTP. No lanzarla para
+    // periodos extensos: PDF/Excel ya cuentan con un worker independiente.
+    if (isExtendedReportRange(nextFilters)) {
+      if (!background) {
+        setPreviewNotice('Periodo extenso seleccionado. Genera PDF o Excel directamente; no es necesario pulsar Actualizar ni cargar la vista previa.');
+        setLoading(false);
+        setRefreshing(false);
       }
+      return;
+    }
+    if (background && report) setRefreshing(true);
+    else setLoading(true);
+    try {
+      const nextReport = await fetchDailyWaterReportPreview(nextFilters);
+      if (requestId !== previewRequestIdRef.current) return;
+      // Nunca publicar una respuesta del periodo anterior después de cambiar los filtros.
+      if (nextReport?.start_date !== (nextFilters.date || nextFilters.startDate)
+        || nextReport?.end_date !== (nextFilters.date || nextFilters.endDate)) {
+        throw new Error('La vista previa recibida no coincide con el periodo solicitado.');
+      }
+      setReport(nextReport);
       setError('');
     } catch (caught) {
-      const detail = friendlyReportError(caught, 'No fue posible consultar el reporte. Intenta nuevamente.');
-      setError(monthlyRequest
-        ? `${detail} Puedes generar PDF o Excel del mes completo en segundo plano.`
-        : detail);
+      if (requestId !== previewRequestIdRef.current) return;
+      setError(friendlyReportError(caught, 'No fue posible consultar la vista previa. Puedes generar PDF o Excel directamente.'));
     } finally {
-      inFlightRef.current = false;
-      setLoading(false);
-      setRefreshing(false);
+      if (requestId === previewRequestIdRef.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   };
 
@@ -282,19 +297,33 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
 
   useEffect(() => { void load({ date: today }); }, []);
 
-  const includesToday = reportFiltersIncludeDate(appliedFilters, today);
-  useAutoRefresh(includesToday, () => { void load(appliedFilters, true); });
   const hasPendingPeriodChanges = !sameReportFilters(draftFilters, appliedFilters);
+  const includesToday = !hasPendingPeriodChanges && !isExtendedReportRange(appliedFilters) && reportFiltersIncludeDate(appliedFilters, today);
+  useAutoRefresh(includesToday, () => { void load(appliedFilters, true); });
 
   const runExport = async (action: Exclude<ExportAction, null>) => {
     if (exportAction) return;
+    // Capturar el rango visible en el clic; no utilizar appliedFilters (vista previa).
+    const requestedFilters: ReportFilters = { ...draftFilters };
+    if (!isValidReportFilters(requestedFilters)) {
+      setError('Selecciona una fecha o un periodo válido antes de exportar.');
+      return;
+    }
+    if (action === 'html' && isExtendedReportRange(requestedFilters)) {
+      setError('Para periodos extensos utiliza PDF o Excel en segundo plano.');
+      return;
+    }
     setExportAction(action);
     setError('');
     try {
-      if (action === 'pdf') await downloadDailyWaterReportPdf(appliedFilters, setExportJob);
-      if (action === 'xlsx') await downloadDailyWaterReportExcel(appliedFilters, setExportJob);
+      if (action === 'pdf') await downloadDailyWaterReportPdf(requestedFilters, setExportJob);
+      if (action === 'xlsx') await downloadDailyWaterReportExcel(requestedFilters, setExportJob);
       if (action === 'html') {
-        const fullReport = await fetchDailyWaterReport(appliedFilters, { includeHistory: true, includeShifts: true });
+        const fullReport = await fetchDailyWaterReport(requestedFilters, { includeHistory: true, includeShifts: true });
+        if (fullReport?.start_date !== (requestedFilters.date || requestedFilters.startDate)
+          || fullReport?.end_date !== (requestedFilters.date || requestedFilters.endDate)) {
+          throw new Error('El reporte obtenido no corresponde al periodo solicitado.');
+        }
         exportDailyWaterReportHtml(fullReport);
       }
     } catch (caught) {
@@ -386,9 +415,9 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
     ? fmtVolume(card.value)
     : `${Number(card.value ?? 0).toLocaleString('es-MX')}/${Number(card.total ?? 0).toLocaleString('es-MX')}`;
   const isBusy = exportAction !== null;
-  const exportReady = Boolean(report) && !loading;
-  const monthlyExportReady = !loading && !hasPendingPeriodChanges && isCompleteCalendarMonth(appliedFilters);
-  const pdfExcelReady = exportReady || monthlyExportReady;
+  const exportReady = Boolean(report) && !loading && !hasPendingPeriodChanges;
+  const pdfExcelReady = isValidReportFilters(draftFilters);
+  const htmlReady = pdfExcelReady && !isExtendedReportRange(draftFilters);
 
   return (
     <div className="reportes-page durango-report-page">
@@ -430,13 +459,15 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
               <div className="report-actions" aria-label="Acciones del reporte">
                 <button type="button" className="report-action-button export-pdf-button" disabled={isBusy || !pdfExcelReady} onClick={() => void runExport('pdf')}><FileDown size={17} /> {exportAction === 'pdf' ? 'Generando PDF...' : 'Generar PDF'}</button>
                 <button type="button" className="report-action-button export-excel-button" disabled={isBusy || !pdfExcelReady} onClick={() => void runExport('xlsx')}><FileSpreadsheet size={17} /> {exportAction === 'xlsx' ? 'Generando Excel...' : 'Exportar Excel'}</button>
-                <button type="button" className="report-action-button" disabled={isBusy || !exportReady} onClick={() => void runExport('html')}><Eye size={17} /> {exportAction === 'html' ? 'Generando vista...' : 'Vista HTML'}</button>
+                <button type="button" className="report-action-button" disabled={isBusy || !exportReady || !htmlReady} onClick={() => void runExport('html')}><Eye size={17} /> {exportAction === 'html' ? 'Generando vista...' : 'Vista HTML'}</button>
                 {canEmail ? <button type="button" className="report-action-button" disabled={sending || !exportReady} onClick={() => setEmailOpen(true)}><Mail size={17} /> Enviar por correo</button> : null}
               </div>
             </div>
           </div>
         </div>
-        {hasPendingPeriodChanges && report ? <div className="status-pill">Cambios de periodo pendientes. Pulsa Actualizar para aplicarlos a la vista y a las exportaciones.</div> : null}
+        <p className="report-selected-period" aria-live="polite">Periodo seleccionado para PDF y Excel: <strong>{reportFiltersLabel(draftFilters)}</strong></p>
+        {hasPendingPeriodChanges && report ? <div className="status-pill">La vista previa corresponde al periodo anterior. PDF y Excel utilizarán las fechas que acabas de seleccionar.</div> : null}
+        {!hasPendingPeriodChanges && previewNotice ? <div className="status-pill report-preview-notice">{previewNotice}</div> : null}
         {refreshing ? <div className="status-pill auto-refresh-status">Actualizando datos de la vista previa…</div> : null}
         {exportJob && (exportJob.status === 'queued' || exportJob.status === 'running') ? (
           <div className="report-export-job-status" role="status" aria-live="polite">
@@ -480,9 +511,9 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
         </div>
       </section>
 
-      {loading && !report ? <ReportSkeleton /> : null}
+      {loading && (!report || hasPendingPeriodChanges) ? <ReportSkeleton /> : null}
 
-      {report ? <>
+      {report && !hasPendingPeriodChanges ? <>
         <section className="report-summary-grid fade-up" aria-label="Resumen ejecutivo del reporte">
           {summaryCards.map((card: any) => (
             <article className={`report-summary-card ${card.key === 'attention_items' && Number(card.value ?? 0) > 0 ? 'review' : ''}`} key={card.key || card.label}>
@@ -513,7 +544,7 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
             {REPORT_SECTIONS.map((section) => <ReportPreviewSection key={section.key} report={report} section={section} />)}
           </div>
         </section>
-      </> : !loading ? <ChartEmptyState message="Sin reporte cargado." /> : null}
+      </> : !loading ? <ChartEmptyState message={hasPendingPeriodChanges ? 'La vista previa anterior se ha ocultado. PDF y Excel usarán el periodo seleccionado.' : (previewNotice ? 'Vista previa omitida para este periodo extenso.' : 'Sin reporte cargado.')} /> : null}
 
       {emailOpen && canEmail ? <div className="modal-backdrop" onClick={() => setEmailOpen(false)}><div className="email-report-modal" onClick={(event) => event.stopPropagation()}>
         <h3>Enviar Reporte de Control Hídrico Durango</h3>

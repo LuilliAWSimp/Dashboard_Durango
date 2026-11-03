@@ -22,5 +22,5 @@ test('la pantalla indica progreso del trabajo y conserva HTML/preview originales
   assert.match(page, /report-export-job-status/);
   assert.match(page, /setExportJob/);
   assert.match(page, /fetchDailyWaterReportPreview\(nextFilters\)/);
-  assert.match(page, /fetchDailyWaterReport\(appliedFilters, \{ includeHistory: true, includeShifts: true \}\)/);
+  assert.match(page, /fetchDailyWaterReport\(requestedFilters, \{ includeHistory: true, includeShifts: true \}\)/);
 });

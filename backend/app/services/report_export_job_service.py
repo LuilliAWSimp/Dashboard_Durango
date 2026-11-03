@@ -69,6 +69,11 @@ def validate_options(kind: str, options: dict[str, Any]) -> dict[str, str | None
     if kind.startswith('historical_'):
         if clean['date']:
             raise ValueError('El histórico completo acepta únicamente rango opcional.')
+    else:
+        # DGO-V07A: no permitir que un PDF/Excel diario se genere para "hoy"
+        # por omisión cuando el usuario esperaba un rango seleccionado.
+        if not clean['date'] and not (clean['start_date'] and clean['end_date']):
+            raise ValueError('Indica el periodo para generar el reporte.')
     return clean
 
 
@@ -82,6 +87,12 @@ def _export(kind: str, params: dict[str, str | None], on_stage: Callable[[str], 
             end_date=params['end_date'], include_history=True, include_shifts=True,
             progress_callback=on_stage,
         )
+        # Comprobación final antes de publicar archivos: el backend nunca debe
+        # entregar silenciosamente el día actual si se solicitó otro periodo.
+        expected_start = params['date'] or params['start_date']
+        expected_end = params['date'] or params['end_date']
+        if report.get('start_date') != expected_start or report.get('end_date') != expected_end:
+            raise RuntimeError('El reporte calculado no coincide con el periodo solicitado.')
         if on_stage is not None:
             on_stage('Construyendo archivo PDF' if kind == 'daily_pdf' else 'Construyendo archivo Excel')
         return (build_daily_water_report_pdf(report) if kind == 'daily_pdf'

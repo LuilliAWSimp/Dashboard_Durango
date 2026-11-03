@@ -1299,3 +1299,13 @@
   .durango-report-page .report-action-button { min-height: 44px; }
   .durango-report-page .report-workflow-intro { align-items: flex-start; }
 }
+
+/* DGO-V07A: confirmar el periodo real de descarga sin alterar el diseño del reporte. */
+.durango-report-page .report-selected-period {
+  margin: 10px 0 0;
+  color: var(--muted, #A7BDC9);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.durango-report-page .report-selected-period strong { color: var(--text, #EEF6FA); }
+.durango-report-page .report-preview-notice { margin-top: 8px; }

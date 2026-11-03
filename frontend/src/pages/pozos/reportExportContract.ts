@@ -44,3 +44,41 @@ export function isCompleteCalendarMonth(filters: ReportFilters): boolean {
   const finalDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
   return to === `${match[1]}-${match[2]}-${String(finalDay).padStart(2, '0')}`;
 }
+
+
+/** DGO-V07A: los archivos se generan con la seleccion visible, no con la ultima vista previa. */
+function parseIsoDate(value: string | undefined): number | null {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const [year, month, day] = value.split('-').map(Number);
+  if (year < 2000 || year > 9999 || month < 1 || month > 12 || day < 1 || day > 31) return null;
+  const timestamp = Date.UTC(year, month - 1, day);
+  const date = new Date(timestamp);
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
+    ? timestamp : null;
+}
+
+export function isValidReportFilters(filters: ReportFilters): boolean {
+  if (filters.date !== undefined) {
+    return parseIsoDate(filters.date) !== null && !filters.startDate && !filters.endDate;
+  }
+  const from = parseIsoDate(filters.startDate);
+  const to = parseIsoDate(filters.endDate);
+  return from !== null && to !== null && from <= to;
+}
+
+export function isExtendedReportRange(filters: ReportFilters): boolean {
+  if (!isValidReportFilters(filters) || filters.date) return false;
+  const from = parseIsoDate(filters.startDate)!;
+  const to = parseIsoDate(filters.endDate)!;
+  return (to - from) / 86400000 + 1 > 7;
+}
+
+export function reportFiltersLabel(filters: ReportFilters): string {
+  const formatted = (value: string) => {
+    const [year, month, day] = value.split('-');
+    return `${day}/${month}/${year}`;
+  };
+  if (!isValidReportFilters(filters)) return 'Selecciona un periodo válido';
+  if (filters.date) return formatted(filters.date);
+  return `${formatted(filters.startDate!)} al ${formatted(filters.endDate!)}`;
+}

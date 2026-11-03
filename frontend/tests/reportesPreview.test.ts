@@ -16,13 +16,14 @@ test('la navegación visible utiliza Balance de Agua desde capabilities', () => 
 test('Reportes usa preview ligero sin históricos ni turnos', () => {
   assert.match(reports, /fetchDailyWaterReportPreview\(nextFilters\)/);
   assert.match(service, /includeHistory: false, includeShifts: false/);
-  // DGO-V07: solo se despeja una vista previa antigua al consultar un mes completo.
-  assert.match(reports, /if \(monthlyRequest\) \{\s*setAppliedFilters\(nextFilters\);\s*setReport\(null\)/);
+  // DGO-V07A: la vista previa vieja desaparece y el rango extenso evita consultas sincronas.
+  assert.match(reports, /setAppliedFilters\(nextFilters\);\s*setReport\(null\)/);
+  assert.match(reports, /if \(isExtendedReportRange\(nextFilters\)\)/);
 });
 
 test('exportaciones completas se generan únicamente bajo demanda', () => {
-  assert.match(reports, /downloadDailyWaterReportPdf\(appliedFilters, setExportJob\)/);
-  assert.match(reports, /downloadDailyWaterReportExcel\(appliedFilters, setExportJob\)/);
+  assert.match(reports, /downloadDailyWaterReportPdf\(requestedFilters, setExportJob\)/);
+  assert.match(reports, /downloadDailyWaterReportExcel\(requestedFilters, setExportJob\)/);
   assert.match(reports, /includeHistory: true, includeShifts: true/);
   assert.match(reports, /formats: selectedFormats/);
 });

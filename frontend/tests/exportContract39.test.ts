@@ -16,15 +16,17 @@ test('normaliza el periodo del reporte antes de aplicarlo o exportarlo', () => {
   assert.equal(reportFiltersIncludeDate({ startDate: '2026-09-19', endDate: '2026-09-25' }, '2026-09-25'), true);
 });
 
-test('Preview y formatos usan filtros aplicados y no los inputs aun sin aplicar', () => {
-  assert.match(reports, /const \[appliedFilters, setAppliedFilters\]/);
-  assert.match(reports, /downloadDailyWaterReportPdf\(appliedFilters, setExportJob\)/);
-  assert.match(reports, /downloadDailyWaterReportExcel\(appliedFilters, setExportJob\)/);
-  assert.match(reports, /fetchDailyWaterReport\(appliedFilters, \{ includeHistory: true, includeShifts: true \}\)/);
+test('Vista previa usa filtros aplicados, PDF/Excel usan los visibles al hacer clic', () => {
+  assert.match(reports, /const [\[]appliedFilters, setAppliedFilters[\]]/);
+  assert.match(reports, /const requestedFilters: ReportFilters = \{ \.\.\.draftFilters \}/);
+  assert.match(reports, /downloadDailyWaterReportPdf\(requestedFilters, setExportJob\)/);
+  assert.match(reports, /downloadDailyWaterReportExcel\(requestedFilters, setExportJob\)/);
+  assert.match(reports, /fetchDailyWaterReport\(requestedFilters, \{ includeHistory: true, includeShifts: true \}\)/);
+  // Correo manual conserva el periodo de vista previa confirmada.
   assert.match(reports, /date: appliedFilters\.date/);
   assert.match(reports, /start_date: appliedFilters\.startDate/);
   assert.match(reports, /end_date: appliedFilters\.endDate/);
-  assert.match(reports, /Cambios de periodo pendientes/);
+  assert.match(reports, /La vista previa corresponde al periodo anterior/);
 });
 
 test('auto refresh usa el mismo periodo aplicado que la vista previa', () => {
