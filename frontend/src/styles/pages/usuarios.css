@@ -134,3 +134,98 @@
   .users-create-form { grid-template-columns: 1fr; }
   .users-list-heading { flex-direction: column; }
 }
+
+/* DGO-H05 - Administración de Usuarios en el contrato visual Las Fuentes.
+   No se alteran roles, edición, contraseñas, sesiones ni validaciones. */
+.users-admin-header,
+.users-create-panel,
+.users-list-panel {
+  border-radius: 10px;
+  border-color: rgba(115, 209, 243, .2);
+  box-shadow: none;
+}
+.users-admin-header {
+  padding: 24px;
+  background: linear-gradient(120deg, rgba(6, 26, 40, .96), rgba(10, 38, 56, .94));
+}
+.users-admin-header > .panel-header.compact {
+  margin: 0;
+  padding: 0;
+}
+.users-admin-header .panel-title {
+  font-size: clamp(26px, 2.7vw, 36px);
+}
+.users-admin-header > p.panel-subtitle {
+  margin: 10px 0 0;
+  max-width: 760px;
+  line-height: 1.5;
+}
+.users-create-panel,
+.users-list-panel {
+  padding: 20px;
+}
+.users-create-panel > .panel-header.compact,
+.users-list-heading > .panel-header.compact {
+  margin: 0 0 16px;
+  padding: 0;
+}
+.users-create-form { gap: 12px; }
+.users-create-form input,
+.users-create-form select,
+.users-table select,
+.users-inline-input {
+  border-radius: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.users-create-button,
+.users-list-heading > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  border-radius: 8px;
+}
+.users-list-heading { align-items: center; }
+.users-table-wrap {
+  margin-top: 4px;
+  max-width: 100%;
+  border-radius: 10px;
+  overflow-x: auto;
+}
+.users-table {
+  font-variant-numeric: tabular-nums;
+}
+.users-row-actions .ghost-action {
+  border-radius: 8px;
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.users-create-form :is(input,select):focus-visible,
+.users-table :is(input,select,button):focus-visible,
+.users-list-heading button:focus-visible {
+  outline: 2px solid #73d1f3;
+  outline-offset: 2px;
+}
+.pozos-shell.theme-light .users-admin-header {
+  background: #ffffff;
+  border-color: #cfdee6;
+}
+.pozos-shell.theme-light .users-create-panel,
+.pozos-shell.theme-light .users-list-panel {
+  background: #ffffff;
+  border-color: #cfdee6;
+}
+.pozos-shell.theme-light .users-table-wrap { border-color: #cfdee6; }
+@media (max-width: 640px) {
+  .users-admin-header,
+  .users-create-panel,
+  .users-list-panel { padding: 16px; }
+  .users-list-heading { align-items: stretch; }
+  .users-list-heading > button,
+  .users-create-button { width: 100%; min-height: 44px; }
+  .users-row-actions .ghost-action { min-height: 44px; }
+}

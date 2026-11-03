@@ -18,8 +18,8 @@ test('normaliza el periodo del reporte antes de aplicarlo o exportarlo', () => {
 
 test('Preview y formatos usan filtros aplicados y no los inputs aun sin aplicar', () => {
   assert.match(reports, /const \[appliedFilters, setAppliedFilters\]/);
-  assert.match(reports, /downloadDailyWaterReportPdf\(appliedFilters\)/);
-  assert.match(reports, /downloadDailyWaterReportExcel\(appliedFilters\)/);
+  assert.match(reports, /downloadDailyWaterReportPdf\(appliedFilters, setExportJob\)/);
+  assert.match(reports, /downloadDailyWaterReportExcel\(appliedFilters, setExportJob\)/);
   assert.match(reports, /fetchDailyWaterReport\(appliedFilters, \{ includeHistory: true, includeShifts: true \}\)/);
   assert.match(reports, /date: appliedFilters\.date/);
   assert.match(reports, /start_date: appliedFilters\.startDate/);

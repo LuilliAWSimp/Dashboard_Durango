@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
+from concurrent.futures import ThreadPoolExecutor
+import logging
+from time import perf_counter
+from typing import Callable
 from html import escape
 from io import BytesIO
 from pathlib import Path
@@ -25,6 +29,7 @@ from app.services.water_history_service import WaterHistoryError, get_water_hist
 from app.services.water_period_service import WaterPeriodError, get_period_data
 
 LOCAL_ZONE = ZoneInfo(LOCAL_TIMEZONE)
+logger = logging.getLogger(__name__)
 SUMMARY_NOTE = (
     'Los volúmenes mostrados consideran únicamente incrementos validados. '
     'Los eventos descartados no se incluyen en los totales.'
@@ -385,8 +390,12 @@ def _report_comparatives(period: dict[str, Any], start_day: date, end_day: date)
         previous = _review_comparison_group_values(review_comparatives.get('previous_day'))
         previous_week = _review_comparison_group_values(review_comparatives.get('previous_week'))
     else:
-        previous = _load_comparison_group_values(start_day - timedelta(days=1), end_day - timedelta(days=1))
-        previous_week = _load_comparison_group_values(start_day - timedelta(days=7), end_day - timedelta(days=7))
+        # Son periodos independientes. Limitar a dos consultas simultaneas:
+        # no disparar una consulta por elemento ni crear una cola ilimitada contra BOS.
+        with ThreadPoolExecutor(max_workers=2, thread_name_prefix='arca-report-compare') as pool:
+            previous_task = pool.submit(_load_comparison_group_values, start_day - timedelta(days=1), end_day - timedelta(days=1))
+            week_task = pool.submit(_load_comparison_group_values, start_day - timedelta(days=7), end_day - timedelta(days=7))
+            previous, previous_week = previous_task.result(), week_task.result()
     specs = [
         ('wells', 'Pozos', operational_volume_label('well')),
         ('production_lines', 'Líneas', operational_volume_label('line')),
@@ -436,6 +445,26 @@ def _report_history(module: str, start_day: date, end_day: date, aggregation: st
             'source_status': 'unavailable',
             'has_future_intervals': False,
         }
+
+
+def _load_report_history(start_day: date, end_day: date, aggregation: str) -> dict[str, Any]:
+    """Obtiene los tres modulos fisicos con un maximo de 2 consultas paralelas.
+
+    En Durango, lavadoras y jarabes provienen de la MISMA respuesta flow.
+    No duplicar esa consulta, ni omitir validacion fisica de totalizador.
+    """
+    with ThreadPoolExecutor(max_workers=2, thread_name_prefix='arca-report-history') as pool:
+        tasks = {
+            key: pool.submit(_report_history, module, start_day, end_day, aggregation)
+            for key, module in (('flows', 'flow'), ('wells', 'well'), ('lines', 'line'))
+        }
+        result = {key: task.result() for key, task in tasks.items()}
+    flow_history = result['flows']
+    return {
+        **result,
+        'washers': _filter_history(flow_history, LAVADORA_KEYS),
+        'jarabes': _filter_history(flow_history, JARABES_KEYS),
+    }
 
 
 def _daily_review_as_period(day: date, *, include_shifts: bool) -> tuple[dict[str, Any], list[dict[str, Any]]]:
@@ -506,7 +535,18 @@ def get_daily_water_report(
     *,
     include_history: bool = True,
     include_shifts: bool = True,
+    progress_callback: Callable[[str], None] | None = None,
 ) -> dict[str, Any]:
+    started_at = perf_counter()
+    milestones: dict[str, float] = {}
+
+    def step(phase: str, label: str) -> None:
+        milestones[phase] = round(perf_counter() - started_at, 2)
+        logger.info('DGO-H06 reporte %s etapa=%s elapsed_s=%.2f', label, phase, milestones[phase])
+        if progress_callback is not None:
+            progress_callback(label)
+
+    step('start', 'Consultando periodo y lecturas')
     start_day = _parse_date(start_date or report_date)
     end_day = _parse_date(end_date or report_date or start_day)
     if start_day > end_day:
@@ -557,17 +597,12 @@ def get_daily_water_report(
     period_label = f'Del {period_start_at:%d/%m/%Y %H:%M} al {visible_end:%d/%m/%Y %H:%M}'
     aggregation = _history_aggregation(start_day, end_day)
     history = {'aggregation': aggregation, 'wells': {}, 'lines': {}, 'flows': {}, 'washers': {}, 'jarabes': {}}
+    step('period_ready', 'Consultando históricos de los módulos' if include_history else 'Preparando comparativos')
     if include_history:
-        flow_history = _report_history('flow', start_day, end_day, aggregation)
-        history.update({
-            'wells': _report_history('well', start_day, end_day, aggregation),
-            'lines': _report_history('line', start_day, end_day, aggregation),
-            'flows': flow_history,
-            'washers': _filter_history(flow_history, LAVADORA_KEYS),
-            'jarabes': _filter_history(flow_history, JARABES_KEYS),
-        })
-
+        history.update(_load_report_history(start_day, end_day, aggregation))
+    step('history_ready', 'Calculando comparativos')
     comparatives = _report_comparatives(period, start_day, end_day)
+    step('comparatives_ready', 'Preparando documento')
 
     report = {
         'title': 'Reporte de Control Hídrico Durango',
@@ -643,6 +678,7 @@ def get_daily_water_report(
         'notes': [],
     }
     report['presentation'] = _report_presentation(report)
+    logger.info('DGO-H06 reporte completo dias=%s historial=%s elapsed_s=%.2f etapas=%s', (end_day - start_day).days + 1, include_history, perf_counter() - started_at, milestones)
     return report
 
 

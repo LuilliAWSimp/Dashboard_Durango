@@ -9,6 +9,7 @@ from app.api.routes.email import router as email_router
 from app.api.routes.export import router as export_router
 from app.api.routes.plants import router as plants_router
 from app.api.routes.report_email_schedules import router as report_email_schedules_router
+from app.api.routes.report_jobs import router as report_jobs_router
 from app.api.routes.water import router as water_router
 from app.auth.middleware import (
     ApiExceptionBoundaryMiddleware,
@@ -23,6 +24,7 @@ from app.database import Base, SessionLocal, engine
 from app.services.seed_service import seed_if_empty
 from app.services.concession_service import initialize_concessions
 from app.services.concession_backup_service import start_concession_backup, stop_concession_backup
+from app.services.water_history_job_service import manager as module_history_jobs
 from app.services.concession_cache_service import (
     initialize_consumption_storage, start_consumption_sync, stop_consumption_sync,
 )
@@ -87,6 +89,7 @@ app.include_router(export_router, prefix=settings.api_v1_prefix)
 app.include_router(email_router, prefix=settings.api_v1_prefix)
 app.include_router(plants_router, prefix=settings.api_v1_prefix)
 app.include_router(report_email_schedules_router, prefix=settings.api_v1_prefix)
+app.include_router(report_jobs_router, prefix=settings.api_v1_prefix)
 app.include_router(water_router, prefix=settings.api_v1_prefix)
 
 
@@ -113,6 +116,7 @@ def on_shutdown():
     stop_consumption_sync()
     stop_concession_backup()
     stop_report_email_scheduler()
+    module_history_jobs.shutdown()
 
 
 @app.get('/')

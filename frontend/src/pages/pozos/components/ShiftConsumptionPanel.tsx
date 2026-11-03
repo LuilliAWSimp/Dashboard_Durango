@@ -247,7 +247,7 @@ export default function ShiftConsumptionPanel({ group = 'all', itemIdentity: sel
 
   return (
     <section className={`panel fade-up shift-consumption-panel operational-shifts-panel operational-shifts-${group} ${reviewMode ? 'operational-shifts-review' : itemIdentity !== undefined ? 'operational-shifts-detail' : 'operational-shifts-module'}`.trim()}>
-      <PanelHeader title={title} subtitle={subtitle ?? `Turnos del ${dateLabel(selectedDate)}`} />
+      <PanelHeader eyebrow="Cortes por turno" title={title} subtitle={subtitle ?? `Turnos del ${dateLabel(selectedDate)}`} />
       <div className="date-range-panel shift-controls-panel">
         <div className="date-range-fields">
           {showDateControls ? <label><span>Día</span><div className="date-input-with-icon"><CalendarDays size={16} /><input type="date" value={draftDate} onChange={(event) => setDraftDate(event.target.value)} /></div></label> : null}

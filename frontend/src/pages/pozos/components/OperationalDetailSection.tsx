@@ -236,6 +236,7 @@ export default function OperationalDetailSection({ module, sensorId, backPath, s
               </button>
             ) : <span />}
           </nav>
+          <div className="operational-detail-breadcrumb">{navigationLabel} / {name}</div>
           <div className="well-detail-title-row">
             <h2>{name}</h2>
             <StatusBadge type={statusType({ ...item, current_state: rawCurrentState })}>{currentState}</StatusBadge>

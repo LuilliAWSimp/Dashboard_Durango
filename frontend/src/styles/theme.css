@@ -679,3 +679,19 @@
 .pozos-shell.theme-light .kpi-card .kpi-trend {
   /* Los colores especificos de estas superficies oscuras se mantienen en el contrato 11. */
 }
+
+/* DGO-H04 · Compatibilidad modo claro para nuevas etiquetas de jerarquía. */
+.pozos-shell.theme-light .panel-eyebrow,
+.pozos-shell.theme-light .operational-detail-breadcrumb {
+  color: #0b89b8;
+}
+
+.pozos-shell.theme-light .operational-reference-hero {
+  background: linear-gradient(90deg, #ffffff 0%, #f8fbfe 56%, #eef8fd 100%);
+}
+
+.pozos-shell.theme-light .operational-sibling-navigation strong {
+  border-color: #d6e7f0;
+  background: rgba(255,255,255,.82);
+  color: #16374d;
+}

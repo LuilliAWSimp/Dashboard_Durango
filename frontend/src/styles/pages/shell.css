@@ -439,3 +439,44 @@
     justify-content: center;
   }
 }
+
+/* DGO-H04 · Homologación visual base con referencia Las Fuentes. */
+.panel-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  margin-bottom: 10px;
+  color: #67e8f9;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.pozos-shell .compact-hero.operational-reference-hero {
+  position: relative;
+  overflow: hidden;
+  padding: 26px 28px;
+  border-color: rgba(56, 189, 248, .18);
+  background:
+    radial-gradient(circle at 85% 20%, rgba(14, 165, 233, .16), transparent 26%),
+    radial-gradient(circle at 12% 0%, rgba(56, 189, 248, .08), transparent 20%),
+    linear-gradient(90deg, rgba(2, 6, 23, .94) 0%, rgba(2, 18, 36, .96) 52%, rgba(6, 58, 89, .98) 100%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+}
+
+.pozos-shell .compact-hero .panel-title {
+  color: #f5fcff;
+  font-size: clamp(34px, 4vw, 52px);
+  font-weight: 900;
+  line-height: 1.03;
+  letter-spacing: -.04em;
+}
+
+.pozos-shell .compact-hero .panel-subtitle {
+  max-width: 760px;
+  margin-top: 10px;
+  color: #a7cfdf;
+  font-size: clamp(13px, 1.2vw, 15px);
+  line-height: 1.55;
+}

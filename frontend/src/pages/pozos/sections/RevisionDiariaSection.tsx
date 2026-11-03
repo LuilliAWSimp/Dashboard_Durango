@@ -151,7 +151,7 @@ export default function RevisionDiariaSection() {
 
   return <div className="daily-review-page">
     <section className="panel fade-up daily-review-header-panel">
-      <PanelHeader title="Revisión diaria" subtitle={`Datos operativos del ${selectedDateText}`} />
+      <PanelHeader eyebrow="Operación de agua · Durango" title="Revisión diaria" subtitle={`Datos operativos del ${selectedDateText}`} />
       <div className="date-range-panel">
         <div className="date-range-fields">
           <label><span>Día</span><div className="date-input-with-icon"><CalendarDays size={16} aria-hidden="true" /><input type="date" value={draftDate} onChange={(event) => setDraftDate(event.target.value)} /></div></label>
@@ -172,12 +172,12 @@ export default function RevisionDiariaSection() {
       <KpiCard label="Con atención" value={String(attentionCount)} unit="elementos" trend="Revisión parcial o sin datos" accent={attentionCount ? 'brown' : 'blue'} />
     </section>
     <section className="panel fade-up daily-review-comparison-panel">
-      <PanelHeader title="Comparativo de volumen" subtitle={`Fecha seleccionada: ${selectedDateText}`} />
+      <PanelHeader eyebrow="Análisis por módulo" title="Comparativo de volumen" subtitle={`Fecha seleccionada: ${selectedDateText}`} />
       <div className="pozos-table-scroll"><table className="pozos-operacion-table"><thead><tr><th>Proceso</th><th>{selectedDateText}</th><th>Día anterior · {displayDate(previousDayDate)}</th><th>Semana anterior · {displayDate(previousWeekDate)}</th></tr></thead><tbody>{comparisonRows.map((item) => <tr key={item.label}><td>{item.label}</td><td>{item.selected === null ? '—' : `${fmt(item.selected)} m³`}</td><td>{item.previousDay === null ? '—' : `${fmt(item.previousDay)} m³`}</td><td>{item.previousWeek === null ? '—' : `${fmt(item.previousWeek)} m³`}</td></tr>)}</tbody></table></div>
     </section>
     <OperationalAlertsPanel alerts={alerts} range={range} aggregation={alertAggregation} title="Alertas operativas actuales" subtitle="Elementos que requieren atención operativa." historicalNote={historicalNote} />
     <section className="panel fade-up daily-review-detail-panel">
-      <PanelHeader title="Detalle del día" subtitle={`Periodo: ${selectedDateText} · 00:00–23:59`} />
+      <PanelHeader eyebrow="Lecturas y calidad" title="Detalle del día" subtitle={`Periodo: ${selectedDateText} · 00:00–23:59`} />
       <div className="pozos-table-scroll"><table className="pozos-operacion-table"><thead><tr><th>Grupo</th><th>Elemento</th><th>Estado al cierre</th><th>Flujo de cierre</th><th>Totalizador inicial</th><th>Totalizador final</th><th>Volumen del día</th><th>Actividad</th><th>Estado de datos</th><th>Tiempo activo</th><th>Cobertura de datos</th><th>Comunicación</th><th>Última lectura</th></tr></thead><tbody>{rows.map((item, index) => { const validated = num(item.validated_volume_m3); const volumeText = validated === null ? 'Sin volumen disponible' : `${fmt(validated)} m³`; const validation = displayValidation(item, validated); return <tr key={`${item.group}-${item.sensor_id || item.operational_key || index}`}><td>{String(item.group)}</td><td>{String(item.name || item.nombre || `Elemento ${index + 1}`)}</td><td>{String(item.current_state || 'Sin registros')}</td><td>{num(item.current_flow ?? item.flow_lps) === null ? '—' : `${fmt(item.current_flow ?? item.flow_lps)} ${String(item.flow_unit || 'L/s')}`}</td><td>{num(item.period_open_m3) === null ? '—' : `${fmt(item.period_open_m3)} m³`}</td><td>{num(item.period_close_m3 ?? item.current_totalizer_m3) === null ? '—' : `${fmt(item.period_close_m3 ?? item.current_totalizer_m3)} m³`}</td><td>{volumeText}</td><td><StatusBadge type={statusType(item.activity)}>{String(item.activity || 'Sin registros')}</StatusBadge></td><td><StatusBadge type={statusType(validation)}>{validation}</StatusBadge></td><td>{num(item.active_minutes) === null ? '—' : `${fmt(item.active_minutes)} min`}</td><td>{num(item.coverage_percent) === null ? '—' : `${fmt(item.coverage_percent)}% · ${String(item.coverage_status || '')}`}</td><td>{String(item.communication || item.estado_comunicacion || 'Sin lectura')}</td><td>{formatSqlDate(item.last_update || item.ultima_lectura)}</td></tr>; })}</tbody></table></div>
     </section>
     <ShiftConsumptionPanel group="all" date={selectedDate} showDateControls={false} reviewMode title="Cortes por turno" subtitle={`Turnos del ${selectedDateText}`} dataOverride={shifts} />

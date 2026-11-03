@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
+from pydantic import BaseModel
 
-from app.auth.dependencies import require_roles
+from app.auth.dependencies import current_user, require_roles
 from app.schemas.export import DailyWaterReportEmailRequest
 from app.schemas.water import WaterDashboardPayload, WaterSourceActivateResponse, WaterSourceInfo, WaterSourceValidation
 from app.services.email_service import EmailDeliveryError, EmailNotConfiguredError, ensure_smtp_configured, send_email_with_bytes_attachments
@@ -13,6 +14,7 @@ from app.services.water_daily_report_service import ReportDataUnavailableError, 
 from app.services.water_daily_review_service import DailyReviewError, get_daily_water_review
 from app.services.water_five_minute_export_service import FiveMinuteExportError, build_five_minute_excel, export_five_minute_module_excel, get_five_minute_export_data
 from app.services.water_history_service import WaterHistoryError, get_water_history, get_water_history_module, get_wells_minute_flow
+from app.services.water_history_job_service import manager as module_history_jobs
 from app.services.water_historical_export_service import HistoricalExportError, build_full_historical_excel, build_full_historical_pdf
 from app.services.water_module_history_pdf_service import build_module_history_pdf
 from app.services.water_service import WATER_SECTION_META, get_water_dashboard_payload, get_water_report_catalog
@@ -69,6 +71,48 @@ def read_water_history_module(module: str = Query(..., pattern='^(well|line|flow
     except Exception as exc:
         logger.exception('No fue posible construir el histórico por módulo: %s', exc)
         raise HTTPException(status_code=500, detail='No fue posible consultar el histórico por módulo.') from exc
+
+
+class ModuleHistoryJobRequest(BaseModel):
+    module: Literal['well', 'line', 'flow']
+    start_date: str
+    end_date: str
+    aggregation: Literal['minute', 'quarter_hour', 'hourly', 'daily']
+    force_refresh: bool = False
+    flow_only: bool = False
+
+
+@router.post('/history/module/jobs')
+def begin_water_history_module_job(request: ModuleHistoryJobRequest, user: dict = Depends(current_user)):
+    try:
+        return module_history_jobs.submit(owner_id=int(user['id']), **request.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
+
+
+@router.get('/history/module/jobs/{job_id}')
+def get_water_history_module_job(job_id: str, user: dict = Depends(current_user)):
+    job = module_history_jobs.get(owner_id=int(user['id']), job_id=job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail='La consulta no existe o ya caduco.')
+    return job
+
+
+@router.get('/history/module/jobs/{job_id}/result')
+def get_water_history_module_job_result(job_id: str, user: dict = Depends(current_user)):
+    status = module_history_jobs.get(owner_id=int(user['id']), job_id=job_id)
+    if status is None:
+        raise HTTPException(status_code=404, detail='La consulta no existe o ya caduco.')
+    if status['status'] == 'failed':
+        raise HTTPException(status_code=503, detail=status['error'])
+    if status['status'] != 'ready':
+        raise HTTPException(status_code=409, detail='La consulta aun esta en proceso.')
+    result = module_history_jobs.result(owner_id=int(user['id']), job_id=job_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail='El resultado de la consulta ya caduco.')
+    return result
 
 
 @router.get('/history/five-minute/excel')
@@ -360,3 +404,49 @@ async def upload_water_source(file: UploadFile = File(...), activate: bool = Tru
 def activate_water_source(source_id: str):
     source = activate_source(source_id)
     return WaterSourceActivateResponse(active_source=source, message='Fuente hídrica activada')
+
+# H02: exportadores historicos INDIVIDUALES con evaluacion de umbral servidor.
+# No reutilizar el payload PDF por modulo, que viene del navegador.
+@router.get('/history/detail/{format_name}')
+def download_water_history_threshold_detail(
+    format_name: str,
+    module: str = Query(..., pattern='^(well|line|flow)$'),
+    sensor_id: str = Query(..., min_length=1),
+    start_date: str = Query(...),
+    end_date: str = Query(...),
+    aggregation: str = Query(..., pattern='^(minute|quarter_hour|hourly|daily)$'),
+    threshold_enabled: bool = Query(False),
+    threshold_direction: str = Query('below', pattern='^(below|above|both)$'),
+    threshold_basis: str = Query('extreme', pattern='^(extreme|average)$'),
+    threshold_min_value: float | None = Query(None, ge=0),
+    threshold_max_value: float | None = Query(None, ge=0),
+):
+    from app.services.durango_flow_threshold import FlowThreshold
+    from app.services.durango_threshold_export_service import build_threshold_excel, build_threshold_pdf
+
+    if format_name not in {'pdf', 'excel'}:
+        raise HTTPException(status_code=404, detail='Formato de exportacion no disponible.')
+    if not threshold_enabled:
+        raise HTTPException(status_code=422, detail='Activa la revision de umbrales para esta exportacion individual.')
+    rule = FlowThreshold(
+        enabled=threshold_enabled, direction=threshold_direction, basis=threshold_basis,
+        min_value=threshold_min_value, max_value=threshold_max_value,
+    )
+    try:
+        rule.validate()
+        history = get_water_history(
+            module=module, sensor_id=sensor_id, start_date=start_date,
+            end_date=end_date, aggregation=aggregation,
+        )
+        content, filename = (build_threshold_pdf if format_name == 'pdf' else build_threshold_excel)(history, rule)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except WaterHistoryError as exc:
+        raise HTTPException(status_code=504 if exc.status == 'timeout' else 503, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception('Error en exportacion de umbrales H02: %s', exc)
+        raise HTTPException(status_code=500, detail='No fue posible exportar el detalle de umbrales.') from exc
+    media_type = ('application/pdf' if format_name == 'pdf'
+                  else 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    return Response(content=content, media_type=media_type,
+                    headers={'Content-Disposition': f'attachment; filename="{filename}"'})

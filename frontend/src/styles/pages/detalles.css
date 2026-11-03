@@ -323,3 +323,34 @@
   .operational-sibling-navigation { grid-template-columns: 1fr 1fr; }
   .operational-sibling-navigation strong { grid-column: 1 / -1; grid-row: 1; }
 }
+
+/* DGO-H04 · Jerarquía visual del detalle individual. */
+.operational-detail-breadcrumb {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  margin-bottom: 6px;
+  color: #8fd8f2;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .02em;
+}
+
+.well-detail-title-row h2 {
+  margin-top: 2px;
+}
+
+.operational-sibling-navigation {
+  margin-bottom: 14px;
+}
+
+.operational-sibling-navigation strong {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid rgba(125,211,252,.18);
+  border-radius: 999px;
+  background: rgba(8,47,73,.2);
+}

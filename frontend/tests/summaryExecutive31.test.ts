@@ -41,7 +41,7 @@ test('Resumen 31 conserva historico global comparativo y panel de alertas', () =
 });
 
 test('Resumen 31 usa copy operativo y evita textos internos en cabecera y comparativo', () => {
-  assert.match(summary, /Vista ejecutiva de la operación, histórico, comparativos y alertas de la planta/);
+  assert.match(summary, /Vista ejecutiva de la operación, el histórico consolidado, los comparativos por módulo y las alertas de la planta/);
   assert.doesNotMatch(summary, /Snapshot actual \+ volumen conciliado/);
   assert.doesNotMatch(summary, /Actualizando conciliación y comparativos diarios/);
   assert.match(summary, /Fecha seleccionada/);
