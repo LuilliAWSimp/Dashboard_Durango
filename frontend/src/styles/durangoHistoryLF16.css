@@ -1,0 +1,357 @@
+/* DGO-V04: historical module controls and visual hierarchy based on Las Fuentes LF16.
+ * Imported after V00-V03. Scope to active Durango history panels; retain all APIs,
+ * query modes, exports, diagnostics, and flow/totalizer semantics.
+ */
+.pozos-shell .module-history-panel.operational-history-panel {
+  min-width: 0;
+  padding: 18px 20px 20px;
+  border-radius: 8px;
+  border-color: var(--dgo-border);
+  background: var(--dgo-surface);
+  box-shadow: none;
+}
+.pozos-shell .module-history-panel > .panel-header.compact {
+  padding: 0;
+  margin: 0 0 12px;
+}
+.pozos-shell .module-history-panel > .panel-header.compact .panel-eyebrow {
+  min-height: 0;
+  margin: 0 0 5px;
+  color: var(--dgo-accent);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: .055em;
+}
+.pozos-shell .module-history-panel > .panel-header.compact .panel-title {
+  color: var(--dgo-text);
+  font-size: clamp(17px, 1.5vw, 22px);
+  line-height: 1.25;
+  font-weight: 750;
+  letter-spacing: -.015em;
+}
+.pozos-shell .module-history-panel > .panel-header.compact .panel-subtitle {
+  color: var(--dgo-muted);
+  font-size: 12px;
+  line-height: 1.45;
+  margin-top: 4px;
+}
+.pozos-shell .module-history-panel .module-history-tabs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 0 0 10px;
+}
+.pozos-shell .module-history-panel :is(.module-history-tab, .sensor-chip) {
+  min-height: 34px;
+  padding: 7px 11px;
+  border: 1px solid var(--dgo-border);
+  border-radius: 7px;
+  background: var(--dgo-surface);
+  color: var(--dgo-text);
+  box-shadow: none;
+  font-size: 12px;
+  font-weight: 650;
+  transform: none;
+}
+.pozos-shell .module-history-panel :is(.module-history-tab, .sensor-chip):hover,
+.pozos-shell .module-history-panel :is(.module-history-tab, .sensor-chip):focus-visible {
+  border-color: var(--dgo-accent);
+  background: var(--dgo-raised);
+  color: var(--dgo-text);
+  transform: none;
+}
+.pozos-shell .module-history-panel :is(.module-history-tab.active, .sensor-chip.active),
+.pozos-shell.theme-light .module-history-panel :is(.module-history-tab.active, .sensor-chip.active) {
+  border-color: var(--dgo-accent);
+  background: var(--dgo-active);
+  color: var(--dgo-text);
+  box-shadow: none;
+}
+
+/* One bounded control row: metric + downloads at left, dates/grouping at right. */
+.pozos-shell .module-history-panel .module-history-toolbar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin: 0 0 12px;
+  padding: 11px;
+  border: 1px solid var(--dgo-border);
+  border-radius: 8px;
+  background: var(--dgo-raised);
+  box-shadow: none;
+}
+.pozos-shell .module-history-panel .module-comparison-controls {
+  display: flex;
+  flex: 1 1 410px;
+  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  min-width: 0;
+  width: auto;
+}
+.pozos-shell .module-history-panel .module-metric-selector {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 2px;
+  min-height: 36px;
+  padding: 3px;
+  border: 1px solid var(--dgo-border);
+  border-radius: 7px;
+  background: var(--dgo-surface);
+  box-shadow: none;
+}
+.pozos-shell .module-history-panel .module-metric-selector button {
+  min-height: 29px;
+  padding: 5px 10px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--dgo-text);
+}
+.pozos-shell .module-history-panel .module-metric-selector button.active {
+  border-color: var(--dgo-border);
+  background: var(--dgo-active);
+  color: var(--dgo-text);
+  box-shadow: none;
+}
+.pozos-shell .module-history-panel .module-history-export-actions {
+  display: flex;
+  align-items: center;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+}
+.pozos-shell .module-history-panel .module-history-export-actions .report-action-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  min-width: 0;
+  min-height: 36px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+  box-shadow: none;
+}
+.pozos-shell .module-history-panel .module-history-range-panel {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  flex: 1 1 580px;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  min-width: 0;
+  width: auto;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.pozos-shell .module-history-panel .module-history-range-fields {
+  display: flex;
+  align-items: flex-end;
+  flex: 1 1 260px;
+  gap: 8px;
+  min-width: 0;
+}
+.pozos-shell .module-history-panel .module-history-range-fields label {
+  display: grid;
+  flex: 1 1 125px;
+  min-width: 118px;
+  gap: 4px;
+  color: var(--dgo-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .02em;
+}
+.pozos-shell .module-history-panel .module-history-range-fields input,
+.pozos-shell .module-history-panel .module-history-aggregation select {
+  box-sizing: border-box;
+  width: 100%;
+  height: 36px;
+  min-height: 36px;
+  min-width: 0;
+  padding: 0 9px;
+  border: 1px solid var(--dgo-border);
+  border-radius: 6px;
+  background: var(--dgo-surface);
+  color: var(--dgo-text);
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: 0;
+  box-shadow: none;
+}
+.pozos-shell .module-history-panel .module-history-aggregation {
+  display: grid;
+  flex: 0 1 136px;
+  min-width: 125px;
+  width: auto;
+  gap: 4px;
+  color: var(--dgo-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  text-transform: none;
+}
+.pozos-shell .module-history-panel .module-history-range-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  flex: 0 0 auto;
+  gap: 6px;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+.pozos-shell .module-history-panel .module-history-range-actions button {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.pozos-shell .module-history-panel .module-history-range-label {
+  display: block;
+  flex: 1 0 100%;
+  margin: 0;
+  color: var(--dgo-muted);
+  font-size: 10px;
+  font-weight: 550;
+  text-align: right;
+  line-height: 1.25;
+}
+.pozos-shell .module-history-panel .module-history-toolbar > .module-history-aggregation {
+  margin-left: auto;
+}
+
+/* Sensor selection, chart and status remain separate and easy to scan. */
+.pozos-shell .module-history-panel .module-selection-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  margin: 13px 0 0;
+  padding-top: 11px;
+  border-top: 1px solid var(--dgo-border);
+  color: var(--dgo-accent);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: .03em;
+}
+.pozos-shell .module-history-panel .dgo-v04-selection-count {
+  display: inline-block;
+  margin-left: 9px;
+  color: var(--dgo-muted);
+  font-size: 11px;
+  font-weight: 550;
+  letter-spacing: normal;
+  text-transform: none;
+}
+.pozos-shell .module-history-panel .module-selection-heading > div {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.pozos-shell .module-history-panel .module-selection-heading button {
+  width: auto;
+  min-height: 32px;
+  min-width: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--dgo-border);
+  border-radius: 6px;
+  background: var(--dgo-surface);
+  color: var(--dgo-text);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0;
+  box-shadow: none;
+}
+.pozos-shell .module-history-panel .module-history-sensors {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  margin: 9px 0 13px;
+}
+.pozos-shell .module-history-panel .module-history-tooltip {
+  border-color: var(--dgo-border);
+  background: var(--dgo-raised);
+  color: var(--dgo-text);
+  box-shadow: 0 10px 30px rgba(0,0,0,.18);
+}
+.pozos-shell.theme-light .module-history-panel .module-history-tooltip {
+  box-shadow: 0 10px 24px rgba(22,51,68,.10);
+}
+.pozos-shell .module-history-panel :is(.recharts-cartesian-axis-tick-value, .recharts-legend-item-text) {
+  fill: var(--dgo-muted);
+  color: var(--dgo-muted);
+  font-size: 11px;
+}
+.pozos-shell .module-history-panel .module-history-totalizer-control {
+  margin: 4px 0 12px;
+  padding: 9px 11px;
+  border-radius: 8px;
+  background: var(--dgo-raised);
+  border-color: var(--dgo-border);
+}
+
+@media (max-width: 1279px) {
+  .pozos-shell .module-history-panel .module-history-toolbar {
+    justify-content: flex-start;
+  }
+  .pozos-shell .module-history-panel .module-history-range-panel {
+    justify-content: flex-start;
+  }
+  .pozos-shell .module-history-panel .module-history-range-label {
+    text-align: left;
+  }
+}
+@media (max-width: 760px) {
+  .pozos-shell .module-history-panel.operational-history-panel { padding: 14px; }
+  .pozos-shell .module-history-panel .module-history-toolbar { padding: 10px; gap: 12px; }
+  .pozos-shell .module-history-panel .module-comparison-controls {
+    flex: 1 1 100%;
+    width: 100%;
+    align-items: flex-start;
+  }
+  .pozos-shell .module-history-panel .module-metric-selector { width: 100%; }
+  .pozos-shell .module-history-panel .module-metric-selector button { flex: 1 1 0; }
+  .pozos-shell .module-history-panel .module-history-export-actions {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+  .pozos-shell .module-history-panel .module-history-export-actions .report-action-button {
+    flex: 1 1 92px;
+  }
+  .pozos-shell .module-history-panel .module-history-range-panel,
+  .pozos-shell .module-history-panel .module-history-toolbar > .module-history-aggregation {
+    flex: 1 1 100%;
+    width: 100%;
+    margin: 0;
+  }
+  .pozos-shell .module-history-panel .module-history-range-fields { flex: 1 1 100%; }
+  .pozos-shell .module-history-panel .module-history-aggregation { flex: 1 1 100%; }
+  .pozos-shell .module-history-panel .module-history-range-actions { flex: 1 1 100%; }
+  .pozos-shell .module-history-panel .module-history-range-actions button { flex: 1 1 0; }
+  .pozos-shell .module-history-panel .module-selection-heading { align-items: flex-start; flex-direction: column; }
+  .pozos-shell .module-history-panel .module-selection-heading > div { width: 100%; }
+  .pozos-shell .module-history-panel .module-selection-heading button { flex: 1 1 110px; }
+}
+@media (max-width: 360px) {
+  .pozos-shell .module-history-panel .module-history-range-fields { flex-wrap: wrap; }
+  .pozos-shell .module-history-panel .module-history-range-fields label { flex: 1 1 100%; }
+}

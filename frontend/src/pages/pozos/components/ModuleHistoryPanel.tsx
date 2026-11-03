@@ -29,7 +29,8 @@ import type { DateRange, FlexibleRecord, HistoryAggregation, WaterHistoryRespons
 import ChartEmptyState from './ChartEmptyState';
 import PanelHeader from './PanelHeader';
 
-const COLORS = ['#FE019A', '#FEE301', '#a78bfa', '#34d399', '#f59e0b', '#fb7185'];
+// Paleta de series LF16 (misma secuencia que OperationalModuleHistoryPanel de Las Fuentes).
+const COLORS = ['#38bdf8', '#fbbf24', '#34d399', '#c084fc', '#fb7185', '#f97316', '#60a5fa', '#22d3ee', '#a3e635', '#e879f9'];
 const TOTALIZER_COLORS = ['#2563eb', '#0ea5e9', '#7c3aed', '#0f766e', '#ea580c', '#be123c'];
 const MODULE_LABELS: Record<ComparisonModule, string> = { well: 'Pozos', line: 'Líneas', flow: 'Flujos' };
 
@@ -726,29 +727,16 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
     <section className={`panel chart-panel fade-up module-history-panel operational-module-comparison operational-history-panel operational-history-${fixedView || (fixedModule ? module : globalView)} ${className}`.trim()}>
       <PanelHeader
         eyebrow={lockedHistory ? `Histórico operativo · ${moduleDisplayLabel}` : 'Histórico operativo global'}
-        title={panelTitle || (lockedHistory ? moduleDisplayLabel : 'Módulos de agua')}
-        subtitle={panelSubtitle === null ? undefined : (panelSubtitle || (lockedHistory ? `Consulta ${moduleDisplayLabel.toLowerCase()} con el mismo motor histórico del Resumen.` : 'Consulta Pozos, Líneas, Lavadoras y Jarabes desde un único histórico.'))}
+        title={panelTitle || (lockedHistory ? moduleDisplayLabel : `Histórico operativo · ${moduleDisplayLabel}`)}
+        subtitle={panelSubtitle === null ? undefined : panelSubtitle}
       />
-      {independentRange ? (
-        <div className="module-history-range-panel" aria-label={lockedHistory ? `Fechas del histórico de ${moduleDisplayLabel}` : 'Fechas del histórico global'}>
-          <div className="module-history-range-fields">
-            <label><span>Desde</span><input type="date" value={draftRange.startDate} onChange={(event) => setDraftRange((current) => ({ ...current, startDate: event.target.value }))} /></label>
-            <label><span>Hasta</span><input type="date" value={draftRange.endDate} onChange={(event) => setDraftRange((current) => ({ ...current, endDate: event.target.value }))} /></label>
-          </div>
-          <div className="module-history-range-actions">
-            <button type="button" className="primary-action" onClick={applyIndependentRange}>Actualizar</button>
-            <button type="button" className="ghost-action" onClick={resetIndependentRange}>Restablecer</button>
-          </div>
-          <span className="module-history-range-label">{formatOperationalDateRange(effectiveRange)}</span>
-        </div>
-      ) : null}
-      <div className="module-history-toolbar">
-        {!lockedHistory ? <div className="module-history-tabs" role="tablist">
-          {(Object.keys(GLOBAL_HISTORY_VIEWS) as OperationalHistoryView[]).map((value) => {
-            const option = GLOBAL_HISTORY_VIEWS[value];
-            return <button type="button" role="tab" aria-selected={globalView === value} className={`module-history-tab ${globalView === value ? 'active' : ''}`} key={value} onClick={() => setGlobalView(value)}>{option.label}</button>;
-          })}
-        </div> : null}
+      {!lockedHistory ? <div className="module-history-tabs" role="tablist" aria-label="Módulo del histórico">
+        {(Object.keys(GLOBAL_HISTORY_VIEWS) as OperationalHistoryView[]).map((value) => {
+          const option = GLOBAL_HISTORY_VIEWS[value];
+          return <button type="button" role="tab" aria-selected={globalView === value} className={`module-history-tab ${globalView === value ? 'active' : ''}`} key={value} onClick={() => setGlobalView(value)}>{option.label}</button>;
+        })}
+      </div> : null}
+      <div className="module-history-toolbar" role="group" aria-label="Controles del histórico operativo">
         <div className="module-comparison-controls">
           <div className="module-metric-selector" role="group" aria-label="Métrica comparativa">
             {([['flow', 'Flujo'], ['totalizer', 'Totalizador'], ['both', 'Ambos']] as const).map(([value, label]) => (
@@ -756,12 +744,25 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
             ))}
           </div>
           <div className="module-history-export-actions">
+            <button type="button" className="ghost-action report-action-button module-history-pdf-button" disabled={thresholdExportDisabled || pdfExporting} onClick={() => void exportPdf()} title="Genera un PDF con la misma serie visible."><FileText size={16} aria-hidden="true" /> {pdfExporting ? 'Generando...' : 'PDF'}</button>
             <button type="button" className="report-action-button module-history-excel-button" disabled={thresholdExportDisabled || excelExporting} onClick={() => void exportExcel()} title="Exporta exactamente los datos visibles de la gráfica."><FileSpreadsheet size={16} aria-hidden="true" /> Excel</button>
             <button type="button" className="report-action-button module-history-excel-button module-history-five-minute-button" disabled={isPreviousChart || !selectedElementIds.length || fiveMinuteExporting} onClick={() => void exportFiveMinuteExcel()} title="Exportación técnica independiente cada 5 minutos; máximo 3 días calendario."><FileSpreadsheet size={16} aria-hidden="true" /> {fiveMinuteExporting ? 'Generando...' : 'Excel 5 min'}</button>
-            <button type="button" className="ghost-action report-action-button module-history-pdf-button" disabled={thresholdExportDisabled || pdfExporting} onClick={() => void exportPdf()} title="Genera un PDF con la misma serie visible."><FileText size={16} aria-hidden="true" /> {pdfExporting ? 'Generando...' : 'PDF'}</button>
           </div>
-          <label className="module-history-aggregation"><span>Agrupación</span><select value={aggregation} onChange={(event) => setAggregation(event.target.value as HistoryAggregation)}><option value="minute" disabled={rangeDays > HISTORY_MAX_RANGE_DAYS.minute}>1 minuto</option><option value="quarter_hour" disabled={rangeDays > HISTORY_MAX_RANGE_DAYS.quarter_hour}>15 minutos</option><option value="hourly" disabled={rangeDays > HISTORY_MAX_RANGE_DAYS.hourly}>Por hora</option><option value="daily" disabled={rangeDays > HISTORY_MAX_RANGE_DAYS.daily}>Por día</option></select></label>
         </div>
+        {independentRange ? (
+          <div className="module-history-range-panel" aria-label={lockedHistory ? `Fechas del histórico de ${moduleDisplayLabel}` : 'Fechas del histórico global'}>
+            <div className="module-history-range-fields">
+              <label><span>Desde</span><input type="date" value={draftRange.startDate} onChange={(event) => setDraftRange((current) => ({ ...current, startDate: event.target.value }))} /></label>
+              <label><span>Hasta</span><input type="date" value={draftRange.endDate} onChange={(event) => setDraftRange((current) => ({ ...current, endDate: event.target.value }))} /></label>
+            </div>
+            <label className="module-history-aggregation"><span>Agrupación</span><select value={aggregation} onChange={(event) => setAggregation(event.target.value as HistoryAggregation)}><option value="minute" disabled={rangeDays > HISTORY_MAX_RANGE_DAYS.minute}>1 minuto</option><option value="quarter_hour" disabled={rangeDays > HISTORY_MAX_RANGE_DAYS.quarter_hour}>15 minutos</option><option value="hourly" disabled={rangeDays > HISTORY_MAX_RANGE_DAYS.hourly}>Por hora</option><option value="daily" disabled={rangeDays > HISTORY_MAX_RANGE_DAYS.daily}>Por día</option></select></label>
+            <div className="module-history-range-actions">
+              <button type="button" className="primary-action" onClick={applyIndependentRange}>Actualizar</button>
+              <button type="button" className="ghost-action" onClick={resetIndependentRange}>Restablecer</button>
+            </div>
+            <span className="module-history-range-label">{formatOperationalDateRange(effectiveRange)}</span>
+          </div>
+        ) : <label className="module-history-aggregation"><span>Agrupación</span><select value={aggregation} onChange={(event) => setAggregation(event.target.value as HistoryAggregation)}><option value="minute" disabled={rangeDays > HISTORY_MAX_RANGE_DAYS.minute}>1 minuto</option><option value="quarter_hour" disabled={rangeDays > HISTORY_MAX_RANGE_DAYS.quarter_hour}>15 minutos</option><option value="hourly" disabled={rangeDays > HISTORY_MAX_RANGE_DAYS.hourly}>Por hora</option><option value="daily" disabled={rangeDays > HISTORY_MAX_RANGE_DAYS.daily}>Por día</option></select></label>}
       </div>
       {singleElement ? <div className="dgo-h02-threshold-panel" aria-label="Revisión de umbrales históricos de flujo">
         <label className="dgo-h02-threshold-toggle"><input type="checkbox" checked={thresholdDraft.enabled} onChange={(event) => { setThresholdDraft((draft) => ({ ...draft, enabled: event.target.checked })); if (event.target.checked && metric === 'totalizer') setMetric('both'); }} /> <strong>Revisar umbrales</strong><span>Consulta opcional · L/s</span></label>
@@ -789,7 +790,7 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
       {aggregation === 'minute' && !singleElement ? <div className="status-pill module-metric-note">La vista de 1 minuto admite un máximo de un día por consulta.</div> : null}
       {!singleElement ? <>
         <div className="module-selection-heading">
-          <span>Elementos visibles</span>
+          <span>Elementos visibles · {moduleDisplayLabel} <strong className="dgo-v04-selection-count">{selected.length}/{activeIdentities.length} seleccionados</strong></span>
           <div><button type="button" onClick={() => setSelected(activeIdentities)}>Seleccionar todos</button><button type="button" onClick={() => setSelected([])}>Deseleccionar todos</button></div>
         </div>
         <div className="module-history-sensors">
@@ -815,7 +816,7 @@ export default function ModuleHistoryPanel({ range, fixedModule, fixedView, aggr
       {error ? <div className="status-pill alert">{error}</div> : null}
       {chartRows.length && chartHasData && chartVisible.length ? (
         <div className={isPreviousChart ? 'dgo-h09-chart-previous' : 'dgo-h09-chart-current'} data-history-view={isPreviousChart ? 'previous' : 'current'}>
-        <ResponsiveContainer width="100%" height={410}>
+        <ResponsiveContainer width="100%" height={390}>
           <ComposedChart data={chartRows} margin={{ top: 16, right: chartAxes.showTotalizer ? 40 : 18, bottom: 18, left: 8 }}>
             <CartesianGrid stroke="rgba(56,189,248,.14)" strokeDasharray="3 3" />
             <XAxis dataKey="timestamp" type="number" scale="time" domain={['dataMin', 'dataMax']} tickFormatter={(value) => tick(Number(value), chartAggregation)} minTickGap={32} stroke="#b9e7ff" />

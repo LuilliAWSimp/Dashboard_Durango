@@ -35,3 +35,6 @@ import './styles/durangoSidebarLF16.css';
 
 // DGO-V03: LF16 summary hero and process KPI cards (only dashboard).
 import './styles/durangoSummaryLF16.css';
+
+// DGO-V04: LF16 historical controls, responsive chart layout and series palette.
+import './styles/durangoHistoryLF16.css';
