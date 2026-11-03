@@ -17,6 +17,9 @@ backend/Scripts/
 backend/pyvenv.cfg
 backend/exports/*
 frontend/dist/*
+# Salidas locales de compilaciones; no forman parte del codigo fuente.
+/build.log
+/build2.log
 
 # Node modules
 node_modules/

@@ -119,19 +119,9 @@
   border: 1px solid rgba(138, 61, 38, .45);
 }
 
-.login-hint {
-  margin-top: 16px;
-  color: var(--muted);
-  font-size: 13px;
-}
-
 .login-title { font-size: 30px; font-weight: 900; letter-spacing: -.03em; }
 
 .login-hint { color: var(--muted); margin-top: 18px; font-size: 13px; }
-
-.login-brand {
-  justify-content: center;
-}
 
 .login-logo {
   width: min(280px, 72vw);

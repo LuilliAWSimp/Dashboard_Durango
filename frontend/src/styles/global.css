@@ -171,7 +171,6 @@ body {
 .chart-tooltip-name { flex: 1; color: #f8fbff; font-size: 14px; }
 .chart-tooltip-value { color: #ffffff; font-weight: 800; font-size: 14px; }
 
-.summary-stack { display: grid; gap: 12px; }
 .summary-item {
   padding: 16px;
   border-radius: 18px;
@@ -236,7 +235,6 @@ th { color: #c1d0e8; font-weight: 700; position: sticky; top: 0; background: #0f
   margin-bottom: 14px;
 }
 .circuit-card-title { font-size: 20px; font-weight: 800; color: #fff; }
-.circuit-card-subtitle { color: var(--muted); font-size: 13px; margin-top: 4px; }
 .circuit-table-wrap {
   border-radius: 16px;
   overflow: auto;
@@ -396,14 +394,6 @@ th { color: #c1d0e8; font-weight: 700; position: sticky; top: 0; background: #0f
 /* Executive circuit layout overrides */
 .circuit-grid.single-column {
   grid-template-columns: minmax(0, 1fr);
-}
-
-.full-width-card {
-  width: 100%;
-}
-
-.wide-fit {
-  width: 100%;
 }
 
 .executive-table {

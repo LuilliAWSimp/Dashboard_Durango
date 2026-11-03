@@ -14,16 +14,6 @@ import JarabesSection from './pozos/sections/JarabesSection';
 import UsersPage from './UsersPage';
 import ConcesionesSection from './pozos/sections/ConcesionesSection';
 
-const pieColors = ['#14b8ff', '#0ea5e9', '#38bdf8'];
-const axisColor = '#b9e7ff';
-const gridColor = 'rgba(56,189,248,0.14)';
-
-function emptyChartRange() {
-  return { startDate: '', endDate: '', refreshKey: 0 };
-}
-
-
-
 const sectionMap = {
   dashboard: {
     title: 'Resumen hídrico',
