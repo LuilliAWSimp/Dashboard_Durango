@@ -41,3 +41,6 @@ import './styles/durangoHistoryLF16.css';
 
 // DGO-V05: module headers, KPI density and equipment cards aligned with LF16.
 import './styles/durangoModulesLF16.css';
+
+// DGO-V06: detalle, cortes por turno y revision diaria con densidad LF16.
+import './styles/durangoDetailReviewLF16.css';

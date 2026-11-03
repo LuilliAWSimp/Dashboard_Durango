@@ -1,0 +1,383 @@
+/* DGO-V06 | Durango -> Las Fuentes LF16: detalle, cortes y revision diaria.
+ * Capa exclusivamente visual, cargada tras V01-V05 y limitada a la UI hidrica.
+ * Sin cambios en sensores, historicos, rangos, turnos, alertas ni calidad de datos.
+ */
+
+/* 1. Detalle individual: titulo y navegacion sin hero monumental. */
+.pozos-shell .operational-detail-hero.well-detail-hero,
+.pozos-shell.theme-light .operational-detail-hero.well-detail-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 16px;
+  min-width: 0;
+  margin: 0;
+  padding: 3px 0 18px;
+  border: 0;
+  border-bottom: 1px solid var(--dgo-border);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.pozos-shell .operational-detail-hero .well-detail-main-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 7px 14px;
+  min-width: 0;
+}
+.pozos-shell .operational-detail-hero .back-inline-button {
+  grid-column: 1;
+  grid-row: 1;
+  min-height: 36px;
+  margin: 0;
+  padding: 7px 11px;
+  border: 1px solid var(--dgo-border);
+  border-radius: 7px;
+  background: var(--dgo-surface);
+  color: var(--dgo-text);
+  box-shadow: none;
+  font-size: 12px;
+  transform: none;
+}
+.pozos-shell .operational-detail-hero .back-inline-button:hover {
+  border-color: var(--dgo-accent);
+  background: var(--dgo-raised);
+  transform: none;
+}
+.pozos-shell .operational-detail-hero .operational-sibling-navigation {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
+  max-width: min(100%, 650px);
+  min-width: 0;
+  margin: 0;
+  gap: 8px;
+}
+.pozos-shell .operational-detail-hero .operational-sibling-navigation button {
+  max-width: 100%;
+  min-height: 34px;
+  padding: 6px 9px;
+  border: 1px solid var(--dgo-border);
+  border-radius: 7px;
+  background: var(--dgo-surface);
+  color: var(--dgo-muted);
+  font-size: 12px;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.pozos-shell .operational-detail-hero .operational-sibling-navigation button:hover {
+  border-color: var(--dgo-accent);
+  color: var(--dgo-text);
+  background: var(--dgo-raised);
+  text-decoration: none;
+}
+.pozos-shell .operational-detail-hero .operational-sibling-navigation strong {
+  min-width: 0;
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--dgo-raised);
+  color: var(--dgo-text);
+  font-size: 12px;
+  line-height: 1.3;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.pozos-shell .operational-detail-hero .operational-detail-breadcrumb {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  min-height: 0;
+  margin: 3px 0 0;
+  color: var(--dgo-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: capitalize;
+}
+.pozos-shell .operational-detail-hero .well-detail-title-row {
+  grid-column: 1 / -1;
+  grid-row: 3;
+  gap: 10px;
+}
+.pozos-shell .operational-detail-hero .well-detail-title-row h2 {
+  margin: 0;
+  color: var(--dgo-text);
+  font-size: clamp(23px, 2.15vw, 28px);
+  line-height: 1.2;
+  font-weight: 750;
+  letter-spacing: -.02em;
+  overflow-wrap: anywhere;
+}
+.pozos-shell .operational-detail-hero .well-detail-hero-metrics {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  min-width: 0;
+}
+.pozos-shell .operational-detail-hero .well-detail-hero-metrics article,
+.pozos-shell.theme-light .operational-detail-hero .well-detail-hero-metrics article {
+  min-width: 0;
+  min-height: 86px;
+  padding: 13px 14px;
+  border: 1px solid var(--dgo-border);
+  border-radius: 8px;
+  background: var(--dgo-surface);
+  box-shadow: none;
+}
+.pozos-shell .operational-detail-hero .well-detail-hero-metrics article.detail-period-kpi {
+  grid-column: span 2;
+}
+.pozos-shell .operational-detail-hero .well-detail-hero-metrics article.attention {
+  border-left: 3px solid #d9a123;
+}
+.pozos-shell .operational-detail-hero .well-detail-hero-metrics article > span {
+  margin-bottom: 7px;
+  color: var(--dgo-muted);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: 0;
+}
+.pozos-shell .operational-detail-hero .well-detail-hero-metrics article > strong {
+  color: var(--dgo-text);
+  font-size: clamp(18px, 1.5vw, 22px);
+  font-weight: 700;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.pozos-shell .operational-detail-hero .well-detail-hero-metrics article > strong small {
+  color: var(--dgo-muted);
+  font-size: 12px;
+}
+.pozos-shell .operational-detail-hero .well-detail-hero-metrics .detail-period-kpi-values > span,
+.pozos-shell.theme-light .operational-detail-hero .well-detail-hero-metrics .detail-period-kpi-values > span {
+  min-width: 0;
+  border: 1px solid var(--dgo-border);
+  border-radius: 6px;
+  background: var(--dgo-raised);
+}
+.pozos-shell .operational-detail-hero .well-detail-hero-metrics .detail-period-kpi-values strong {
+  color: var(--dgo-text);
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+.pozos-shell .operational-detail-hero .well-detail-hero-metrics .detail-period-kpi-values small,
+.pozos-shell .operational-detail-hero .well-detail-hero-metrics .detail-period-kpi-range {
+  color: var(--dgo-muted);
+}
+.pozos-shell .operational-detail-range {
+  min-width: 0;
+  margin: 0;
+  padding: 12px 16px;
+  border: 1px solid var(--dgo-border);
+  border-radius: 8px;
+  background: var(--dgo-surface);
+  box-shadow: none;
+}
+.pozos-shell .operational-detail-range .panel-title { font-size: 15px; color: var(--dgo-text); }
+.pozos-shell .operational-detail-range .date-range-fields { gap: 8px 10px; }
+.pozos-shell .operational-detail-range .date-range-fields :is(input, select, button) { min-height: 36px; border-radius: 7px; }
+.pozos-shell .operational-detail-summary {
+  min-width: 0;
+  border: 1px solid var(--dgo-border);
+  border-radius: 8px;
+  background: var(--dgo-surface);
+  box-shadow: none;
+}
+.pozos-shell .operational-detail-summary .panel-title { font-size: 17px; }
+.pozos-shell .operational-detail-summary .metric-pair { border-color: var(--dgo-border); border-radius: 7px; background: var(--dgo-raised); }
+.pozos-shell .operational-detail-summary .metric-pair :is(span, small) { color: var(--dgo-muted); }
+.pozos-shell .operational-detail-summary .metric-pair strong { color: var(--dgo-text); }
+
+/* 2. Cortes por turno: informacion conservada, bordes y jerarquia LF16. */
+.pozos-shell .operational-shifts-panel.shift-consumption-panel,
+.pozos-shell.theme-light .operational-shifts-panel.shift-consumption-panel {
+  min-width: 0;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--dgo-border);
+  border-radius: 8px;
+  background: var(--dgo-surface);
+  box-shadow: none;
+}
+.pozos-shell .operational-shifts-panel > .panel-header.compact { margin: 0; padding: 0; }
+.pozos-shell .operational-shifts-panel > .panel-header.compact .panel-title {
+  color: var(--dgo-text);
+  font-size: clamp(19px, 1.7vw, 23px);
+  line-height: 1.2;
+}
+.pozos-shell .operational-shifts-panel > .panel-header.compact .panel-subtitle { color: var(--dgo-muted); font-size: 12px; }
+.pozos-shell .operational-shifts-panel .shift-controls-panel {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--dgo-border);
+  border-radius: 8px;
+  background: var(--dgo-raised);
+  box-shadow: none;
+}
+.pozos-shell .operational-shifts-panel .shift-controls-panel .date-range-fields { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 9px; }
+.pozos-shell .operational-shifts-panel .shift-selector-field { min-width: 0; flex: 0 1 290px; }
+.pozos-shell .operational-shifts-panel .shift-selector-field select,
+.pozos-shell.theme-light .operational-shifts-panel .shift-selector-field select {
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  border: 1px solid var(--dgo-border) !important;
+  border-radius: 7px;
+  background-color: var(--dgo-surface) !important;
+  color: var(--dgo-text) !important;
+  box-shadow: none;
+  font-weight: 600;
+}
+.pozos-shell .operational-shifts-panel .shift-summary-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.pozos-shell .operational-shifts-panel .shift-summary-card,
+.pozos-shell.theme-light .operational-shifts-panel .shift-summary-card {
+  min-width: 0;
+  min-height: 114px;
+  gap: 5px;
+  padding: 13px 15px;
+  border: 1px solid var(--dgo-border);
+  border-left: 3px solid var(--dgo-accent);
+  border-radius: 8px;
+  color: var(--dgo-text);
+  background: var(--dgo-surface);
+  box-shadow: none;
+  opacity: 1;
+}
+.pozos-shell .operational-shifts-panel .shift-summary-card.partial,
+.pozos-shell.theme-light .operational-shifts-panel .shift-summary-card.partial,
+.pozos-shell .operational-shifts-panel .shift-summary-card.data-state-partial,
+.pozos-shell.theme-light .operational-shifts-panel .shift-summary-card.data-state-partial { border-left-color: #d9a123; }
+.pozos-shell .operational-shifts-panel .shift-summary-card.pending,
+.pozos-shell.theme-light .operational-shifts-panel .shift-summary-card.pending,
+.pozos-shell .operational-shifts-panel .shift-summary-card.data-state-no_data,
+.pozos-shell.theme-light .operational-shifts-panel .shift-summary-card.data-state-no_data { border-left-color: var(--dgo-muted); border-style: dashed; }
+.pozos-shell .operational-shifts-panel .shift-summary-card > span { color: var(--dgo-muted); font-size: 11px; font-weight: 700; letter-spacing: .015em; }
+.pozos-shell .operational-shifts-panel .shift-summary-card > small,
+.pozos-shell .operational-shifts-panel .shift-summary-card > em,
+.pozos-shell .operational-shifts-panel .shift-summary-card > p { color: var(--dgo-muted); font-size: 11px; line-height: 1.35; }
+.pozos-shell .operational-shifts-panel .shift-summary-card > strong { margin: 6px 0 2px; color: var(--dgo-text); font-size: clamp(18px, 1.5vw, 23px); font-weight: 750; line-height: 1.2; }
+.pozos-shell .operational-shifts-panel .shift-detail-disclosure,
+.pozos-shell.theme-light .operational-shifts-panel .shift-detail-disclosure {
+  min-width: 0;
+  border: 1px solid var(--dgo-border);
+  border-radius: 8px;
+  background: var(--dgo-surface);
+  box-shadow: none;
+}
+.pozos-shell .operational-shifts-panel .shift-detail-disclosure.partial,
+.pozos-shell.theme-light .operational-shifts-panel .shift-detail-disclosure.partial { border-left: 3px solid #d9a123; }
+.pozos-shell .operational-shifts-panel .shift-detail-disclosure.pending,
+.pozos-shell.theme-light .operational-shifts-panel .shift-detail-disclosure.pending { border-left: 3px dashed var(--dgo-muted); }
+.pozos-shell .operational-shifts-panel .shift-detail-disclosure > summary { min-height: 48px; padding: 11px 13px; }
+.pozos-shell .operational-shifts-panel .shift-detail-disclosure > summary :is(strong, small) { color: var(--dgo-text); }
+.pozos-shell .operational-shifts-panel .shift-detail-disclosure > summary small { color: var(--dgo-muted); }
+.pozos-shell .operational-shifts-panel .shift-detail-disclosure[open] > summary { border-bottom-color: var(--dgo-border); }
+.pozos-shell .operational-shifts-panel .shift-detail-groups { gap: 12px; padding: 12px; }
+.pozos-shell .operational-shifts-panel .shift-detail-groups h4 { color: var(--dgo-text); font-size: 13px; }
+.pozos-shell .operational-shifts-panel :is(.shift-overview-table-wrap, .shift-detail-table-wrap) {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--dgo-border);
+  border-radius: 7px;
+  background: var(--dgo-surface);
+}
+.pozos-shell .operational-shifts-panel :is(.shift-overview-table, .shift-detail-table) { font-variant-numeric: tabular-nums; }
+
+/* 3. Revision diaria: cabecera sin degradado y seis KPI con densidad LF16. */
+.pozos-shell .daily-review-page .daily-review-header-panel,
+.pozos-shell.theme-light .daily-review-page .daily-review-header-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 12px 20px;
+  min-width: 0;
+  margin: 0;
+  padding: 4px 0 15px;
+  border: 0;
+  border-bottom: 1px solid var(--dgo-border);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.pozos-shell .daily-review-page .daily-review-header-panel > .panel-header.compact { margin: 0; padding: 0; }
+.pozos-shell .daily-review-page .daily-review-header-panel .panel-eyebrow { margin-bottom: 5px; color: var(--dgo-muted); font-size: 11px; letter-spacing: 0; }
+.pozos-shell .daily-review-page .daily-review-header-panel .panel-title { font-size: clamp(23px, 2.15vw, 28px); color: var(--dgo-text); line-height: 1.2; }
+.pozos-shell .daily-review-page .daily-review-header-panel .panel-subtitle { color: var(--dgo-muted); font-size: 12px; }
+.pozos-shell .daily-review-page .daily-review-header-panel .date-range-panel,
+.pozos-shell.theme-light .daily-review-page .daily-review-header-panel .date-range-panel {
+  min-width: 0;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--dgo-border) !important;
+  border-radius: 8px;
+  background: var(--dgo-surface) !important;
+  box-shadow: none !important;
+}
+.pozos-shell .daily-review-page .daily-review-header-panel .date-range-fields { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; }
+.pozos-shell .daily-review-page .daily-review-header-panel .date-range-fields label { min-width: 145px; }
+.pozos-shell .daily-review-page .daily-review-header-panel .date-range-fields :is(button, input) { min-height: 36px; border-radius: 7px; }
+.pozos-shell .daily-review-page .daily-review-kpi-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.pozos-shell .daily-review-page .daily-review-kpi-grid > .kpi-card,
+.pozos-shell.theme-light .daily-review-page .daily-review-kpi-grid > .kpi-card {
+  min-width: 0;
+  min-height: 106px;
+  padding: 13px 15px;
+  border: 1px solid var(--dgo-border);
+  border-radius: 8px;
+  background: var(--dgo-surface) !important;
+  box-shadow: none !important;
+}
+.pozos-shell .daily-review-page .daily-review-kpi-grid > .kpi-card::before { display: none; }
+.pozos-shell .daily-review-page .daily-review-kpi-grid .kpi-label { color: var(--dgo-muted) !important; font-size: 11px; letter-spacing: .015em; }
+.pozos-shell .daily-review-page .daily-review-kpi-grid .kpi-value { color: var(--dgo-text) !important; font-size: clamp(20px, 1.65vw, 25px); line-height: 1.2; font-variant-numeric: tabular-nums; }
+.pozos-shell .daily-review-page .daily-review-kpi-grid .kpi-unit,
+.pozos-shell .daily-review-page .daily-review-kpi-grid .kpi-trend { color: var(--dgo-muted) !important; font-size: 11px; }
+.pozos-shell .daily-review-page :is(.daily-review-comparison-panel, .daily-review-detail-panel),
+.pozos-shell.theme-light .daily-review-page :is(.daily-review-comparison-panel, .daily-review-detail-panel) {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--dgo-border);
+  border-radius: 8px;
+  background: var(--dgo-surface);
+  box-shadow: none;
+}
+.pozos-shell .daily-review-page :is(.daily-review-comparison-panel, .daily-review-detail-panel) > .panel-header.compact { padding: 0; margin: 0 0 12px; }
+.pozos-shell .daily-review-page :is(.daily-review-comparison-panel, .daily-review-detail-panel) .panel-title { color: var(--dgo-text); font-size: 17px; }
+.pozos-shell .daily-review-page :is(.daily-review-comparison-panel, .daily-review-detail-panel) .panel-subtitle { color: var(--dgo-muted); font-size: 12px; }
+.pozos-shell .daily-review-page :is(.daily-review-comparison-panel, .daily-review-detail-panel) .pozos-table-scroll { max-width: 100%; overflow-x: auto; border-color: var(--dgo-border); border-radius: 7px; }
+.pozos-shell .daily-review-page :is(.daily-review-comparison-panel, .daily-review-detail-panel) .pozos-operacion-table { font-variant-numeric: tabular-nums; }
+.pozos-shell .daily-review-page :is(.daily-review-comparison-panel, .daily-review-detail-panel) .pozos-operacion-table :is(th, td) { padding: 10px 12px; }
+
+/* 4. Pantallas intermedias y reducidas: no exigir zoom para usar controles. */
+@media (min-width: 1540px) {
+  .pozos-shell .daily-review-page .daily-review-kpi-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+}
+@media (max-width: 1190px) {
+  .pozos-shell .operational-detail-hero .well-detail-hero-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .pozos-shell .daily-review-page .daily-review-header-panel { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 900px) {
+  .pozos-shell .operational-detail-hero .well-detail-main-head { display: flex; flex-direction: column; align-items: stretch; }
+  .pozos-shell .operational-detail-hero .back-inline-button { align-self: flex-start; }
+  .pozos-shell .operational-detail-hero .operational-sibling-navigation { justify-self: auto; width: 100%; max-width: none; }
+  .pozos-shell .operational-shifts-panel .shift-summary-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 700px) {
+  .pozos-shell .operational-detail-hero .well-detail-hero-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pozos-shell .operational-detail-hero .well-detail-hero-metrics article.detail-period-kpi { grid-column: 1 / -1; }
+  .pozos-shell .operational-shifts-panel .shift-summary-cards { grid-template-columns: 1fr; }
+  .pozos-shell .daily-review-page .daily-review-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pozos-shell .daily-review-page .daily-review-header-panel .date-range-fields label { flex: 1 1 100%; }
+  .pozos-shell .daily-review-page .daily-review-header-panel .date-range-fields > button { flex: 1 1 auto; min-height: 44px; }
+}
+@media (max-width: 480px) {
+  .pozos-shell .operational-detail-hero .well-detail-hero-metrics { grid-template-columns: 1fr; }
+  .pozos-shell .operational-detail-hero .operational-sibling-navigation { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .pozos-shell .operational-detail-hero .operational-sibling-navigation strong { grid-column: 1 / -1; grid-row: 1; }
+  .pozos-shell .daily-review-page .daily-review-kpi-grid { grid-template-columns: 1fr; }
+  .pozos-shell .operational-shifts-panel.shift-consumption-panel { padding: 12px; }
+  .pozos-shell .daily-review-page :is(.daily-review-comparison-panel, .daily-review-detail-panel) { padding: 12px; }
+}
