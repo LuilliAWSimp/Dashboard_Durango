@@ -30,6 +30,7 @@ from app.services.durango_well_history_fallback import query_bos_well_rows
 from app.services.operation_semantics import expected_minute_samples, interval_operation_metrics, period_activity_label
 from app.services.plant_time import effective_local_end, local_now_naive, local_to_source_naive, source_to_local_naive
 from app.services.totalizer_quality import TotalizerAnalysis, analyze_totalizer_series
+from app.services.water_bounded_range import IncompleteRangeError, read_complete_window
 from app.services.water_interval_reconciliation import reconcile_interval
 from app.services.water_quality import build_quality_diagnostic, classify_water_quality
 
@@ -115,8 +116,9 @@ def _sensor_params(sensor_ids: Iterable[int]) -> tuple[str, dict[str, Any]]:
 
 
 def query_readings_window(sensor_ids: list[int], start_dt: datetime, end_dt: datetime) -> list[dict[str, Any]]:
-    placeholders, params = _sensor_params(sensor_ids)
-    params.update({'start_dt': local_to_source_naive(start_dt, LOCAL_TIMEZONE), 'end_dt': local_to_source_naive(end_dt, LOCAL_TIMEZONE), 'max_rows': MAX_ROWS})
+    if end_dt <= start_dt or not sensor_ids:
+        return []
+    placeholders, sensor_params = _sensor_params(sensor_ids)
     sql = text(f"""
         SELECT TOP (:max_rows)
             reading.sensor_id,
@@ -135,13 +137,27 @@ def query_readings_window(sensor_ids: list[int], start_dt: datetime, end_dt: dat
         with SessionLocal() as session:
             if not _object_exists(session, 'iot.readings_minute'):
                 raise WaterPeriodError('La fuente histórica no está disponible.', status='no_history_source')
-            rows = [dict(row._mapping) for row in session.execute(sql, params).fetchall()]
+
+            def fetch_chunk(chunk_start: datetime, chunk_end: datetime) -> list[dict[str, Any]]:
+                params = dict(sensor_params)
+                params.update({
+                    'start_dt': local_to_source_naive(chunk_start, LOCAL_TIMEZONE),
+                    'end_dt': local_to_source_naive(chunk_end, LOCAL_TIMEZONE),
+                    'max_rows': MAX_ROWS,
+                })
+                return [dict(row._mapping) for row in session.execute(sql, params).fetchall()]
+
+            # DGO-V07: el TOP de 200k era silencioso y podia truncar un mes.
+            # El lector por bloques obtiene TODAS las filas o falla explícitamente.
+            rows = read_complete_window(start_dt, end_dt, fetch_chunk, max_rows=MAX_ROWS)
             for row in rows:
                 row['operational_ts'] = source_to_local_naive(row.get('operational_ts'), LOCAL_TIMEZONE)
                 row['instant_value'] = normalize_flow_lps(row.get('sensor_id'), row.get('instant_value'), row.get('operational_ts'))
             return rows
     except WaterPeriodError:
         raise
+    except IncompleteRangeError as exc:
+        raise WaterPeriodError('El periodo contiene demasiadas lecturas para recuperarlas completamente.', status='row_limit') from exc
     except OperationalError as exc:
         status = _timeout_status(exc)
         logger.exception('period query failed status=%s start=%s end=%s sensors=%s', status, start_dt, end_dt, sensor_ids)

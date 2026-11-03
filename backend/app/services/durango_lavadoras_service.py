@@ -23,6 +23,7 @@ from app.services.plant_time import local_now_naive, local_to_source_naive, sour
 from app.services.totalizer_quality import analyze_totalizer_series
 from app.services.water_interval_reconciliation import reconcile_interval
 from app.services.water_quality import build_quality_diagnostic, classify_water_quality
+from app.services.water_bounded_range import read_complete_window
 
 logger = logging.getLogger(__name__)
 MAX_LAVADORAS_ROWS = 200_000
@@ -64,13 +65,18 @@ def _query_rows(start_local: datetime, end_local: datetime, *, session: Any = No
           AND Time_Stamp < :end_utc
         ORDER BY Time_Stamp ASC
     """)
-    params = {
-        'start_utc': local_to_source_naive(start_local, 'UTC'),
-        'end_utc': local_to_source_naive(end_local, 'UTC'),
-    }
     try:
         with _session_scope(session) as active_session:
-            return [_mapping(row) for row in active_session.execute(sql, params).fetchall()]
+            def fetch_chunk(chunk_start: datetime, chunk_end: datetime) -> list[dict[str, Any]]:
+                params = {
+                    'start_utc': local_to_source_naive(chunk_start, 'UTC'),
+                    'end_utc': local_to_source_naive(chunk_end, 'UTC'),
+                }
+                return [_mapping(row) for row in active_session.execute(sql, params).fetchall()]
+
+            return read_complete_window(
+                start_local, end_local, fetch_chunk, max_rows=MAX_LAVADORAS_ROWS,
+            )
     except SQLAlchemyError as exc:
         logger.exception('Durango lavadoras range query failed: %s', exc)
         raise

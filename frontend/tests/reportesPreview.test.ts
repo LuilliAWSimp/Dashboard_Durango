@@ -16,7 +16,8 @@ test('la navegación visible utiliza Balance de Agua desde capabilities', () => 
 test('Reportes usa preview ligero sin históricos ni turnos', () => {
   assert.match(reports, /fetchDailyWaterReportPreview\(nextFilters\)/);
   assert.match(service, /includeHistory: false, includeShifts: false/);
-  assert.doesNotMatch(reports, /setReport\(null\)/);
+  // DGO-V07: solo se despeja una vista previa antigua al consultar un mes completo.
+  assert.match(reports, /if \(monthlyRequest\) \{\s*setAppliedFilters\(nextFilters\);\s*setReport\(null\)/);
 });
 
 test('exportaciones completas se generan únicamente bajo demanda', () => {

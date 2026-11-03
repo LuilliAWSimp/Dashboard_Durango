@@ -17,7 +17,7 @@ import { useNotifications } from '../components/NotificationCenter';
 import ScheduledReportEmailPanel from '../components/ScheduledReportEmailPanel';
 import { downloadFullHistoricalExcel, downloadFullHistoricalPdf } from '../../../services/waterHistoricalExportService';
 import { operationalVolumeLabel } from '../operationalTerminology';
-import { normalizeReportFilters, reportFiltersIncludeDate, sameReportFilters, type ReportFilters, type ReportMode } from '../reportExportContract';
+import { isCompleteCalendarMonth, normalizeReportFilters, reportFiltersIncludeDate, sameReportFilters, type ReportFilters, type ReportMode } from '../reportExportContract';
 
 type ReportSectionKey = 'wells' | 'production_lines' | 'washers' | 'jarabes';
 type ExportAction = 'pdf' | 'xlsx' | 'html' | 'historical-excel' | 'historical-pdf' | null;
@@ -239,6 +239,14 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
     if (background && report) setRefreshing(true);
     else setLoading(true);
     if (!background) setError('');
+    // Un mes completo debe poder enviarse al worker PDF/Excel aunque la vista
+    // previa sincrona supere el timeout del navegador. Nunca mostrar preview
+    // del rango anterior como si correspondiera al mes solicitado.
+    const monthlyRequest = !background && isCompleteCalendarMonth(nextFilters);
+    if (monthlyRequest) {
+      setAppliedFilters(nextFilters);
+      setReport(null);
+    }
     try {
       // Preview intentionally excludes historical series and administrative shifts.
       const nextReport = await fetchDailyWaterReportPreview(nextFilters);
@@ -252,7 +260,10 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
       }
       setError('');
     } catch (caught) {
-      setError(friendlyReportError(caught, 'No fue posible consultar el reporte. Intenta nuevamente.'));
+      const detail = friendlyReportError(caught, 'No fue posible consultar el reporte. Intenta nuevamente.');
+      setError(monthlyRequest
+        ? `${detail} Puedes generar PDF o Excel del mes completo en segundo plano.`
+        : detail);
     } finally {
       inFlightRef.current = false;
       setLoading(false);
@@ -376,6 +387,8 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
     : `${Number(card.value ?? 0).toLocaleString('es-MX')}/${Number(card.total ?? 0).toLocaleString('es-MX')}`;
   const isBusy = exportAction !== null;
   const exportReady = Boolean(report) && !loading;
+  const monthlyExportReady = !loading && !hasPendingPeriodChanges && isCompleteCalendarMonth(appliedFilters);
+  const pdfExcelReady = exportReady || monthlyExportReady;
 
   return (
     <div className="reportes-page durango-report-page">
@@ -415,8 +428,8 @@ export default function ReportesSection({ currentUser }: { currentUser?: { role?
             <div className="report-actions-block">
               <span className="report-field-label">Acciones</span>
               <div className="report-actions" aria-label="Acciones del reporte">
-                <button type="button" className="report-action-button export-pdf-button" disabled={isBusy || !exportReady} onClick={() => void runExport('pdf')}><FileDown size={17} /> {exportAction === 'pdf' ? 'Generando PDF...' : 'Generar PDF'}</button>
-                <button type="button" className="report-action-button export-excel-button" disabled={isBusy || !exportReady} onClick={() => void runExport('xlsx')}><FileSpreadsheet size={17} /> {exportAction === 'xlsx' ? 'Generando Excel...' : 'Exportar Excel'}</button>
+                <button type="button" className="report-action-button export-pdf-button" disabled={isBusy || !pdfExcelReady} onClick={() => void runExport('pdf')}><FileDown size={17} /> {exportAction === 'pdf' ? 'Generando PDF...' : 'Generar PDF'}</button>
+                <button type="button" className="report-action-button export-excel-button" disabled={isBusy || !pdfExcelReady} onClick={() => void runExport('xlsx')}><FileSpreadsheet size={17} /> {exportAction === 'xlsx' ? 'Generando Excel...' : 'Exportar Excel'}</button>
                 <button type="button" className="report-action-button" disabled={isBusy || !exportReady} onClick={() => void runExport('html')}><Eye size={17} /> {exportAction === 'html' ? 'Generando vista...' : 'Vista HTML'}</button>
                 {canEmail ? <button type="button" className="report-action-button" disabled={sending || !exportReady} onClick={() => setEmailOpen(true)}><Mail size={17} /> Enviar por correo</button> : null}
               </div>

@@ -28,6 +28,7 @@ from app.services.durango_capabilities import (
 )
 from app.services.durango_lavadoras_service import build_lavadora_period_item
 from app.services.plant_time import local_now_naive, local_to_source_naive, parse_datetime, source_to_local_naive
+from app.services.water_bounded_range import read_complete_window
 
 logger = logging.getLogger(__name__)
 MAX_JARABES_ROWS = 200_000
@@ -91,16 +92,21 @@ def _query_segment_rows(
           AND Time_Stamp < :end_utc
         ORDER BY Time_Stamp ASC
     """)
-    params = {
-        'start_utc': start_utc,
-        'end_utc': end_utc,
-        'segment_sensor_id': int(segment['sensor_id']),
-        'segment_slot_index': int(segment['slot_index']),
-        'segment_source_key': str(segment['source_key']),
-    }
     try:
         with _session_scope(session) as active_session:
-            return [_mapping(row) for row in active_session.execute(sql, params).fetchall()]
+            def fetch_chunk(chunk_start: datetime, chunk_end: datetime) -> list[dict[str, Any]]:
+                params = {
+                    'start_utc': chunk_start,
+                    'end_utc': chunk_end,
+                    'segment_sensor_id': int(segment['sensor_id']),
+                    'segment_slot_index': int(segment['slot_index']),
+                    'segment_source_key': str(segment['source_key']),
+                }
+                return [_mapping(row) for row in active_session.execute(sql, params).fetchall()]
+
+            return read_complete_window(
+                start_utc, end_utc, fetch_chunk, max_rows=MAX_JARABES_ROWS,
+            )
     except SQLAlchemyError as exc:
         logger.exception('Durango Jarabes range query failed: %s', exc)
         raise
