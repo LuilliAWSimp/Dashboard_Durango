@@ -119,26 +119,42 @@ def query_readings_window(sensor_ids: list[int], start_dt: datetime, end_dt: dat
     if end_dt <= start_dt or not sensor_ids:
         return []
     placeholders, sensor_params = _sensor_params(sensor_ids)
+    # DGO-V07B: rama de fecha indexable y rama de respaldo disjunta.
+    # Equivale a COALESCE(ts_local, ts_minute), sin aplicar una funcion sobre
+    # la columna usada para filtrar millones de registros.
     sql = text(f"""
         SELECT TOP (:max_rows)
-            reading.sensor_id,
-            COALESCE(reading.ts_local, reading.ts_minute) AS operational_ts,
+            reading.sensor_id, reading.operational_ts,
             TRY_CONVERT(float, reading.instant_value) AS instant_value,
             TRY_CONVERT(float, reading.total_value) AS total_value,
-            reading.quality,
-            reading.source
-        FROM iot.readings_minute AS reading
-        WHERE reading.sensor_id IN ({placeholders})
-          AND COALESCE(reading.ts_local, reading.ts_minute) >= :start_dt
-          AND COALESCE(reading.ts_local, reading.ts_minute) < :end_dt
-        ORDER BY reading.sensor_id, COALESCE(reading.ts_local, reading.ts_minute)
+            reading.quality, reading.source
+        FROM (
+            SELECT sensor_id, ts_local AS operational_ts,
+                   instant_value, total_value, quality, source
+            FROM iot.readings_minute
+            WHERE sensor_id IN ({placeholders})
+              AND ts_local >= :start_dt AND ts_local < :end_dt
+            UNION ALL
+            SELECT sensor_id, ts_minute AS operational_ts,
+                   instant_value, total_value, quality, source
+            FROM iot.readings_minute
+            WHERE sensor_id IN ({placeholders})
+              AND ts_local IS NULL
+              AND ts_minute >= :start_dt AND ts_minute < :end_dt
+        ) AS reading
+        ORDER BY reading.sensor_id, reading.operational_ts
     """)
     try:
         with SessionLocal() as session:
             if not _object_exists(session, 'iot.readings_minute'):
                 raise WaterPeriodError('La fuente histórica no está disponible.', status='no_history_source')
 
+            window_started = monotonic()
+            sql_windows = 0
+
             def fetch_chunk(chunk_start: datetime, chunk_end: datetime) -> list[dict[str, Any]]:
+                nonlocal sql_windows
+                sql_windows += 1
                 params = dict(sensor_params)
                 params.update({
                     'start_dt': local_to_source_naive(chunk_start, LOCAL_TIMEZONE),
@@ -150,6 +166,10 @@ def query_readings_window(sensor_ids: list[int], start_dt: datetime, end_dt: dat
             # DGO-V07: el TOP de 200k era silencioso y podia truncar un mes.
             # El lector por bloques obtiene TODAS las filas o falla explícitamente.
             rows = read_complete_window(start_dt, end_dt, fetch_chunk, max_rows=MAX_ROWS)
+            logger.info(
+                'DGO-V07B lectura periodo inicio=%s fin=%s ventanas_sql=%s filas=%s elapsed_s=%.2f',
+                start_dt.date(), end_dt.date(), sql_windows, len(rows), monotonic() - window_started,
+            )
             for row in rows:
                 row['operational_ts'] = source_to_local_naive(row.get('operational_ts'), LOCAL_TIMEZONE)
                 row['instant_value'] = normalize_flow_lps(row.get('sensor_id'), row.get('instant_value'), row.get('operational_ts'))
@@ -168,46 +188,78 @@ def query_readings_window(sensor_ids: list[int], start_dt: datetime, end_dt: dat
 
 
 def query_previous_closes(sensor_ids: list[int], before_dt: datetime) -> dict[int, tuple[datetime | None, float | None, float | None]]:
-    placeholders, params = _sensor_params(sensor_ids)
+    """Last positive totalizer per sensor using bounded index-friendly seeks.
+
+    Previous ROW_NUMBER over all historical rows sorted the entire table for
+    every requested comparison month. Each OUTER APPLY now seeks at most one
+    valid row in each disjoint timestamp branch for each requested sensor.
+    The newest of the two candidates retains COALESCE(ts_local, ts_minute)
+    semantics; no missing/zero totalizer is turned into a measured zero.
+    """
+    if not sensor_ids:
+        return {}
+    _, params = _sensor_params(sensor_ids)
     params['before_dt'] = local_to_source_naive(before_dt, LOCAL_TIMEZONE)
+    values_sql = ', '.join(f'(:sensor_{index})' for index, _ in enumerate(sensor_ids))
     sql = text(f"""
-        WITH ranked AS (
-            SELECT
-                reading.sensor_id,
-                COALESCE(reading.ts_local, reading.ts_minute) AS operational_ts,
+        SELECT sensors.sensor_id,
+            CASE WHEN minute_last.operational_ts IS NULL
+                   OR (local_last.operational_ts IS NOT NULL
+                       AND local_last.operational_ts >= minute_last.operational_ts)
+                 THEN local_last.operational_ts ELSE minute_last.operational_ts END AS operational_ts,
+            CASE WHEN minute_last.operational_ts IS NULL
+                   OR (local_last.operational_ts IS NOT NULL
+                       AND local_last.operational_ts >= minute_last.operational_ts)
+                 THEN local_last.total_value ELSE minute_last.total_value END AS total_value,
+            CASE WHEN minute_last.operational_ts IS NULL
+                   OR (local_last.operational_ts IS NOT NULL
+                       AND local_last.operational_ts >= minute_last.operational_ts)
+                 THEN local_last.instant_value ELSE minute_last.instant_value END AS instant_value
+        FROM (VALUES {values_sql}) AS sensors(sensor_id)
+        OUTER APPLY (
+            SELECT TOP (1) reading.ts_local AS operational_ts,
                 TRY_CONVERT(float, reading.total_value) AS total_value,
-                TRY_CONVERT(float, reading.instant_value) AS instant_value,
-                ROW_NUMBER() OVER (
-                    PARTITION BY reading.sensor_id
-                    ORDER BY COALESCE(reading.ts_local, reading.ts_minute) DESC
-                ) AS row_number
+                TRY_CONVERT(float, reading.instant_value) AS instant_value
             FROM iot.readings_minute AS reading
-            WHERE reading.sensor_id IN ({placeholders})
-              AND COALESCE(reading.ts_local, reading.ts_minute) < :before_dt
-              AND TRY_CONVERT(float, reading.total_value) IS NOT NULL
+            WHERE reading.sensor_id = sensors.sensor_id
+              AND reading.ts_local < :before_dt
               AND TRY_CONVERT(float, reading.total_value) > 0
-        )
-        SELECT sensor_id, operational_ts, total_value, instant_value
-        FROM ranked
-        WHERE row_number = 1
+            ORDER BY reading.ts_local DESC
+        ) AS local_last
+        OUTER APPLY (
+            SELECT TOP (1) reading.ts_minute AS operational_ts,
+                TRY_CONVERT(float, reading.total_value) AS total_value,
+                TRY_CONVERT(float, reading.instant_value) AS instant_value
+            FROM iot.readings_minute AS reading
+            WHERE reading.sensor_id = sensors.sensor_id
+              AND reading.ts_local IS NULL
+              AND reading.ts_minute < :before_dt
+              AND TRY_CONVERT(float, reading.total_value) > 0
+            ORDER BY reading.ts_minute DESC
+        ) AS minute_last
     """)
+    query_started = monotonic()
     try:
         with SessionLocal() as session:
             if not _object_exists(session, 'iot.readings_minute'):
                 return {}
             rows = session.execute(sql, params).fetchall()
-        return {
-            int(row._mapping['sensor_id']): (
-                source_to_local_naive(row._mapping.get('operational_ts'), LOCAL_TIMEZONE),
-                _num(row._mapping.get('total_value')),
-                normalize_flow_lps(
-                    row._mapping.get('sensor_id'),
-                    row._mapping.get('instant_value'),
-                    source_to_local_naive(row._mapping.get('operational_ts'), LOCAL_TIMEZONE),
-                ),
+        logger.info(
+            'DGO-V07B aperturas antes=%s sensores=%s elapsed_s=%.2f',
+            before_dt.date(), len(sensor_ids), monotonic() - query_started,
+        )
+        result: dict[int, tuple[datetime | None, float | None, float | None]] = {}
+        for row in rows:
+            entry = row._mapping
+            timestamp = source_to_local_naive(entry.get('operational_ts'), LOCAL_TIMEZONE)
+            if timestamp is None:
+                continue
+            sensor_id = int(entry['sensor_id'])
+            result[sensor_id] = (
+                timestamp, _num(entry.get('total_value')),
+                normalize_flow_lps(sensor_id, entry.get('instant_value'), timestamp),
             )
-            for row in rows
-        }
+        return result
     except SQLAlchemyError:
         logger.exception('previous close query failed before=%s sensors=%s', before_dt, sensor_ids)
         return {}
@@ -591,6 +643,7 @@ def _get_period_data_impl(start_date: Any = None, end_date: Any = None, *, force
         _PERIOD_CACHE[cache_key] = {'expires_at': monotonic() + ttl, 'value': deepcopy(payload)}
         return payload
     def load_primary_period_items() -> tuple[list[dict[str, Any]], str]:
+        family_started = monotonic()
         primary_query_status = 'operational'
         try:
             rows = query_readings_window(sensor_ids, query_start_dt, query_end_dt) if query_end_dt > query_start_dt else []
@@ -633,25 +686,35 @@ def _get_period_data_impl(start_date: Any = None, end_date: Any = None, *, force
             )
             for contract in SENSOR_ITEMS
         ]
+        logger.info('DGO-V07B periodo familia=pozos_lineas dias=%s elapsed_s=%.2f',
+                    (end_day - start_day).days + 1, monotonic() - family_started)
         return primary_items, primary_query_status
 
     def load_lavadora_items() -> list[dict[str, Any]]:
-        return get_lavadora_period_items(
+        family_started = monotonic()
+        result = get_lavadora_period_items(
             query_start_dt,
             query_end_dt,
             end_day,
             window_start=query_start_dt,
             window_end=query_end_dt,
         )
+        logger.info('DGO-V07B periodo familia=lavadoras dias=%s elapsed_s=%.2f',
+                    (end_day - start_day).days + 1, monotonic() - family_started)
+        return result
 
     def load_jarabes_items() -> list[dict[str, Any]]:
-        return get_jarabes_period_items(
+        family_started = monotonic()
+        result = get_jarabes_period_items(
             query_start_dt,
             query_end_dt,
             end_day,
             window_start=query_start_dt,
             window_end=query_end_dt,
         )
+        logger.info('DGO-V07B periodo familia=jarabes dias=%s elapsed_s=%.2f',
+                    (end_day - start_day).days + 1, monotonic() - family_started)
+        return result
 
     # 46F: these three source families use independent SQL sessions/tables.
     # Fetch them concurrently on a cold period request and preserve the same

@@ -6,6 +6,8 @@ exportadores existentes siguen siendo la unica fuente de calculo y formato.
 from __future__ import annotations
 
 import hashlib
+from copy import deepcopy
+from collections import OrderedDict
 import json
 import logging
 import os
@@ -15,7 +17,8 @@ import threading
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
-from datetime import date
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
 from pathlib import Path
 from typing import Any, Callable
 
@@ -31,6 +34,8 @@ FINAL_STATUSES = {'ready', 'failed'}
 MAX_JOBS = 8
 TTL_SECONDS = 60 * 60
 REUSE_SECONDS = 5 * 60
+REPORT_DATA_TTL_SECONDS = 10 * 60
+MAX_REPORT_DATA_CACHE = 2
 
 
 def _job_dir() -> Path:
@@ -77,16 +82,23 @@ def validate_options(kind: str, options: dict[str, Any]) -> dict[str, str | None
     return clean
 
 
-def _export(kind: str, params: dict[str, str | None], on_stage: Callable[[str], None] | None = None) -> tuple[bytes, str]:
+def _export(
+    kind: str, params: dict[str, str | None],
+    on_stage: Callable[[str], None] | None = None,
+    report_provider: Callable[[dict[str, str | None], Callable[[str], None] | None], dict[str, Any]] | None = None,
+) -> tuple[bytes, str]:
     if kind.startswith('daily_'):
         from app.services.water_daily_report_service import (
             build_daily_water_report_excel, build_daily_water_report_pdf, get_daily_water_report,
         )
-        report = get_daily_water_report(
-            report_date=params['date'], start_date=params['start_date'],
-            end_date=params['end_date'], include_history=True, include_shifts=True,
-            progress_callback=on_stage,
-        )
+        if report_provider is not None:
+            report = report_provider(params, on_stage)
+        else:
+            report = get_daily_water_report(
+                report_date=params['date'], start_date=params['start_date'],
+                end_date=params['end_date'], include_history=True, include_shifts=True,
+                progress_callback=on_stage,
+            )
         # Comprobación final antes de publicar archivos: el backend nunca debe
         # entregar silenciosamente el día actual si se solicitó otro periodo.
         expected_start = params['date'] or params['start_date']
@@ -109,9 +121,60 @@ class ExportJobManager:
         self.directory = directory
         self._lock = threading.RLock()
         self._jobs: dict[str, dict[str, Any]] = {}
+        # DGO-V07B: reuse the identical historical report dataset for PDF/Excel.
+        # Only completed past periods are cached, bounded to two in-memory items.
+        self._report_data_cache: OrderedDict[tuple[str, str], tuple[float, dict[str, Any]]] = OrderedDict()
         self._last_disk_cleanup = 0.0
         # Un worker: evita que varios históricos completos saturen BOS en una IPC.
         self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='arca-report-export')
+
+    def _load_daily_report(
+        self, params: dict[str, str | None],
+        on_stage: Callable[[str], None] | None,
+    ) -> dict[str, Any]:
+        """Cache a *computed* closed-period report, not a PDF or XLSX.
+
+        The queue has a single worker and only exposes completed artifacts to
+        authenticated owners. A second format can use the exact same validated
+        payload without requerying the month and its two comparison windows.
+        """
+        from app.services.durango_capabilities import LOCAL_TIMEZONE
+        from app.services.water_daily_report_service import get_daily_water_report
+
+        start = str(params['date'] or params['start_date'])
+        end = str(params['date'] or params['end_date'])
+        cacheable = date.fromisoformat(end) < datetime.now(ZoneInfo(LOCAL_TIMEZONE)).date()
+        key = (start, end)
+        now = time.monotonic()
+        if cacheable:
+            with self._lock:
+                # Purge expired entries before looking for this range.
+                for entry_key, (expiry, _) in list(self._report_data_cache.items()):
+                    if now >= expiry:
+                        self._report_data_cache.pop(entry_key, None)
+                cached = self._report_data_cache.get(key)
+                if cached is not None:
+                    self._report_data_cache.move_to_end(key)
+                    if on_stage is not None:
+                        on_stage('Reutilizando cálculo del período histórico')
+                    return deepcopy(cached[1])
+
+        report = get_daily_water_report(
+            report_date=params['date'], start_date=params['start_date'],
+            end_date=params['end_date'], include_history=True, include_shifts=True,
+            progress_callback=on_stage,
+        )
+        # A calculation may have been interrupted, mismatched or only partly
+        # formed. It must never seed the shared cache. _export checks too.
+        if report.get('start_date') != start or report.get('end_date') != end:
+            return report
+        if cacheable:
+            with self._lock:
+                self._report_data_cache[key] = (time.monotonic() + REPORT_DATA_TTL_SECONDS, deepcopy(report))
+                self._report_data_cache.move_to_end(key)
+                while len(self._report_data_cache) > MAX_REPORT_DATA_CACHE:
+                    self._report_data_cache.popitem(last=False)
+        return report
 
     def _base_dir(self) -> Path:
         target = self.directory if self.directory is not None else _job_dir()
@@ -180,7 +243,7 @@ class ExportJobManager:
                     with self._lock:
                         job['stage'] = label
                         job['updated_at'] = time.time()
-                content, filename = self.exporter(kind, params, on_stage=stage)
+                content, filename = self.exporter(kind, params, on_stage=stage, report_provider=self._load_daily_report)
             else:
                 content, filename = self.exporter(kind, params)
             if not isinstance(content, bytes) or not content:
